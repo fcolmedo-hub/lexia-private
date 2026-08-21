@@ -1,0 +1,7 @@
+﻿LEXIA — COPIA ESTABLE DEL SOFTWARE
+Fecha: 2026-08-04 18:29:42
+Origen: D:\LexIA_DEV
+Destino: D:\LexIA_STABLE_20260804_182934
+Biblioteca documental: no incluida
+Qdrant: servidor Docker externo
+Estado: base estable previa a Platform 2.3

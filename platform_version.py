@@ -1,0 +1,4 @@
+PRODUCT_NAME = "LexIA Platform"
+VERSION = "2.1.0-dev"
+BUILD = "2026.08.03.2101"
+CHANNEL = "DEV"

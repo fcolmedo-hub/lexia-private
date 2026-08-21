@@ -1,0 +1,15 @@
+from pathlib import Path
+
+
+def test_filenames_are_clickable_and_paths_are_restricted():
+    ui = (Path(__file__).parents[1] / "app" / "ui.py").read_text(
+        encoding="utf-8"
+    )
+    assert "def _validate_openable_file" in ui
+    assert "def _file_link_html" in ui
+    assert "def _render_file_table" in ui
+    assert 'st.query_params.get("lexia_open_file")' in ui
+    assert '(project_root / "Rejected Documents").resolve()' in ui
+    assert '_render_file_table(category_documents)' in ui
+    assert 'options[selected_label],' in ui
+    assert 'item["document_path"],' in ui

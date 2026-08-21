@@ -1,0 +1,52 @@
+﻿# Datos privados y generados por LexIA
+data/
+data_test/
+knowledge/
+runtime/
+runtime_seed_*/
+backups/
+_backups/
+exports/
+Rejected Documents/
+
+# Índices, bases y snapshots
+qdrant/
+qdrant_storage/
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.zip
+
+# Entorno y cachés
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+logs/
+*.log
+
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Editor y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Copias locales de parches
+*.bak
+*.backup_*
+*.bak_*
+*.py.backup_*
+
+# Copias e instaladores históricos
+app/backup_*/
+app/ui2/backup_*/
+install_lexia_ui2_*.py
+
+# Estado derivado de la biblioteca real
+config/library_tree.json

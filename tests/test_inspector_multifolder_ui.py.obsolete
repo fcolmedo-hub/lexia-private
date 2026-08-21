@@ -1,0 +1,13 @@
+from pathlib import Path
+
+
+def test_inspector_supports_multiple_folders():
+    ui = (
+        Path(__file__).parents[1] / "app" / "ui.py"
+    ).read_text(encoding="utf-8")
+
+    assert "selected_folders: list[str] = []" in ui
+    assert "inspector_select_all_folders" in ui
+    assert "inspector_clear_all_folders" in ui
+    assert "app.catalog.browse_documents_multi" in ui
+    assert "inspector_include_subfolders" in ui

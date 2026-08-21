@@ -1,0 +1,5 @@
+Set-Location "D:\LexIA_2.3_DEV"; & ".\.venv\Scripts\python.exe" ".\run_lexia.py"
+
+
+ cd D:\LexIA_2.3_DEV                            
+ .\app\ui2\INICIAR_LEXIA_UI2.bat 

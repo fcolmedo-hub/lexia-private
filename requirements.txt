@@ -1,0 +1,12 @@
+pypdf==6.0.0
+python-docx==1.2.0
+qdrant-client[fastembed]==1.18.0
+fastembed==0.8.0
+streamlit==1.48.1
+PyMuPDF==1.26.3
+rapidocr-onnxruntime==1.4.4
+Pillow==11.3.0
+psutil==7.0.0
+pytest==8.4.1
+
+watchdog==6.0.0
