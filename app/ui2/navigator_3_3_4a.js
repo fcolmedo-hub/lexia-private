@@ -4,7 +4,7 @@
     active:false,initialized:false,selections:new Map(),
     query:'',sort:'name_asc',offset:0,total:0,selectedPath:'',selectedDocument:null,
     listRequest:0,previewRequest:0,previewTimer:null,documents:new Map(),nodes:new Map(),
-    selectedFiles:new Set(),operationTimer:null,folderMenuTimer:null
+    selectedFiles:new Set(),operationTimer:null,folderMenuTimer:null,browsed:null
   };
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({
@@ -208,6 +208,12 @@
   function updateSelectionBreadcrumb(){
     const breadcrumb=$('lexiaNavigatorBreadcrumb');
     if(!breadcrumb)return;
+    if(state.browsed){
+      const labels=state.browsed.labels||['Biblioteca'];
+      breadcrumb.textContent=labels.join('  ›  ');
+      breadcrumb.title=labels.join(' › ');
+      return;
+    }
     if(!state.selections.size){
       breadcrumb.textContent='Biblioteca';
       breadcrumb.title='Toda la Biblioteca';
@@ -225,7 +231,21 @@
     ).join('\n');
   }
 
+  function browseTreeNode(node,labels,libraryRoot=false){
+    state.browsed={
+      category:libraryRoot?'':String(node.category||''),
+      folder:libraryRoot?'':String(node.folder||''),
+      labels:labels&&labels.length?labels:['Biblioteca'],
+      libraryRoot:Boolean(libraryRoot)
+    };
+    updateSelectionBreadcrumb();
+    state.offset=0;
+    emptyPreview();
+    loadDocuments(false);
+  }
+
   function toggleTreeNode(node,labels,libraryRoot=false){
+    state.browsed=null;
     if(libraryRoot){
       state.selections.clear();
     }else{
@@ -390,6 +410,7 @@
     selector.setAttribute('aria-pressed','false');
     selector.setAttribute('aria-label','Seleccionar '+String(node.name||'carpeta'));
 
+    // El nombre identifica la carpeta; la selección pertenece exclusivamente al checkbox.
     const name=document.createElement('button');
     name.type='button';
     name.className='lexia-nav-tree-name';
@@ -405,13 +426,48 @@
     children.hidden=true;
     children.dataset.loaded='0';
 
-    const choose=event=>{
+    const select=event=>{
       event.preventDefault();
       event.stopPropagation();
       toggleTreeNode(node,labels,false);
     };
-    name.addEventListener('click',choose);
-    selector.addEventListener('click',choose);
+    selector.addEventListener('click',select);
+    const browseAndToggle=async event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      browseTreeNode(node,labels,false);
+      if(arrow.disabled)return;
+      if(children.dataset.loaded==='1'){
+        children.hidden=!children.hidden;
+        arrow.textContent=children.hidden?'▸':'▾';
+        return;
+      }
+      arrow.disabled=true;
+      arrow.textContent='…';
+      try{
+        const params=new URLSearchParams({category:node.category||''});
+        if(node.folder)params.set('parent',node.folder);
+        const data=await get('/api/navigator-children?'+params.toString());
+        children.innerHTML='';
+        const childNodes=data.nodes||[];
+        childNodes.forEach(child=>{
+          child.parent=node.folder||'';
+          children.appendChild(
+            makeTreeRow(child,depth+1,labels.concat([child.name||'Carpeta']))
+          );
+        });
+        children.dataset.loaded='1';
+        children.hidden=false;
+        refreshTreeSelection();
+        arrow.textContent=childNodes.length?'▾':'';
+        arrow.disabled=!childNodes.length;
+      }catch(error){
+        arrow.textContent='!';
+        arrow.title=error.message||String(error);
+        arrow.disabled=false;
+      }
+    };
+    name.addEventListener('click',browseAndToggle);
     row.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();showFolderMenu(event,node);});
     row.addEventListener('dragstart',event=>{
       if(!node.folder)return;
@@ -437,40 +493,7 @@
       else if(rawFiles){try{const paths=JSON.parse(rawFiles);state.selectedFiles=new Set(paths||[]);moveSelectedFilesTo(node);}catch(_){}}
     });
 
-    arrow.addEventListener('click',async function(event){
-      event.preventDefault();
-      event.stopPropagation();
-      if(this.disabled)return;
-      if(children.dataset.loaded==='1'){
-        children.hidden=!children.hidden;
-        this.textContent=children.hidden?'▸':'▾';
-        return;
-      }
-      this.disabled=true;
-      this.textContent='…';
-      try{
-        const params=new URLSearchParams({category:node.category||''});
-        if(node.folder)params.set('parent',node.folder);
-        const data=await get('/api/navigator-children?'+params.toString());
-        children.innerHTML='';
-        const childNodes=data.nodes||[];
-        childNodes.forEach(child=>{
-          child.parent=node.folder||'';
-          children.appendChild(
-            makeTreeRow(child,depth+1,labels.concat([child.name||'Carpeta']))
-          );
-        });
-        children.dataset.loaded='1';
-        children.hidden=false;
-        refreshTreeSelection();
-        this.textContent=childNodes.length?'▾':'';
-        this.disabled=!childNodes.length;
-      }catch(error){
-        this.textContent='!';
-        this.title=error.message||String(error);
-        this.disabled=false;
-      }
-    });
+    arrow.addEventListener('click',browseAndToggle);
 
     row.append(arrow,selector,name,count);
     wrap.append(row,children);
@@ -493,6 +516,7 @@
     selector.className='lexia-nav-tree-select';
     selector.setAttribute('aria-pressed','true');
     selector.setAttribute('aria-label','Seleccionar Biblioteca');
+    // El nombre identifica la biblioteca; la selección pertenece exclusivamente al checkbox.
     const name=document.createElement('button');
     name.type='button';
     name.className='lexia-nav-tree-name';
@@ -503,19 +527,21 @@
     const children=document.createElement('div');
     children.className='lexia-nav-children';
     children.dataset.loaded='1';
-    const choose=event=>{
+    const select=event=>{
       event.preventDefault();
       event.stopPropagation();
       toggleTreeNode({category:'',folder:''},['Biblioteca'],true);
     };
-    name.addEventListener('click',choose);
-    selector.addEventListener('click',choose);
-    arrow.addEventListener('click',function(event){
+    const browseAndToggle=event=>{
       event.preventDefault();
       event.stopPropagation();
+      browseTreeNode({category:'',folder:''},['Biblioteca'],true);
       children.hidden=!children.hidden;
-      this.textContent=children.hidden?'▸':'▾';
-    });
+      arrow.textContent=children.hidden?'▸':'▾';
+    };
+    selector.addEventListener('click',select);
+    name.addEventListener('click',browseAndToggle);
+    arrow.addEventListener('click',browseAndToggle);
     row.append(arrow,selector,name,count);
     wrap.append(row,children);
     return {wrap,children};
@@ -596,8 +622,9 @@
       more.textContent='Cargando…';
     }
     try{
+      const scope=state.browsed;
       const data=await post('/api/navigator-documents',{
-        query:state.query,selections:selectedFoldersPayload(),
+        query:state.query,selections:scope?.libraryRoot?[]:(scope?[{category:scope.category,folder:scope.folder}]:selectedFoldersPayload()),
         include_subfolders:true,sort:state.sort,limit:200,offset:state.offset
       });
       if(request!==state.listRequest)return;
@@ -616,8 +643,8 @@
       state.offset+=items.length;
       if(count){
         const suffix=state.query?' · filtro: “'+state.query+'”':'';
-        const scope=state.selections.size?(' · alcance: '+number(state.selections.size)+' carpeta'+(state.selections.size===1?'':'s')):' · alcance: toda la biblioteca';
-        count.textContent=number(state.total)+' documento'+(state.total===1?'':'s')+suffix+scope;
+        const scopeLabel=scope?(' · ubicación: '+(scope.labels||['Biblioteca']).join(' › ')):(state.selections.size?(' · alcance: '+number(state.selections.size)+' carpeta'+(state.selections.size===1?'':'s')):' · alcance: toda la biblioteca');
+        count.textContent=number(state.total)+' documento'+(state.total===1?'':'s')+suffix+scopeLabel;
       }
       if(more){
         more.style.display=data.has_more?'block':'none';
