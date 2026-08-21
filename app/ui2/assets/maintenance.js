@@ -1,6 +1,22 @@
 /* >>> LEXIA UI2 3.3.3v MANTENIMIENTO OPERATIVO */
 (function(){
-  const page=document.getElementById('maintenance');
+  document.querySelectorAll('.nav button[data-route="activitypage"],.nav button[data-route="systempage"]').forEach(button=>button.remove());
+  const nav=document.querySelector('#globalSidebar .nav');
+  if(nav&&!nav.querySelector('[data-route="maintenance"]')){
+    const button=document.createElement('button');
+    button.dataset.route='maintenance';
+    button.innerHTML='<span class="nav-glyph">⚙</span>Mantenimiento';
+    nav.appendChild(button);
+  }
+  const app=document.querySelector('.app');
+  let page=document.getElementById('maintenance');
+  if(!page){
+    page=document.createElement('section');
+    page.id='maintenance';
+    (app||document.body).appendChild(page);
+  }else if(app&&page.parentElement!==app){
+    app.appendChild(page);
+  }
   if(!page)return;
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
   let state=null,tab='activity',pollTimer=null,working=false;
