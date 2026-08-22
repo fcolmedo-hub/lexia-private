@@ -44,6 +44,7 @@ class OCRService:
         path: str | Path,
         page_numbers: list[int],
         progress_callback: Callable[[int, int], None] | None = None,
+        total_pages: int | None = None,
     ) -> dict[int, str]:
         if not page_numbers:
             return {}
@@ -70,6 +71,17 @@ class OCRService:
         results: dict[int, str] = {}
         offset = 0
         completed = 0
+        document_total = max(
+            max(int(page) for page in page_numbers),
+            int(total_pages or 0),
+        )
+
+        def publish_current_page() -> None:
+            """Report the real PDF page being scanned, not a page counter."""
+            if not progress_callback:
+                return
+            index = min(max(completed, 0), len(page_numbers) - 1)
+            progress_callback(int(page_numbers[index]), document_total)
         page_timeout = max(
             15, int(getattr(SETTINGS, "ocr_page_timeout_seconds", 120))
         )
@@ -85,12 +97,11 @@ class OCRService:
                             results[int(item["page"])] = str(item.get("text", ""))
                             completed += 1
                             deadline = time.monotonic() + page_timeout
-                            if progress_callback:
-                                progress_callback(completed, len(page_numbers))
+                            publish_current_page()
                         offset = stream.tell()
                 now = time.monotonic()
                 if progress_callback and now >= next_heartbeat:
-                    progress_callback(completed, len(page_numbers))
+                    publish_current_page()
                     next_heartbeat = now + 1.0
                 if now > deadline:
                     raise TimeoutError(
@@ -107,8 +118,7 @@ class OCRService:
                         item = json.loads(line)
                         results[int(item["page"])] = str(item.get("text", ""))
                         completed += 1
-                        if progress_callback:
-                            progress_callback(completed, len(page_numbers))
+                        publish_current_page()
             stderr = process.stderr.read().strip() if process.stderr else ""
             if process.returncode != 0:
                 raise RuntimeError(stderr or "El trabajador OCR fue interrumpido.")
