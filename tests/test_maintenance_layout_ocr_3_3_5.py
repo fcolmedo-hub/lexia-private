@@ -136,3 +136,57 @@ def test_ocr_service_publishes_the_page_being_scanned():
 
     service._publish_page_progress(12, 12)
     assert service.state()["current_page"] == 12
+
+
+class _OCRQueueWithItems(_LiveOCRQueue):
+    def list_pending(self):
+        return [
+            {
+                "status": "pending",
+                "document_name": "pendiente.pdf",
+                "document_path": r"D:\Biblioteca\pendiente.pdf",
+                "total_pages": 8,
+                "progress_page": 0,
+                "error": "",
+            },
+            {
+                "status": "error",
+                "document_name": "error.pdf",
+                "document_path": r"D:\Biblioteca\error.pdf",
+                "total_pages": 2,
+                "progress_page": 1,
+                "error": "OCR interrumpido",
+            },
+        ]
+
+
+def test_maintenance_snapshot_can_include_bounded_ocr_queue_details():
+    application = SimpleNamespace(ocr_queue=_OCRQueueWithItems())
+
+    status = bridge._maintenance_ocr_status(application, include_items=True)
+
+    assert [item["name"] for item in status["items"]] == [
+        "pendiente.pdf",
+        "error.pdf",
+    ]
+    assert status["items"][0]["path"] == r"D:\Biblioteca\pendiente.pdf"
+    assert status["items"][1]["error"] == "OCR interrumpido"
+
+
+def test_navigation_ocr_and_responsive_contracts_3_3_8():
+    root = Path(__file__).parents[1]
+    javascript = (root / "app/ui2/assets/maintenance.js").read_text(encoding="utf-8")
+    css = (root / "app/ui2/assets/maintenance.css").read_text(encoding="utf-8")
+    service = (root / "services/ocr_queue_service.py").read_text(encoding="utf-8")
+
+    assert "setInterval(refreshGlobalSidebar,60000)" in javascript
+    assert "id=\"liveOperationRefresh\"" in javascript
+    assert "data-maint-target=\"search\"" not in javascript
+    assert "'documentos activos','search'" in javascript
+    assert "data-ocr-filter=\"pending\"" in javascript
+    assert "article[data-home-target=\"maintenance\"]" in javascript
+    assert "document.querySelector('#home .hr-search kbd')?.remove()" in javascript
+    assert "body:not(.lexia-nav-open) .global-sidebar" in css
+    assert "visibility:hidden!important" in css
+    assert "Keep the last file/page visible" in service
+    assert 'stage=final_stage' in service

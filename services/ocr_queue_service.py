@@ -35,6 +35,7 @@ class OCRQueueService:
             "current_page": 0,
             "completed_pages": 0,
             "total_pages": 0,
+            "last_finished_at": "",
         }
 
     @property
@@ -126,6 +127,7 @@ class OCRQueueService:
             "current_page": 0,
             "completed_pages": 0,
             "total_pages": 0,
+            "last_finished_at": "",
         }
 
         try:
@@ -260,15 +262,22 @@ class OCRQueueService:
             self._state["error"] = str(error)
 
         finally:
+            # Keep the last file/page visible after short OCR jobs. Otherwise
+            # the UI can miss the complete operation between two polls.
+            final_stage = (
+                "stopped"
+                if self._cancel_requested.is_set()
+                else "error"
+                if self._state.get("error")
+                else "completed"
+                if self._state.get("document_name")
+                else "idle"
+            )
             self._state.update(
                 running=False,
-                current_file="",
                 stopping=False,
-                stage="idle",
-                document_name="",
-                current_page=0,
-                completed_pages=0,
-                total_pages=0,
+                stage=final_stage,
+                last_finished_at=datetime.now().isoformat(timespec="seconds"),
             )
             self._running = False
             self._cancel_requested.clear()
