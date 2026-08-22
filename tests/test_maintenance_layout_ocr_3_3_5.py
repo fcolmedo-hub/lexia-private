@@ -65,10 +65,24 @@ def test_maintenance_layout_is_bounded_and_topbar_is_removed():
     javascript = (root / "app/ui2/assets/maintenance.js").read_text(encoding="utf-8")
 
     assert "#globalTopbar,.global-topbar{display:none!important}" in css
-    assert "height:100dvh!important" in css
-    assert ".maint-history-card{grid-column:1/-1;max-height:" in css
+    assert "position:fixed!important" in css
+    assert "inset:0 0 0 var(--global-side)!important" in css
+    assert ".maint-wrap{width:100%!important;max-width:none!important;margin:0!important" in css
+    assert ".maint-history-card{grid-column:2;grid-row:2;max-height:" in css
     assert ".maint-monitor-card{padding:0;overflow:hidden" in css
     assert ".global-sidebar .profile{bottom:178px!important}" in css
     assert "document.getElementById('globalTopbar')?.remove()" in javascript
     assert "Página actual" in javascript
     assert "Páginas completadas" in javascript
+
+
+def test_home_system_card_and_research_layout_are_corrected():
+    root = Path(__file__).parents[1]
+    css = (root / "app/ui2/assets/maintenance.css").read_text(encoding="utf-8")
+    javascript = (root / "app/ui2/assets/maintenance.js").read_text(encoding="utf-8")
+
+    assert "homeSystemCard.dataset.homeTarget='maintenance'" in javascript
+    assert "<i>⚙</i><b>Sistema</b>" in javascript
+    assert "window.lexiaMaintenanceOpen?.()" in javascript
+    assert "#contextpage .context-layout>.head h1{font-size:25px!important" in css
+    assert ".research-main-column>.context-form{flex:0 0 auto!important" in css
