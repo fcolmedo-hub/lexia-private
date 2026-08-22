@@ -67,10 +67,13 @@ def _maintenance_monitor(
         (
             f"{now} | OCR | {ocr.get('stage', 'idle')} | "
             f"running={bool(ocr.get('running', False))} | "
-            f"{ocr_processed}/{ocr_total} | pending={int(ocr.get('pending', 0) or 0)} | "
+            f"document={ocr.get('document_position', 0)}/{ocr_total} | "
+            f"page={ocr.get('current_page', 0)}/{ocr.get('total_pages', 0)} | "
+            f"completed_documents={ocr_processed} | "
+            f"pending={int(ocr.get('pending', 0) or 0)} | "
             f"processing={int(ocr.get('processing', 0) or 0)} | "
             f"errors={int(ocr.get('error', 0) or 0)} | "
-            f"{ocr.get('current_file', '')}"
+            f"{ocr.get('document_name', '')} | {ocr.get('current_file', '')}"
         ),
     ]
     for item in history[:12]:
@@ -153,32 +156,70 @@ def _start_maintenance_diagnostic(application) -> dict:
     }
 
 
+def _maintenance_ocr_status(application) -> dict:
+    """Expose document and page-level OCR progress from the persistent queue."""
+    queue = application.ocr_queue
+    state = queue.state()
+    stats = queue.stats()
+    current_file = str(state.get("current_file", "") or "")
+    item = {}
+    if current_file:
+        try:
+            item = queue.repository.get(current_file) or {}
+        except Exception:
+            item = {}
+    total_pages = int(item.get("total_pages", 0) or 0)
+    completed_pages = int(item.get("progress_page", 0) or 0)
+    stage = str(state.get("stage", "idle") or "idle")
+    current_page = completed_pages
+    if stage == "ocr" and total_pages:
+        current_page = min(total_pages, completed_pages + 1)
+    documents_total = int(state.get("total", 0) or 0)
+    documents_processed = int(state.get("processed", 0) or 0)
+    return {
+        **stats,
+        "running": bool(state.get("running", False)),
+        "current_file": current_file,
+        "document_name": str(
+            item.get("document_name")
+            or (Path(current_file).name if current_file else "")
+        ),
+        "document_position": (
+            min(documents_total, documents_processed + 1)
+            if current_file else 0
+        ),
+        "processed": documents_processed,
+        "total": documents_total,
+        "stage": stage,
+        "stopping": bool(state.get("stopping", False)),
+        "message": str(state.get("error", "") or ""),
+        "current_page": current_page,
+        "completed_pages": completed_pages,
+        "total_pages": total_pages,
+        "page_percentage": (
+            round(100 * completed_pages / total_pages)
+            if total_pages else 0
+        ),
+    }
+
+
 def _maintenance_live_snapshot(application) -> dict:
     """Fast status for the global sidebar; never scans the catalog."""
     autosync = application.autosync.state()
-    ocr_state = application.ocr_queue.state()
-    ocr_stats = application.ocr_queue.stats()
-    ocr = {
-        **ocr_stats,
-        "running": bool(ocr_state.get("running", False)),
-        "current_file": str(ocr_state.get("current_file", "") or ""),
-        "processed": int(ocr_state.get("processed", 0) or 0),
-        "total": int(ocr_state.get("total", 0) or 0),
-        "stage": str(ocr_state.get("stage", "idle") or "idle"),
-    }
+    ocr = _maintenance_ocr_status(application)
     return {"ok": True, "autosync": autosync, "ocr": ocr}
 
 
 def _maintenance_snapshot(application) -> dict:
     """Small live projection from the process that owns LexIA services."""
     autosync = application.autosync.state()
-    ocr_state = application.ocr_queue.state()
-    ocr_stats = application.ocr_queue.stats()
+    ocr = _maintenance_ocr_status(application)
+    ocr_stats = ocr
     config = application.autosync.configuration()
     busy = (
         str(autosync.get("phase", "idle"))
         in {"waiting", "scanning", "indexing", "knowledge"}
-        or bool(ocr_state.get("running", False))
+        or bool(ocr.get("running", False))
     )
     # The Maintenance monitor never needs recent documents. Avoiding that
     # query, and error sorting while an engine is busy, keeps Refresh fast.
@@ -186,17 +227,6 @@ def _maintenance_snapshot(application) -> dict:
         recent_limit=0,
         error_limit=0 if busy else 8,
     )
-    ocr = {
-        **ocr_stats,
-        "running": bool(ocr_state.get("running", False)),
-        "current_file": str(ocr_state.get("current_file", "") or ""),
-        "processed": int(ocr_state.get("processed", 0) or 0),
-        "total": int(ocr_state.get("total", 0) or 0),
-        "stage": str(ocr_state.get("stage", "idle") or "idle"),
-        "stopping": bool(ocr_state.get("stopping", False)),
-        "message": str(ocr_state.get("error", "") or ""),
-    }
-
     problems = []
     if str(autosync.get("phase", "")) == "error" or autosync.get("last_error"):
         problems.append({
@@ -255,6 +285,8 @@ def _maintenance_snapshot(application) -> dict:
                 if ocr["total"] else 0
             ),
             "queued": int(ocr.get("pending", 0) or 0),
+            "current_page": int(ocr.get("current_page", 0) or 0),
+            "total_pages": int(ocr.get("total_pages", 0) or 0),
         }
     elif sync_phase in {"waiting", "scanning", "indexing", "knowledge"}:
         operation = {

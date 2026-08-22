@@ -94,6 +94,20 @@ class OCRQueueRepository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get(self, document_path: str) -> dict | None:
+        """Return one queue item without loading the complete OCR queue."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM ocr_queue
+                WHERE document_path = ?
+                LIMIT 1
+                """,
+                (document_path,),
+            ).fetchone()
+        return dict(row) if row is not None else None
+
     def get_selected_paths(self) -> list[str]:
         with self._connect() as connection:
             rows = connection.execute(
