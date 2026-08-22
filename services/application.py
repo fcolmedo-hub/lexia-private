@@ -31,6 +31,9 @@ from search.vector_store import VectorStore
 from services.autosync_service import AutoSyncService
 from services.ocr_queue_service import OCRQueueService
 from services.activity_center_service import ActivityCenterService
+from services.maintenance_history_service import (
+    MaintenanceHistoryService,
+)
 from services.performance_profiler import PerformanceProfiler
 from services.context_build_service import ContextBuildService
 from services.prompt_launcher_service import PromptLauncherService
@@ -124,6 +127,7 @@ class LexIAApplication:
         self._autosync = None
         self._ocr_queue = None
         self._activity_center = None
+        self._maintenance_history = None
         self._performance_profiler = None
         self._prompt_launcher = None
         self._platform_info = None
@@ -295,6 +299,12 @@ class LexIAApplication:
                 self.ocr_queue,
             )
         return self._activity_center
+
+    @property
+    def maintenance_history(self):
+        if self._maintenance_history is None:
+            self._maintenance_history = MaintenanceHistoryService()
+        return self._maintenance_history
 
     @property
     def ocr_queue(self):
