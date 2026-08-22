@@ -156,8 +156,11 @@ def _start_maintenance_diagnostic(application) -> dict:
     }
 
 
-def _maintenance_ocr_status(application) -> dict:
-    """Expose document and page-level OCR progress from the persistent queue."""
+def _maintenance_ocr_status(
+    application,
+    include_items: bool = False,
+) -> dict:
+    """Expose live OCR progress and, on demand, bounded queue details."""
     queue = application.ocr_queue
     state = queue.state()
     stats = queue.stats()
@@ -185,6 +188,25 @@ def _maintenance_ocr_status(application) -> dict:
         current_page = min(total_pages, completed_pages + 1)
     documents_total = int(state.get("total", 0) or 0)
     documents_processed = int(state.get("processed", 0) or 0)
+    queue_items = []
+    if include_items:
+        try:
+            queue_items = [
+                {
+                    "status": str(row.get("status", "") or ""),
+                    "name": str(
+                        row.get("document_name")
+                        or Path(str(row.get("document_path", ""))).name
+                    ),
+                    "path": str(row.get("document_path", "") or ""),
+                    "total_pages": int(row.get("total_pages", 0) or 0),
+                    "progress_page": int(row.get("progress_page", 0) or 0),
+                    "error": str(row.get("error", "") or ""),
+                }
+                for row in queue.list_pending()[:100]
+            ]
+        except Exception:
+            queue_items = []
     return {
         **stats,
         "running": bool(state.get("running", False)),
@@ -210,6 +232,8 @@ def _maintenance_ocr_status(application) -> dict:
             round(100 * completed_pages / total_pages)
             if total_pages else 0
         ),
+        "last_finished_at": str(state.get("last_finished_at", "") or ""),
+        "items": queue_items,
     }
 
 
@@ -223,7 +247,7 @@ def _maintenance_live_snapshot(application) -> dict:
 def _maintenance_snapshot(application) -> dict:
     """Small live projection from the process that owns LexIA services."""
     autosync = application.autosync.state()
-    ocr = _maintenance_ocr_status(application)
+    ocr = _maintenance_ocr_status(application, include_items=True)
     ocr_stats = ocr
     config = application.autosync.configuration()
     busy = (
