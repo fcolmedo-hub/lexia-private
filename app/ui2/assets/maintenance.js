@@ -1,6 +1,7 @@
 /* >>> LEXIA UI2 3.3.4 MANTENIMIENTO OPERATIVO */
 (function(){
   'use strict';
+  document.getElementById('globalTopbar')?.remove();
   document.querySelectorAll('.nav button[data-route="activitypage"],.nav button[data-route="systempage"]').forEach(button=>button.remove());
   const nav=document.querySelector('#globalSidebar .nav');
   if(nav&&!nav.querySelector('[data-route="maintenance"]')){
@@ -54,6 +55,18 @@
     const value=Math.max(0,Math.min(100,Number(percentage||0)||(safeTotal?Math.round(100*safeProcessed/safeTotal):0)));
     return '<div class="maint-progress"><i style="width:'+value+'%"></i></div><small class="maint-progress-label">'+esc(safeProcessed)+' de '+esc(safeTotal)+' · '+value+'%</small>';
   }
+  function ocrDetails(ocr){
+    const stage=({ocr:'Reconocimiento de páginas',indexing:'Indexación del texto',idle:'En espera'})[ocr.stage]||ocr.stage||'En espera';
+    const documentPosition=Number(ocr.documentPosition||ocr.document_position||0);
+    const documentTotal=Number(ocr.total||0);
+    const currentPage=Number(ocr.currentPage||ocr.current_page||0);
+    const totalPages=Number(ocr.totalPages||ocr.total_pages||0);
+    const completedPages=Number(ocr.completedPages||ocr.completed_pages||0);
+    const pagePercentage=Number(ocr.pagePercentage||ocr.page_percentage||0);
+    const name=ocr.documentName||ocr.document_name||'';
+    const path=ocr.currentFile||ocr.current_file||'';
+    return '<div class="maint-ocr-details"><div><span>Etapa</span><b>'+esc(stage)+'</b></div><div><span>Documento</span><b>'+(documentTotal?esc(documentPosition)+' de '+esc(documentTotal):'—')+'</b></div><div><span>Página actual</span><b>'+(totalPages?esc(currentPage)+' de '+esc(totalPages):'—')+'</b></div><div><span>Páginas completadas</span><b>'+esc(completedPages)+'</b></div></div>'+(name?'<p class="maint-ocr-file"><b>'+esc(name)+'</b><span title="'+esc(path)+'">'+esc(path)+'</span></p>'+progress(completedPages,totalPages,pagePercentage):'');
+  }
   function diagnosticPanel(diagnostic){
     const d=diagnostic||{};
     if(d.running)return '<div class="maint-running"><span class="maint-spinner"></span>'+esc(d.status||'Diagnóstico en curso…')+'</div>';
@@ -78,9 +91,9 @@
     const attention=sync.phase==='error'||Number(ocr.error||0)>0;
     let body='';
     if(tab==='activity'){
-      body='<div class="maint-grid">'+card('<h3>Actividad actual</h3><div class="maint-row"><i class="maint-icon">↻</i><div><b>AutoSync</b><p>'+esc(sync.current_file||sync.status||'Biblioteca disponible')+'</p></div><span class="maint-tag">'+esc(phaseLabel(sync.phase))+'</span></div><div class="maint-row"><i class="maint-icon">O</i><div><b>OCR</b><p>'+esc(ocr.running?(ocr.current_file||'Procesando OCR en segundo plano'):(String(ocr.pending||0)+' pendiente(s) en cola.'))+'</p></div><span class="maint-tag '+(ocr.error?'maint-bad':'maint-good')+'">'+(ocr.error?esc(String(ocr.error)+' error(es)'):'OK')+'</span></div><div class="maint-current"><b>'+esc(operation.engine||'LexIA')+' · '+esc(operation.function||'idle')+'</b><p>'+esc(operation.status||'Biblioteca al día')+'</p>'+progress(operation.processed,operation.total,operation.percentage)+'<small>Cola: '+esc(operation.queued||0)+' tarea(s)</small></div><div class="maint-actions">'+button('mScan','Buscar cambios ahora')+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Errores y recuperación</h3>'+problems(items))+card('<h3>Historial operativo</h3><p class="maint-note">Se muestran únicamente las últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
+      body='<div class="maint-grid">'+card('<h3>Actividad actual</h3><div class="maint-row"><i class="maint-icon">↻</i><div><b>AutoSync</b><p>'+esc(sync.current_file||sync.status||'Biblioteca disponible')+'</p></div><span class="maint-tag">'+esc(phaseLabel(sync.phase))+'</span></div><div class="maint-row"><i class="maint-icon">O</i><div><b>OCR</b><p>'+esc(ocr.running?((ocr.document_name||'Procesando OCR')+(ocr.total_pages?' · página '+ocr.current_page+' de '+ocr.total_pages:'')):(String(ocr.pending||0)+' pendiente(s) en cola.'))+'</p></div><span class="maint-tag '+(ocr.error?'maint-bad':'maint-good')+'">'+(ocr.error?esc(String(ocr.error)+' error(es)'):'OK')+'</span></div>'+(ocr.running?ocrDetails(ocr):'')+'<div class="maint-current"><b>'+esc(operation.engine||'LexIA')+' · '+esc(operation.function||'idle')+'</b><p>'+esc(operation.status||'Biblioteca al día')+'</p>'+progress(operation.processed,operation.total,operation.percentage)+'<small>Cola: '+esc(operation.queued||0)+' tarea(s)</small></div><div class="maint-actions">'+button('mScan','Buscar cambios ahora')+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Errores y recuperación</h3>'+problems(items))+card('<h3>Historial operativo</h3><p class="maint-note">Se muestran únicamente las últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
     }else if(tab==='automation'){
-      body='<div class="maint-grid">'+card('<h3>AutoSync</h3><p class="maint-note">Elegí cómo LexIA detecta y procesa los cambios de la biblioteca.</p><div class="maint-form"><label>Modo<select id="mMode" class="maint-select"><option value="manual" '+(config.mode==='manual'?'selected':'')+'>Manual</option><option value="automatic" '+(config.mode==='automatic'?'selected':'')+'>Automático</option><option value="scheduled" '+(config.mode==='scheduled'?'selected':'')+'>Programado</option></select></label><label>Hora programada<input id="mSchedule" class="maint-time" type="time" value="'+esc(config.schedule_time||'03:00')+'" '+(config.mode==='scheduled'?'':'disabled')+'></label>'+button('mSaveMode','Guardar modo','primary',working)+'</div><div class="maint-actions">'+button('mScan','Ejecutar sincronización manual','secondary',working)+'</div>','maint-autosync-card')+card('<h3>OCR</h3><p class="maint-note">'+esc((state.ocr_policy||{}).description||'Los documentos escaneados se procesan desde la cola manual.')+'</p><p class="maint-note">Pendientes: <b>'+esc(ocr.pending||0)+'</b> · En proceso: <b>'+esc(ocr.processing||0)+'</b> · Con error: <b>'+esc(ocr.error||0)+'</b></p>'+progress(ocr.processed,ocr.total,0)+'<div class="maint-actions">'+button('mOcrStart','Procesar OCR pendiente','primary',working||Boolean(ocr.running))+button('mOcrStop','Detener OCR','secondary',working||!ocr.running)+'</div>','maint-ocr-card')+'</div>';
+      body='<div class="maint-grid">'+card('<h3>AutoSync</h3><p class="maint-note">Elegí cómo LexIA detecta y procesa los cambios de la biblioteca.</p><div class="maint-form"><label>Modo<select id="mMode" class="maint-select"><option value="manual" '+(config.mode==='manual'?'selected':'')+'>Manual</option><option value="automatic" '+(config.mode==='automatic'?'selected':'')+'>Automático</option><option value="scheduled" '+(config.mode==='scheduled'?'selected':'')+'>Programado</option></select></label><label>Hora programada<input id="mSchedule" class="maint-time" type="time" value="'+esc(config.schedule_time||'03:00')+'" '+(config.mode==='scheduled'?'':'disabled')+'></label>'+button('mSaveMode','Guardar modo','primary',working)+'</div><div class="maint-actions">'+button('mScan','Ejecutar sincronización manual','secondary',working)+'</div>','maint-autosync-card')+card('<h3>OCR</h3><p class="maint-note">'+esc((state.ocr_policy||{}).description||'Los documentos escaneados se procesan desde la cola manual.')+'</p><p class="maint-note">Pendientes: <b>'+esc(ocr.pending||0)+'</b> · En proceso: <b>'+esc(ocr.processing||0)+'</b> · Con error: <b>'+esc(ocr.error||0)+'</b></p>'+ocrDetails(ocr)+progress(ocr.processed,ocr.total,0)+'<div class="maint-actions">'+button('mOcrStart','Procesar OCR pendiente','primary',working||Boolean(ocr.running))+button('mOcrStop','Detener OCR','secondary',working||!ocr.running)+'</div>','maint-ocr-card')+'</div>';
     }else if(tab==='diagnosis'){
       const diagnostic=state.diagnostic||{};
       body='<div class="maint-grid">'+card('<h3>Incidencias detectadas</h3>'+problems(items))+card('<h3>Diagnóstico bajo demanda</h3><p class="maint-note">Comprueba disco, catálogo, bases y componentes en segundo plano. La pantalla continúa respondiendo.</p><div class="maint-actions">'+button('mDiagnose',diagnostic.running?'Diagnóstico en ejecución':'Ejecutar diagnóstico','primary',working||diagnostic.running)+'</div>'+diagnosticPanel(diagnostic))+'</div>';
@@ -120,7 +133,8 @@
     set('liveAutoSyncLabel',op.engine==='OCR'?'OCR trabajando':(['waiting','scanning','indexing','knowledge'].includes(sync.phase)?'AutoSync trabajando':'AutoSync activo'));
     set('liveAutoSyncDetail',op.status||sync.status||'Biblioteca al día');
     set('liveOperationFunction',(op.engine||'LexIA')+' · '+phaseLabel(op.function));
-    set('liveOperationQueue','Cola: '+Number(op.queued||0)+' · '+Number(op.processed||0)+' de '+Number(op.total||0));
+    const pageDetail=op.engine==='OCR'&&Number(op.total_pages||0)?' · pág. '+Number(op.current_page||0)+'/'+Number(op.total_pages||0):'';
+    set('liveOperationQueue','Cola: '+Number(op.queued||0)+' · '+Number(op.processed||0)+' de '+Number(op.total||0)+pageDetail);
     const bar=document.getElementById('liveOperationProgress');
     if(bar)bar.style.width=Math.max(0,Math.min(100,Number(op.percentage||0)))+'%';
     const title=document.querySelector('#globalSidebar .health h4');
@@ -136,7 +150,7 @@
     const activeOcr=Boolean(ocr.running);
     const activeSync=['waiting','scanning','indexing','knowledge'].includes(autosync.phase);
     const total=Number((activeOcr?ocr.total:autosync.total)||0),processed=Number((activeOcr?ocr.processed:autosync.processed)||0);
-    const op={engine:activeOcr?'OCR':activeSync?'AutoSync':'LexIA',function:activeOcr?(ocr.stage||'ocr'):(autosync.phase||'idle'),status:activeOcr?'Procesando OCR':(autosync.status||'Biblioteca al día'),processed,total,percentage:Number((activeOcr?0:autosync.percentage)||0)||(total?Math.round(100*processed/total):0),queued:activeOcr?Number(ocr.pending||0):Math.max(0,total-processed)};
+    const op={engine:activeOcr?'OCR':activeSync?'AutoSync':'LexIA',function:activeOcr?(ocr.stage||'ocr'):(autosync.phase||'idle'),status:activeOcr?(ocr.document_name||'Procesando OCR'):(autosync.status||'Biblioteca al día'),processed,total,percentage:Number((activeOcr?0:autosync.percentage)||0)||(total?Math.round(100*processed/total):0),queued:activeOcr?Number(ocr.pending||0):Math.max(0,total-processed),current_page:Number(ocr.current_page||0),total_pages:Number(ocr.total_pages||0)};
     state={...(state||{}),live:{...((state||{}).live||{}),autosync,ocr},operation:op};
     updateSidebar();
   };
