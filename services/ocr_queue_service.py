@@ -23,6 +23,7 @@ class OCRQueueService:
         self._lock = threading.RLock()
         self._running = False
         self._cancel_requested = threading.Event()
+        self._active_queue_path = ""
         self._state = {
             "running": False,
             "current_file": "",
@@ -36,6 +37,7 @@ class OCRQueueService:
             "completed_pages": 0,
             "total_pages": 0,
             "last_finished_at": "",
+            "progress_error": "",
         }
 
     @property
@@ -52,21 +54,26 @@ class OCRQueueService:
     def state(self) -> dict:
         return dict(self._state)
 
-    def _publish_page_progress(self, completed: int, total: int) -> None:
-        """Publish the page being scanned without waiting for SQLite polling."""
-        completed_pages = max(0, int(completed or 0))
+    def _publish_page_progress(self, page: int, total: int) -> None:
+        """Publish and persist the real PDF page currently being scanned."""
         total_pages = max(0, int(total or 0))
-        current_page = 0
+        current_page = max(0, int(page or 0))
         if total_pages:
-            current_page = min(
-                total_pages,
-                completed_pages + (1 if completed_pages < total_pages else 0),
-            )
+            current_page = min(total_pages, current_page)
         self._state.update(
             current_page=current_page,
-            completed_pages=completed_pages,
+            completed_pages=max(0, current_page - 1),
             total_pages=total_pages,
+            progress_error="",
         )
+        if self._active_queue_path:
+            try:
+                self.repository.update_progress(
+                    self._active_queue_path,
+                    current_page,
+                )
+            except Exception as error:
+                self._state["progress_error"] = str(error)
 
     def request_stop(self) -> bool:
         with self._lock:
@@ -128,6 +135,7 @@ class OCRQueueService:
             "completed_pages": 0,
             "total_pages": 0,
             "last_finished_at": "",
+            "progress_error": "",
         }
 
         try:
@@ -139,8 +147,9 @@ class OCRQueueService:
                     break
                 queue_item = self.repository.get(path) or {}
                 total_pages = int(queue_item.get("total_pages", 0) or 0)
+                self._active_queue_path = path
                 self._state.update(
-                    current_file=str(Path(path).resolve()),
+                    current_file=str(path),
                     processed=position - 1,
                     document_name=str(
                         queue_item.get("document_name")
@@ -279,5 +288,6 @@ class OCRQueueService:
                 stage=final_stage,
                 last_finished_at=datetime.now().isoformat(timespec="seconds"),
             )
+            self._active_queue_path = ""
             self._running = False
             self._cancel_requested.clear()
