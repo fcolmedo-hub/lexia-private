@@ -235,6 +235,7 @@
   function navigate(target){
     if(target==='search'){
       closeResponsiveNavigation();
+      page.style.display='none';
       const searchButton=document.querySelector('#globalSidebar .nav [data-route="searchpage"]');
       if(searchButton)searchButton.click();
       else if(window.lexiaUI2NavigateGlobal)window.lexiaUI2NavigateGlobal('searchpage');
