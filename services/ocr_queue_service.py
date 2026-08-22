@@ -31,6 +31,10 @@ class OCRQueueService:
             "error": "",
             "stopping": False,
             "stage": "idle",
+            "document_name": "",
+            "current_page": 0,
+            "completed_pages": 0,
+            "total_pages": 0,
         }
 
     @property
@@ -46,6 +50,22 @@ class OCRQueueService:
 
     def state(self) -> dict:
         return dict(self._state)
+
+    def _publish_page_progress(self, completed: int, total: int) -> None:
+        """Publish the page being scanned without waiting for SQLite polling."""
+        completed_pages = max(0, int(completed or 0))
+        total_pages = max(0, int(total or 0))
+        current_page = 0
+        if total_pages:
+            current_page = min(
+                total_pages,
+                completed_pages + (1 if completed_pages < total_pages else 0),
+            )
+        self._state.update(
+            current_page=current_page,
+            completed_pages=completed_pages,
+            total_pages=total_pages,
+        )
 
     def request_stop(self) -> bool:
         with self._lock:
@@ -102,6 +122,10 @@ class OCRQueueService:
             "error": "",
             "stopping": False,
             "stage": "ocr",
+            "document_name": "",
+            "current_page": 0,
+            "completed_pages": 0,
+            "total_pages": 0,
         }
 
         try:
@@ -111,9 +135,18 @@ class OCRQueueService:
             ):
                 if self._cancel_requested.is_set():
                     break
+                queue_item = self.repository.get(path) or {}
+                total_pages = int(queue_item.get("total_pages", 0) or 0)
                 self._state.update(
                     current_file=str(Path(path).resolve()),
                     processed=position - 1,
+                    document_name=str(
+                        queue_item.get("document_name")
+                        or Path(path).name
+                    ),
+                    current_page=1 if total_pages else 0,
+                    completed_pages=0,
+                    total_pages=total_pages,
                 )
                 self.repository.mark_processing(path)
 
@@ -127,6 +160,7 @@ class OCRQueueService:
                         full_scan=False,
                         force_ocr_paths=[path],
                         cancel_callback=self._cancel_requested.is_set,
+                        ocr_progress_callback=self._publish_page_progress,
                     )
                     if pipeline.detected != 1 or pipeline.failed:
                         raise RuntimeError(
@@ -226,9 +260,15 @@ class OCRQueueService:
             self._state["error"] = str(error)
 
         finally:
-            self._state["running"] = False
-            self._state["current_file"] = ""
-            self._state["stopping"] = False
-            self._state["stage"] = "idle"
+            self._state.update(
+                running=False,
+                current_file="",
+                stopping=False,
+                stage="idle",
+                document_name="",
+                current_page=0,
+                completed_pages=0,
+                total_pages=0,
+            )
             self._running = False
             self._cancel_requested.clear()

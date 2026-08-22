@@ -168,11 +168,20 @@ def _maintenance_ocr_status(application) -> dict:
             item = queue.repository.get(current_file) or {}
         except Exception:
             item = {}
-    total_pages = int(item.get("total_pages", 0) or 0)
-    completed_pages = int(item.get("progress_page", 0) or 0)
+    total_pages = int(
+        state.get("total_pages")
+        or item.get("total_pages", 0)
+        or 0
+    )
+    completed_pages = int(
+        state.get("completed_pages")
+        if state.get("completed_pages") is not None
+        else item.get("progress_page", 0)
+        or 0
+    )
     stage = str(state.get("stage", "idle") or "idle")
-    current_page = completed_pages
-    if stage == "ocr" and total_pages:
+    current_page = int(state.get("current_page", 0) or 0)
+    if not current_page and stage == "ocr" and total_pages:
         current_page = min(total_pages, completed_pages + 1)
     documents_total = int(state.get("total", 0) or 0)
     documents_processed = int(state.get("processed", 0) or 0)
@@ -181,7 +190,8 @@ def _maintenance_ocr_status(application) -> dict:
         "running": bool(state.get("running", False)),
         "current_file": current_file,
         "document_name": str(
-            item.get("document_name")
+            state.get("document_name")
+            or item.get("document_name")
             or (Path(current_file).name if current_file else "")
         ),
         "document_position": (

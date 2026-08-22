@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from services import ui2_delete_bridge as bridge
+from services.ocr_queue_service import OCRQueueService
 from storage.ocr_queue_repository import OCRQueueRepository
 
 
@@ -86,3 +87,52 @@ def test_home_system_card_and_research_layout_are_corrected():
     assert "window.lexiaMaintenanceOpen?.()" in javascript
     assert "#contextpage .context-layout>.head h1{font-size:25px!important" in css
     assert ".research-main-column>.context-form{flex:0 0 auto!important" in css
+
+
+class _LiveOCRQueue(_OCRQueue):
+    def state(self):
+        return {
+            **super().state(),
+            "document_name": "fallo-en-vivo.pdf",
+            "current_page": 7,
+            "completed_pages": 6,
+            "total_pages": 12,
+        }
+
+
+def test_live_ocr_page_progress_takes_priority_over_persisted_fallback():
+    application = SimpleNamespace(ocr_queue=_LiveOCRQueue())
+
+    status = bridge._maintenance_ocr_status(application)
+
+    assert status["document_name"] == "fallo-en-vivo.pdf"
+    assert status["current_page"] == 7
+    assert status["completed_pages"] == 6
+    assert status["total_pages"] == 12
+    assert status["page_percentage"] == 50
+
+
+def test_ocr_service_propagates_the_worker_page_callback():
+    root = Path(__file__).parents[1]
+    service = (root / "services/ocr_queue_service.py").read_text(encoding="utf-8")
+    pipeline = (root / "core/pipeline.py").read_text(encoding="utf-8")
+
+    assert "def _publish_page_progress(" in service
+    assert "ocr_progress_callback=self._publish_page_progress" in service
+    assert "ocr_progress_callback(page, total)" in pipeline
+
+
+def test_ocr_service_publishes_the_page_being_scanned():
+    service = OCRQueueService.__new__(OCRQueueService)
+    service._state = {}
+
+    service._publish_page_progress(0, 12)
+    assert service.state()["current_page"] == 1
+
+    service._publish_page_progress(6, 12)
+    assert service.state()["current_page"] == 7
+    assert service.state()["completed_pages"] == 6
+    assert service.state()["total_pages"] == 12
+
+    service._publish_page_progress(12, 12)
+    assert service.state()["current_page"] == 12

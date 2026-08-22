@@ -83,6 +83,9 @@ class DocumentPipeline:
         deleted_paths: Iterable[str | Path] | None = None,
         force_ocr_paths: Iterable[str | Path] | None = None,
         cancel_callback: Callable[[], bool] | None = None,
+        ocr_progress_callback: (
+            Callable[[int, int], None] | None
+        ) = None,
     ) -> PipelineResult:
         force_ocr = {
             str(Path(path).resolve())
@@ -139,6 +142,7 @@ class DocumentPipeline:
                         in force_ocr
                     ),
                     cancel_callback=cancel_callback,
+                    ocr_progress_callback=ocr_progress_callback,
                 )
 
                 if progress_callback:
@@ -251,6 +255,9 @@ class DocumentPipeline:
         active_paths: set[str],
         force_ocr: bool = False,
         cancel_callback: Callable[[], bool] | None = None,
+        ocr_progress_callback: (
+            Callable[[int, int], None] | None
+        ) = None,
     ) -> None:
         previous = self.catalog.get_file_state(
             document.path
@@ -340,6 +347,8 @@ class DocumentPipeline:
                     str(document.path.resolve()),
                     page,
                 )
+                if ocr_progress_callback:
+                    ocr_progress_callback(page, total)
                 if cancel_callback and cancel_callback():
                     raise PipelineCancelled(
                         "OCR detenido por el usuario."
