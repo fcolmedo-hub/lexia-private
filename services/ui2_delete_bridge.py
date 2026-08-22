@@ -189,11 +189,15 @@ def _maintenance_ocr_status(
     documents_total = int(state.get("total", 0) or 0)
     documents_processed = int(state.get("processed", 0) or 0)
     queue_items = []
+    queue_items_error = ""
+    queue_items_total = 0
     if include_items:
         try:
+            rows = list(queue.list_pending())
+            queue_items_total = len(rows)
             queue_items = [
                 {
-                    "status": str(row.get("status", "") or ""),
+                    "status": str(row.get("status", "") or "").strip().lower(),
                     "name": str(
                         row.get("document_name")
                         or Path(str(row.get("document_path", ""))).name
@@ -203,10 +207,13 @@ def _maintenance_ocr_status(
                     "progress_page": int(row.get("progress_page", 0) or 0),
                     "error": str(row.get("error", "") or ""),
                 }
-                for row in queue.list_pending()[:100]
+                for row in rows[:100]
             ]
-        except Exception:
-            queue_items = []
+        except Exception as error:
+            queue_items_error = (
+                "No se pudo leer el detalle de la cola OCR: "
+                f"{type(error).__name__}: {error}"
+            )
     return {
         **stats,
         "running": bool(state.get("running", False)),
@@ -224,16 +231,25 @@ def _maintenance_ocr_status(
         "total": documents_total,
         "stage": stage,
         "stopping": bool(state.get("stopping", False)),
-        "message": str(state.get("error", "") or ""),
+        "message": str(
+            state.get("error")
+            or state.get("progress_error")
+            or ""
+        ),
         "current_page": current_page,
         "completed_pages": completed_pages,
         "total_pages": total_pages,
         "page_percentage": (
-            round(100 * completed_pages / total_pages)
+            100
+            if stage == "completed" and total_pages
+            else round(100 * current_page / total_pages)
             if total_pages else 0
         ),
         "last_finished_at": str(state.get("last_finished_at", "") or ""),
         "items": queue_items,
+        "items_total": queue_items_total,
+        "items_truncated": queue_items_total > len(queue_items),
+        "items_error": queue_items_error,
     }
 
 

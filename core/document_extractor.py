@@ -185,6 +185,7 @@ class DocumentExtractor:
             path,
             pages_requiring_ocr,
             progress_callback=progress_callback,
+            total_pages=total_pages,
         )
 
         merged_pages = dict(native_pages)
