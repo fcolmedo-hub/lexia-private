@@ -2041,6 +2041,18 @@ def _maintenance_action(body):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # UI2 is a local application under active development. Prevent stale
+        # HTML/CSS/JS from masking a freshly pulled maintenance update.
+        if not urlparse(self.path).path.startswith("/api/"):
+            self.send_header(
+                "Cache-Control",
+                "no-store, no-cache, must-revalidate, max-age=0",
+            )
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+        super().end_headers()
+
     def _json(self, payload, status=200):
         raw = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
