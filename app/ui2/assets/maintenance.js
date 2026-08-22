@@ -1,4 +1,4 @@
-/* >>> LEXIA UI2 3.3.4 MANTENIMIENTO OPERATIVO */
+/* >>> LEXIA UI2 3.3.6 MANTENIMIENTO OPERATIVO */
 (function(){
   'use strict';
   document.getElementById('globalTopbar')?.remove();
@@ -9,6 +9,29 @@
     button.dataset.route='maintenance';
     button.innerHTML='<span class="nav-glyph">⚙</span>Mantenimiento';
     nav.appendChild(button);
+  }
+
+  /* La tarjeta heredada de Actividad ahora representa el estado del sistema. */
+  const homeSystemCard=document.querySelector('#home .hr-metrics article[data-home-target="activitypage"]');
+  if(homeSystemCard){
+    homeSystemCard.dataset.homeTarget='maintenance';
+    const heading=homeSystemCard.querySelector('.hr-mhead');
+    if(heading)heading.innerHTML='<i>⚙</i><b>Sistema</b>';
+    const value=homeSystemCard.querySelector(':scope > strong');
+    if(value)value.textContent='Operativo';
+    const line=homeSystemCard.querySelector('.hr-line');
+    if(line)line.innerHTML='<span>Mantenimiento</span><em>En línea</em>';
+    const progressBar=homeSystemCard.querySelector('.hr-progress i');
+    if(progressBar)progressBar.style.width='100%';
+    const detailLabel=homeSystemCard.querySelector(':scope > small');
+    if(detailLabel)detailLabel.textContent='Estado general';
+    const detail=homeSystemCard.querySelector(':scope > p');
+    if(detail)detail.textContent='Todo operativo';
+    homeSystemCard.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.lexiaMaintenanceOpen?.();
+    },true);
   }
 
   const app=document.querySelector('.app');
@@ -263,4 +286,4 @@
   setInterval(refreshGlobalSidebar,3000);
   if(location.hash==='#maintenance')window.lexiaMaintenanceOpen();
 })();
-/* <<< LEXIA UI2 3.3.4 MANTENIMIENTO OPERATIVO */
+/* <<< LEXIA UI2 3.3.6 MANTENIMIENTO OPERATIVO */
