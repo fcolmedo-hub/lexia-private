@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from services import ui2_delete_bridge as bridge
+from core.ocr_service import OCRService
 from services.ocr_queue_service import OCRQueueService
 from storage.ocr_queue_repository import OCRQueueRepository
 
@@ -122,20 +123,31 @@ def test_ocr_service_propagates_the_worker_page_callback():
     assert "ocr_progress_callback(page, total)" in pipeline
 
 
-def test_ocr_service_publishes_the_page_being_scanned():
+def test_ocr_service_publishes_the_real_pdf_page_being_scanned():
     service = OCRQueueService.__new__(OCRQueueService)
     service._state = {}
+    service._active_queue_path = ""
 
-    service._publish_page_progress(0, 12)
+    service._publish_page_progress(1, 12)
     assert service.state()["current_page"] == 1
+    assert service.state()["completed_pages"] == 0
 
-    service._publish_page_progress(6, 12)
+    service._publish_page_progress(7, 12)
     assert service.state()["current_page"] == 7
     assert service.state()["completed_pages"] == 6
     assert service.state()["total_pages"] == 12
 
     service._publish_page_progress(12, 12)
     assert service.state()["current_page"] == 12
+
+
+def test_sparse_ocr_pages_report_the_actual_pdf_page():
+    pages_requiring_ocr = [2, 7, 19]
+
+    assert OCRService._current_pdf_page(pages_requiring_ocr, 0) == 2
+    assert OCRService._current_pdf_page(pages_requiring_ocr, 1) == 7
+    assert OCRService._current_pdf_page(pages_requiring_ocr, 2) == 19
+    assert OCRService._current_pdf_page(pages_requiring_ocr, 3) == 19
 
 
 class _OCRQueueWithItems(_LiveOCRQueue):
@@ -190,3 +202,77 @@ def test_navigation_ocr_and_responsive_contracts_3_3_8():
     assert "visibility:hidden!important" in css
     assert "Keep the last file/page visible" in service
     assert 'stage=final_stage' in service
+
+
+
+def test_real_ocr_repository_rows_reach_the_maintenance_payload(tmp_path):
+    repository = OCRQueueRepository(tmp_path / "ocr-live.sqlite3")
+    repository.enqueue(
+        r"D:\Biblioteca\pendiente-real.pdf",
+        "pendiente-real.pdf",
+        24,
+    )
+    repository.enqueue(
+        r"D:\Biblioteca\error-real.pdf",
+        "error-real.pdf",
+        9,
+    )
+    repository.mark_error(
+        r"D:\Biblioteca\error-real.pdf",
+        "No se pudo reconocer la página 4.",
+    )
+
+    queue = OCRQueueService.__new__(OCRQueueService)
+    queue.repository = repository
+    queue._state = {
+        "running": False,
+        "current_file": "",
+        "processed": 0,
+        "total": 0,
+        "stage": "idle",
+        "stopping": False,
+        "error": "",
+        "document_name": "",
+        "current_page": 0,
+        "completed_pages": 0,
+        "total_pages": 0,
+        "last_finished_at": "",
+        "progress_error": "",
+    }
+
+    status = bridge._maintenance_ocr_status(
+        SimpleNamespace(ocr_queue=queue),
+        include_items=True,
+    )
+
+    assert status["pending"] == 1
+    assert status["error"] == 1
+    assert status["items_error"] == ""
+    assert status["items_total"] == 2
+    assert {
+        (item["status"], item["name"], item["path"])
+        for item in status["items"]
+    } == {
+        (
+            "pending",
+            "pendiente-real.pdf",
+            r"D:\Biblioteca\pendiente-real.pdf",
+        ),
+        (
+            "error",
+            "error-real.pdf",
+            r"D:\Biblioteca\error-real.pdf",
+        ),
+    }
+
+
+def test_ocr_ui_keeps_last_page_visible_and_refreshes_queue_details():
+    root = Path(__file__).parents[1]
+    javascript = (
+        root / "app/ui2/assets/maintenance.js"
+    ).read_text(encoding="utf-8")
+
+    assert "(ocr.running||ocr.document_name)?ocrDetails(ocr):''" in javascript
+    assert "String(item.status||'').trim().toLowerCase()" in javascript
+    assert "refresh(false,false)" in javascript
+    assert "ocr.items_error" in javascript
