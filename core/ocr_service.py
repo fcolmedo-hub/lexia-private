@@ -39,6 +39,17 @@ class OCRService:
             except subprocess.TimeoutExpired:
                 process.kill()
 
+    @staticmethod
+    def _current_pdf_page(
+        page_numbers: list[int],
+        completed: int,
+    ) -> int:
+        """Return the actual PDF page currently being processed."""
+        if not page_numbers:
+            return 0
+        index = min(max(int(completed or 0), 0), len(page_numbers) - 1)
+        return int(page_numbers[index])
+
     def extract_pdf_pages(
         self,
         path: str | Path,
@@ -80,8 +91,10 @@ class OCRService:
             """Report the real PDF page being scanned, not a page counter."""
             if not progress_callback:
                 return
-            index = min(max(completed, 0), len(page_numbers) - 1)
-            progress_callback(int(page_numbers[index]), document_total)
+            progress_callback(
+                self._current_pdf_page(page_numbers, completed),
+                document_total,
+            )
         page_timeout = max(
             15, int(getattr(SETTINGS, "ocr_page_timeout_seconds", 120))
         )
