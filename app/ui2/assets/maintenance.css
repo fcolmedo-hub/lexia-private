@@ -1,43 +1,72 @@
-/* maintenance-base */
-#maintenance{display:none;min-height:100vh;background:#fbfcff;padding:28px 34px 42px;margin-left:228px;color:#0f1734}.maint-wrap{max-width:1240px;margin:auto}.maint-head{display:flex;justify-content:space-between;gap:18px;margin-bottom:18px}.maint-head h1{margin:0;font-size:28px}.maint-head p,.maint-note{margin:6px 0;color:#66708f;font-size:12px;line-height:1.45}.maint-btn{border:1px solid #d9d6ff;border-radius:9px;background:#5146f6;color:#fff;padding:9px 12px;font-size:12px;font-weight:700}.maint-btn.secondary{background:#fff;color:#382cbd}.maint-tabs{display:flex;gap:5px;border-bottom:1px solid #e4e7f0;margin-bottom:18px}.maint-tab{border:0;background:transparent;color:#657094;padding:11px 13px;font-weight:700;font-size:12px}.maint-tab.active{color:#352bc7;border-bottom:2px solid #5146f6}.maint-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.maint-card{background:#fff;border:1px solid #e4e7f0;border-radius:12px;padding:15px}.maint-kpi small{font-weight:800;font-size:9px;color:#697493}.maint-kpi b{display:block;font-size:22px;margin-top:9px}.maint-kpi span{font-size:11px;color:#657094}.maint-grid{display:grid;grid-template-columns:1.45fr .9fr;gap:16px}.maint-card h3{font-size:14px;margin:0 0 10px}.maint-row{display:grid;grid-template-columns:32px 1fr auto;gap:9px;align-items:center;padding:10px 0;border-bottom:1px solid #eef0f6}.maint-icon{width:29px;height:29px;border-radius:8px;display:grid;place-items:center;background:#f0efff;color:#4338cb}.maint-row b,.maint-alert b{display:block;font-size:12px}.maint-row p,.maint-alert p{margin:3px 0;font-size:11px;color:#66708f}.maint-tag{font-size:9px;font-weight:800;border-radius:999px;padding:5px 7px;background:#edf8f0;color:#168b4c}.maint-warn{border-left:3px solid #e1a51a;background:#fffaf0;border-radius:7px;padding:10px;margin:8px 0}.maint-empty{font-size:12px;color:#657094;padding:16px 0}@media(max-width:1199px){#maintenance{margin-left:0;padding:24px 20px}}@media(max-width:840px){.maint-kpis,.maint-grid{grid-template-columns:1fr}.maint-head{flex-direction:column}}
-
-/* maintenance-layout */
-/* >>> LEXIA UI2 3.3.3u3 MANTENIMIENTO INTEGRADO */
-#maintenance{margin-left:var(--global-side)!important;padding:calc(var(--global-top) + 24px) 28px 38px!important;width:calc(100vw - var(--global-side))!important;min-height:100vh!important;box-sizing:border-box!important;position:relative!important}
-#maintenance .maint-wrap{max-width:1240px!important;margin:0 auto!important}
-#maintenance .maint-kpi small,#maintenance .maint-kpi b,#maintenance .maint-kpi span{display:block!important;line-height:1.22!important}
-#maintenance .maint-kpi small{margin:0!important;min-height:13px!important}
-#maintenance .maint-kpi b{margin:7px 0 4px!important;font-size:21px!important;white-space:normal!important}
-#maintenance .maint-kpi span{font-size:11px!important}
-#maintenance .maint-card{min-width:0!important}
-@media(max-width:1199px){#maintenance{margin-left:0!important;width:100%!important;padding:calc(var(--global-top) + 20px) 18px 30px!important}}
-/* <<< LEXIA UI2 3.3.3u3 MANTENIMIENTO INTEGRADO */
-
-/* maintenance-operational */
-/* >>> LEXIA UI2 3.3.3v MANTENIMIENTO OPERATIVO */
-#maintenance{background:#f9faff!important;color:#18213c!important}
-#maintenance .maint-wrap{max-width:1180px!important}
-#maintenance .maint-head{align-items:flex-start;margin-bottom:16px!important}
-#maintenance .maint-head h1{font-size:25px!important;line-height:1.15!important}
-#maintenance .maint-head p,.maint-note{font-size:12px!important}
-#maintenance .maint-kpis{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important}
-#maintenance .maint-card{padding:14px!important;box-shadow:none!important}
-#maintenance .mkpi{min-height:76px!important;display:flex!important;flex-direction:column!important;gap:4px!important}
-#maintenance .mkpi-label{display:block!important;font-size:10px!important;line-height:1.2!important;font-weight:800!important;letter-spacing:.03em!important;color:#707a98!important}
-#maintenance .mkpi-value{display:block!important;font-size:16px!important;line-height:1.22!important;font-weight:750!important;color:#18213c!important;overflow-wrap:anywhere!important}
-#maintenance .mkpi-detail{display:block!important;font-size:11px!important;line-height:1.3!important;color:#66708f!important;overflow-wrap:anywhere!important}
-#maintenance .maint-grid{grid-template-columns:minmax(0,1.45fr) minmax(280px,.9fr)!important;gap:12px!important}
-#maintenance .maint-card h3{font-size:14px!important;margin:0 0 11px!important}
-#maintenance .maint-row{grid-template-columns:30px minmax(0,1fr) auto!important;padding:9px 0!important}
-#maintenance .maint-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px!important}
-#maintenance .maint-btn{cursor:pointer!important;min-height:34px!important}
-#maintenance .maint-btn:disabled{opacity:.58!important;cursor:wait!important}
-#maintenance .maint-select,#maintenance .maint-time{border:1px solid #dfe3ee!important;border-radius:8px!important;background:#fff!important;color:#18213c!important;font:600 12px/1.2 inherit!important;padding:8px 9px!important;min-height:34px!important}
-#maintenance .maint-form{display:grid;grid-template-columns:minmax(140px,1fr) 115px auto;gap:8px;align-items:end!important}
-#maintenance .maint-form label{display:grid;gap:5px;font-size:11px;font-weight:700;color:#52607d}
-#maintenance .maint-report{margin-top:10px;padding:10px;border-radius:8px;background:#f6f7fb;color:#35405e;font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+/* LexIA UI2 3.3.4 · Mantenimiento operativo */
+#maintenance{display:none;position:relative!important;z-index:20!important;isolation:isolate;min-height:100vh!important;width:calc(100vw - var(--global-side))!important;box-sizing:border-box!important;margin-left:var(--global-side)!important;padding:calc(var(--global-top) + 28px) 28px 42px!important;background:#f9faff!important;color:#18213c!important}
+#maintenance .maint-wrap{max-width:1180px!important;margin:0 auto!important}
+#maintenance .maint-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px}
+#maintenance .maint-head h1{margin:0;font-size:25px;line-height:1.15}
+#maintenance .maint-head p,.maint-note{margin:6px 0;color:#66708f;font-size:12px;line-height:1.45}
+#maintenance .maint-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#maintenance .maint-btn{min-height:34px;border:1px solid #d9d6ff;border-radius:9px;background:#fff;color:#382cbd;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer}
+#maintenance .maint-btn.primary{background:#5146f6;color:#fff}
+#maintenance .maint-btn:disabled{opacity:.58;cursor:wait}
+#maintenance .maint-tabs{display:flex;gap:5px;overflow-x:auto;border-bottom:1px solid #e4e7f0;margin-bottom:18px}
+#maintenance .maint-tab{flex:0 0 auto;border:0;background:transparent;color:#657094;padding:11px 13px;font-weight:700;font-size:12px;cursor:pointer}
+#maintenance .maint-tab.active{color:#352bc7;border-bottom:2px solid #5146f6}
+#maintenance .maint-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+#maintenance .maint-card{min-width:0;background:#fff;border:1px solid #e4e7f0;border-radius:12px;padding:14px;box-shadow:none}
+#maintenance .mkpi{min-height:76px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box}
+#maintenance .mkpi-link{cursor:pointer;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease}
+#maintenance .mkpi-link:hover,#maintenance .mkpi-link:focus{outline:0;border-color:#8e86ff;box-shadow:0 5px 18px rgba(81,70,246,.11);transform:translateY(-1px)}
+#maintenance .mkpi-label{display:block;font-size:10px;line-height:1.2;font-weight:800;letter-spacing:.03em;color:#707a98}
+#maintenance .mkpi-value{display:block;font-size:16px;line-height:1.22;font-weight:750;color:#18213c;overflow-wrap:anywhere}
+#maintenance .mkpi-detail{display:block;font-size:11px;line-height:1.3;color:#66708f;overflow-wrap:anywhere}
+#maintenance .maint-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.9fr);gap:12px;align-items:start}
+#maintenance .maint-card h3{font-size:14px;margin:0 0 11px}
+#maintenance .maint-card h2{font-size:22px;margin:4px 0 14px}
+#maintenance .maint-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px 0;border-bottom:1px solid #eef0f6}
+#maintenance .maint-icon{width:29px;height:29px;border-radius:8px;display:grid;place-items:center;background:#f0efff;color:#4338cb;font-style:normal}
+#maintenance .maint-row b{display:block;font-size:12px}
+#maintenance .maint-row p{margin:3px 0;font-size:11px;color:#66708f;overflow-wrap:anywhere}
+#maintenance .maint-tag{font-size:9px;font-weight:800;border-radius:999px;padding:5px 7px;background:#edf8f0;color:#168b4c;white-space:nowrap}
 #maintenance .maint-good{color:#168b4c!important;background:#edf8f0!important}
 #maintenance .maint-bad{color:#a63b28!important;background:#fff0ed!important}
-#maintenance .maint-toast{min-height:18px;margin:13px 0 0!important;font-size:12px!important;color:#4f5f82!important}
-@media(max-width:840px){#maintenance .maint-kpis,#maintenance .maint-grid,#maintenance .maint-form{grid-template-columns:1fr!important}}
-/* <<< LEXIA UI2 3.3.3v MANTENIMIENTO OPERATIVO */
+#maintenance .maint-warn{border-left:3px solid #e1a51a;background:#fffaf0;border-radius:7px;padding:10px;margin:8px 0}
+#maintenance .maint-warn b{font-size:12px}
+#maintenance .maint-warn p,#maintenance .maint-warn small{font-size:11px;line-height:1.45;color:#66708f}
+#maintenance .maint-empty{font-size:12px;color:#657094;padding:16px 0}
+#maintenance .maint-select,#maintenance .maint-time{border:1px solid #dfe3ee;border-radius:8px;background:#fff;color:#18213c;font:600 12px/1.2 inherit;padding:8px 9px;min-height:34px}
+#maintenance .maint-form{display:grid;grid-template-columns:minmax(140px,1fr) 115px auto;gap:8px;align-items:end}
+#maintenance .maint-form label{display:grid;gap:5px;font-size:11px;font-weight:700;color:#52607d}
+#maintenance .maint-progress{height:7px;border-radius:999px;background:#eceefa;overflow:hidden;margin:9px 0 4px}
+#maintenance .maint-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#5146f6,#776dff);transition:width .25s ease}
+#maintenance .maint-progress-label{font-size:10px;color:#657094}
+#maintenance .maint-current{margin-top:12px;padding:11px;border:1px solid #e6e8f3;border-radius:9px;background:#fafaff}
+#maintenance .maint-current b{font-size:12px}
+#maintenance .maint-current p,#maintenance .maint-current small{font-size:11px;color:#66708f}
+#maintenance .maint-history-card{grid-column:1/-1}
+#maintenance .maint-history{max-height:310px;overflow:auto;padding-right:5px}
+#maintenance .maint-report{margin-top:10px;padding:10px;border-radius:8px;background:#f6f7fb;color:#35405e;font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+#maintenance .maint-running,#maintenance .maint-loading{display:flex;align-items:center;gap:9px;padding:14px;color:#52607d;font-size:12px}
+#maintenance .maint-spinner{width:14px;height:14px;border:2px solid #d7d4ff;border-top-color:#5146f6;border-radius:50%;animation:maint-spin .8s linear infinite}
+@keyframes maint-spin{to{transform:rotate(360deg)}}
+#maintenance .maint-toast{min-height:18px;margin:13px 0 0;font-size:12px;color:#4f5f82}
+#maintenance .maint-toast-error{color:#a63b28}
+#maintenance .maint-monitor-card{padding:0;overflow:hidden}
+#maintenance .maint-terminal-head{display:flex;justify-content:space-between;gap:12px;align-items:start;padding:15px 16px;border-bottom:1px solid #2b3551;background:#10172a;color:#f2f5ff}
+#maintenance .maint-terminal-head h3{color:#fff}
+#maintenance .maint-terminal{box-sizing:border-box;min-height:420px;max-height:62vh;overflow:auto;margin:0;padding:16px;background:#0b1020;color:#cfe1ff;font:11px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+#maintenance .maint-about{display:grid;grid-template-columns:.85fr 1.15fr 1fr;gap:12px}
+#maintenance .maint-eyebrow{margin:0;font-size:9px;font-weight:800;letter-spacing:.09em;color:#6a74a0}
+#maintenance dl{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:8px 12px;margin:0;font-size:12px}
+#maintenance dt{color:#6b7591}
+#maintenance dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+#maintenance .maint-component{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #eef0f6;font-size:12px}
+#maintenance .maint-component b{color:#5146f6}
+.global-sidebar .health{min-height:128px!important}
+.global-sidebar .health p{padding-bottom:10px!important}
+.lexia-operation-detail{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #eceef5;color:#53607c}
+.lexia-operation-detail>span:first-child,.lexia-operation-detail small{display:block;font-size:9px;line-height:1.35}
+.lexia-operation-progress{display:block;height:4px;margin:5px 0;border-radius:999px;background:#e7e9f4;overflow:hidden}
+.lexia-operation-progress i{display:block;height:100%;width:0;border-radius:inherit;background:#5146f6;transition:width .25s ease}
+@media(max-width:1199px){#maintenance{margin-left:0!important;width:100%!important;padding:calc(var(--global-top) + 22px) 18px 34px!important}}
+@media(max-width:900px){#maintenance .maint-about{grid-template-columns:1fr}}
+@media(max-width:840px){#maintenance .maint-kpis,#maintenance .maint-grid,#maintenance .maint-form{grid-template-columns:1fr}#maintenance .maint-head{flex-direction:column}#maintenance .maint-history-card{grid-column:auto}}

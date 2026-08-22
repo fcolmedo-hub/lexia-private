@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from datetime import datetime
 import json
 import os
 import secrets
@@ -17,18 +18,184 @@ from config.settings import SETTINGS
 _BRIDGE_LOCK = threading.RLock()
 _BRIDGE_SERVER = None
 _BRIDGE_THREAD = None
+_MAINTENANCE_DIAGNOSTIC_LOCK = threading.RLock()
+_MAINTENANCE_DIAGNOSTIC = {
+    "running": False,
+    "status": "Sin diagnóstico en curso",
+    "started_at": "",
+    "finished_at": "",
+    "report": None,
+    "error": "",
+}
+
+
+def _tail_text_file(path: Path, limit: int = 60) -> list[str]:
+    """Read only the final part of a runtime log, even when it is very large."""
+    if limit <= 0 or not path.is_file():
+        return []
+    try:
+        with path.open("rb") as stream:
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(max(0, size - 262_144))
+            raw = stream.read().decode("utf-8", errors="replace")
+        return [line for line in raw.splitlines() if line.strip()][-limit:]
+    except OSError:
+        return []
+
+
+def _maintenance_monitor(
+    autosync: dict,
+    ocr: dict,
+    history: list[dict],
+    recent_errors: list[dict],
+    limit: int = 80,
+) -> list[str]:
+    """Build a bounded technical trace from live state and persistent logs."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sync_total = int(autosync.get("total", 0) or 0)
+    sync_processed = int(autosync.get("processed", 0) or 0)
+    ocr_total = int(ocr.get("total", 0) or 0)
+    ocr_processed = int(ocr.get("processed", 0) or 0)
+    lines = [
+        (
+            f"{now} | AUTOSYNC | {autosync.get('phase', 'idle')} | "
+            f"{autosync.get('status', 'Sin estado')} | "
+            f"{sync_processed}/{sync_total} | "
+            f"{autosync.get('current_file', '')}"
+        ),
+        (
+            f"{now} | OCR | {ocr.get('stage', 'idle')} | "
+            f"running={bool(ocr.get('running', False))} | "
+            f"{ocr_processed}/{ocr_total} | pending={int(ocr.get('pending', 0) or 0)} | "
+            f"processing={int(ocr.get('processing', 0) or 0)} | "
+            f"errors={int(ocr.get('error', 0) or 0)} | "
+            f"{ocr.get('current_file', '')}"
+        ),
+    ]
+    for item in history[:12]:
+        lines.append(
+            f"{item.get('created_at', '')} | MANTENIMIENTO | "
+            f"{item.get('action', '')} | {item.get('status', '')} | "
+            f"{item.get('message', '')}"
+        )
+    for item in recent_errors[:8]:
+        lines.append(
+            f"{item.get('updated_at', '')} | {item.get('source', 'ERROR')} | "
+            f"{item.get('name', '')} | {item.get('error', '')}"
+        )
+    runtime = _project_root() / "runtime"
+    for filename in ("ocr_diagnostic.log", "autosync.log", "lexia.log"):
+        for line in _tail_text_file(runtime / filename, limit=30):
+            lines.append(f"{filename} | {line}")
+    return lines[-limit:]
+
+
+def _start_maintenance_diagnostic(application) -> dict:
+    """Start the expensive health report without blocking the UI bridge."""
+    with _MAINTENANCE_DIAGNOSTIC_LOCK:
+        if _MAINTENANCE_DIAGNOSTIC["running"]:
+            return {
+                "ok": True,
+                "action": "diagnostic",
+                "started": False,
+                "message": "El diagnóstico ya está en ejecución.",
+            }
+        _MAINTENANCE_DIAGNOSTIC.update({
+            "running": True,
+            "status": "Comprobando disco, bases e índices…",
+            "started_at": datetime.now().isoformat(timespec="seconds"),
+            "finished_at": "",
+            "report": None,
+            "error": "",
+        })
+
+    def worker() -> None:
+        try:
+            report = application.health.report()
+            with _MAINTENANCE_DIAGNOSTIC_LOCK:
+                _MAINTENANCE_DIAGNOSTIC.update({
+                    "running": False,
+                    "status": "Diagnóstico finalizado",
+                    "finished_at": datetime.now().isoformat(timespec="seconds"),
+                    "report": report,
+                    "error": "",
+                })
+            _record_maintenance_action(application, "diagnostic", {
+                "message": "Diagnóstico finalizado.",
+            })
+        except Exception as error:
+            with _MAINTENANCE_DIAGNOSTIC_LOCK:
+                _MAINTENANCE_DIAGNOSTIC.update({
+                    "running": False,
+                    "status": "El diagnóstico terminó con error",
+                    "finished_at": datetime.now().isoformat(timespec="seconds"),
+                    "report": None,
+                    "error": str(error),
+                })
+            _record_maintenance_action(
+                application,
+                "diagnostic",
+                {"message": str(error)},
+                status="error",
+            )
+
+    threading.Thread(
+        target=worker,
+        name="LexIA-Maintenance-Diagnostic",
+        daemon=True,
+    ).start()
+    return {
+        "ok": True,
+        "action": "diagnostic",
+        "started": True,
+        "message": "Diagnóstico iniciado en segundo plano.",
+    }
+
+
+def _maintenance_live_snapshot(application) -> dict:
+    """Fast status for the global sidebar; never scans the catalog."""
+    autosync = application.autosync.state()
+    ocr_state = application.ocr_queue.state()
+    ocr_stats = application.ocr_queue.stats()
+    ocr = {
+        **ocr_stats,
+        "running": bool(ocr_state.get("running", False)),
+        "current_file": str(ocr_state.get("current_file", "") or ""),
+        "processed": int(ocr_state.get("processed", 0) or 0),
+        "total": int(ocr_state.get("total", 0) or 0),
+        "stage": str(ocr_state.get("stage", "idle") or "idle"),
+    }
+    return {"ok": True, "autosync": autosync, "ocr": ocr}
 
 
 def _maintenance_snapshot(application) -> dict:
     """Small live projection from the process that owns LexIA services."""
-    activity = application.activity_center.snapshot(
-        recent_limit=6,
-        error_limit=8,
-    )
     autosync = application.autosync.state()
     ocr_state = application.ocr_queue.state()
     ocr_stats = application.ocr_queue.stats()
     config = application.autosync.configuration()
+    busy = (
+        str(autosync.get("phase", "idle"))
+        in {"waiting", "scanning", "indexing", "knowledge"}
+        or bool(ocr_state.get("running", False))
+    )
+    # The Maintenance monitor never needs recent documents. Avoiding that
+    # query, and error sorting while an engine is busy, keeps Refresh fast.
+    activity = application.activity_center.snapshot(
+        recent_limit=0,
+        error_limit=0 if busy else 8,
+    )
+    ocr = {
+        **ocr_stats,
+        "running": bool(ocr_state.get("running", False)),
+        "current_file": str(ocr_state.get("current_file", "") or ""),
+        "processed": int(ocr_state.get("processed", 0) or 0),
+        "total": int(ocr_state.get("total", 0) or 0),
+        "stage": str(ocr_state.get("stage", "idle") or "idle"),
+        "stopping": bool(ocr_state.get("stopping", False)),
+        "message": str(ocr_state.get("error", "") or ""),
+    }
 
     problems = []
     if str(autosync.get("phase", "")) == "error" or autosync.get("last_error"):
@@ -61,20 +228,73 @@ def _maintenance_snapshot(application) -> dict:
     except Exception:
         backups = []
 
+    try:
+        history = application.maintenance_history.recent(limit=8)
+    except Exception:
+        history = []
+
+    try:
+        platform = application.platform_info.status()
+    except Exception:
+        platform = {}
+
+    with _MAINTENANCE_DIAGNOSTIC_LOCK:
+        diagnostic = dict(_MAINTENANCE_DIAGNOSTIC)
+
+    sync_phase = str(autosync.get("phase", "idle") or "idle")
+    if ocr["running"]:
+        operation = {
+            "engine": "OCR",
+            "function": str(ocr.get("stage") or "ocr"),
+            "status": "Procesando OCR",
+            "current_file": ocr["current_file"],
+            "processed": ocr["processed"],
+            "total": ocr["total"],
+            "percentage": (
+                round(100 * ocr["processed"] / ocr["total"])
+                if ocr["total"] else 0
+            ),
+            "queued": int(ocr.get("pending", 0) or 0),
+        }
+    elif sync_phase in {"waiting", "scanning", "indexing", "knowledge"}:
+        operation = {
+            "engine": "AutoSync",
+            "function": sync_phase,
+            "status": str(autosync.get("status", "AutoSync trabajando") or ""),
+            "current_file": str(autosync.get("current_file", "") or ""),
+            "processed": int(autosync.get("processed", 0) or 0),
+            "total": int(autosync.get("total", 0) or 0),
+            "percentage": int(autosync.get("percentage", 0) or 0),
+            "queued": max(
+                0,
+                int(autosync.get("total", 0) or 0)
+                - int(autosync.get("processed", 0) or 0),
+            ),
+        }
+    else:
+        operation = {
+            "engine": "LexIA",
+            "function": "idle",
+            "status": str(autosync.get("status", "Biblioteca al día") or ""),
+            "current_file": "",
+            "processed": 0,
+            "total": 0,
+            "percentage": 0,
+            "queued": int(ocr.get("pending", 0) or 0),
+        }
+
+    monitor = _maintenance_monitor(
+        autosync,
+        ocr,
+        history,
+        activity.recent_errors,
+    )
+
     return {
         "ok": True,
         "live": {
             "autosync": autosync,
-            "ocr": {
-                **ocr_stats,
-                "running": bool(ocr_state.get("running", False)),
-                "current_file": str(ocr_state.get("current_file", "") or ""),
-                "processed": int(ocr_state.get("processed", 0) or 0),
-                "total": int(ocr_state.get("total", 0) or 0),
-                "stage": str(ocr_state.get("stage", "idle") or "idle"),
-                "stopping": bool(ocr_state.get("stopping", False)),
-                "message": str(ocr_state.get("error", "") or ""),
-            },
+            "ocr": ocr,
             "catalog": {
                 "documents": int(activity.documents_total),
                 "recent_errors": activity.recent_errors,
@@ -89,6 +309,11 @@ def _maintenance_snapshot(application) -> dict:
             ),
         },
         "backups": backups,
+        "history": history,
+        "operation": operation,
+        "monitor": monitor,
+        "diagnostic": diagnostic,
+        "platform": platform,
         "problems": problems,
         "backup_scope": {
             "database": True,
@@ -104,72 +329,117 @@ def _maintenance_snapshot(application) -> dict:
     }
 
 
+def _record_maintenance_action(
+    application,
+    action: str,
+    payload: dict,
+    status: str = "ok",
+) -> dict:
+    """Persist the result without letting audit storage block the operation."""
+    try:
+        application.maintenance_history.record(
+            action=action,
+            status=status,
+            message=str(payload.get("message") or ""),
+            details={
+                key: value
+                for key, value in payload.items()
+                if key in {
+                    "started", "stopped", "selected", "backup", "config"
+                }
+            },
+        )
+    except Exception:
+        pass
+    return payload
+
+
 def _maintenance_action(application, body: dict) -> dict:
     """Run an explicit maintenance action against the live services."""
     action = str(body.get("action", "") or "").strip()
-    if action == "autosync-config":
-        mode = str(body.get("mode", "") or "").strip().lower()
-        schedule_time = str(body.get("schedule_time", "03:00") or "03:00").strip()
-        return {
-            "ok": True,
-            "action": action,
-            "config": application.autosync.set_configuration(mode, schedule_time),
-            "message": "La configuración de AutoSync fue guardada.",
-        }
-    if action == "autosync-scan":
-        result = application.autosync.sync_now()
-        return {
-            "ok": True,
-            "action": action,
-            "message": str(result.get("status") or "La sincronización fue puesta en cola."),
-            "state": application.autosync.state(),
-        }
-    if action == "autosync-stop-indexing":
-        stopped = bool(application.autosync.request_stop_indexing())
-        return {
-            "ok": True, "action": action, "stopped": stopped,
-            "message": (
-                "La indexación se detendrá al finalizar el lote actual."
-                if stopped else "No hay una indexación activa para detener."
-            ),
-        }
-    if action == "ocr-start-all":
-        queue = application.ocr_queue
-        queue.select_all(True)
-        started = bool(queue.start_selected())
-        current, stats = queue.state(), queue.stats()
-        if started:
-            message = "El OCR fue iniciado en segundo plano."
-        elif current.get("running") or int(stats.get("processing", 0) or 0):
-            message = "El OCR ya está en ejecución."
-        else:
-            message = "No hay documentos OCR pendientes para procesar."
-        return {
-            "ok": True, "action": action, "started": started,
-            "message": message, "state": current, "stats": stats,
-        }
-    if action == "ocr-stop":
-        stopped = bool(application.ocr_queue.request_stop())
-        return {
-            "ok": True, "action": action, "stopped": stopped,
-            "message": (
-                "El OCR se detendrá al finalizar la página actual."
-                if stopped else "No hay un OCR activo para detener."
-            ),
-        }
-    if action == "diagnostic":
-        return {
-            "ok": True, "action": action,
-            "report": application.health.report(),
-            "message": "Diagnóstico finalizado.",
-        }
-    if action == "backup":
-        backup = application.backups.create()
-        return {
-            "ok": True, "action": action, "backup": backup.name,
-            "path": str(backup), "message": "Copia operativa creada.",
-        }
-    raise ValueError("Acción de mantenimiento no reconocida.")
+    try:
+        if action == "autosync-config":
+            mode = str(body.get("mode", "") or "").strip().lower()
+            schedule_time = str(
+                body.get("schedule_time", "03:00") or "03:00"
+            ).strip()
+            return _record_maintenance_action(application, action, {
+                "ok": True,
+                "action": action,
+                "config": application.autosync.set_configuration(
+                    mode, schedule_time
+                ),
+                "message": "La configuración de AutoSync fue guardada.",
+            })
+        if action == "autosync-scan":
+            result = application.autosync.sync_now()
+            return _record_maintenance_action(application, action, {
+                "ok": True,
+                "action": action,
+                "message": str(
+                    result.get("status")
+                    or "La sincronización fue puesta en cola."
+                ),
+                "state": application.autosync.state(),
+            })
+        if action == "autosync-stop-indexing":
+            stopped = bool(application.autosync.request_stop_indexing())
+            return _record_maintenance_action(application, action, {
+                "ok": True, "action": action, "stopped": stopped,
+                "message": (
+                    "La indexación se detendrá al finalizar el lote actual."
+                    if stopped else "No hay una indexación activa para detener."
+                ),
+            })
+        if action == "ocr-start-all":
+            queue = application.ocr_queue
+            before = queue.stats()
+            queue.select_all(True)
+            try:
+                selected = len(queue.repository.get_selected_paths())
+            except Exception:
+                selected = int(before.get("pending", 0) or 0)
+            started = bool(queue.start_selected())
+            current, stats = queue.state(), queue.stats()
+            if started:
+                message = (
+                    f"OCR iniciado: {selected} documento(s) seleccionado(s)."
+                )
+            elif current.get("running") or int(stats.get("processing", 0) or 0):
+                message = "El OCR ya está en ejecución."
+            else:
+                message = "No hay documentos OCR pendientes para procesar."
+            return _record_maintenance_action(application, action, {
+                "ok": True, "action": action, "started": started,
+                "selected": selected,
+                "message": message, "state": current, "stats": stats,
+            })
+        if action == "ocr-stop":
+            stopped = bool(application.ocr_queue.request_stop())
+            return _record_maintenance_action(application, action, {
+                "ok": True, "action": action, "stopped": stopped,
+                "message": (
+                    "El OCR se detendrá al finalizar la página actual."
+                    if stopped else "No hay un OCR activo para detener."
+                ),
+            })
+        if action == "diagnostic":
+            return _start_maintenance_diagnostic(application)
+        if action == "backup":
+            backup = application.backups.create()
+            return _record_maintenance_action(application, action, {
+                "ok": True, "action": action, "backup": backup.name,
+                "path": str(backup), "message": "Copia operativa creada.",
+            })
+        raise ValueError("Acción de mantenimiento no reconocida.")
+    except Exception as error:
+        _record_maintenance_action(
+            application,
+            action or "unknown",
+            {"message": str(error)},
+            status="error",
+        )
+        raise
 
 
 def _project_root() -> Path:
@@ -897,6 +1167,14 @@ def _handler_class(application, token):
             if self.path == "/api/maintenance-snapshot":
                 try:
                     payload = _maintenance_snapshot(application)
+                    payload["same_classic_process"] = True
+                    return self._json(payload)
+                except Exception as exc:
+                    return self._json({"ok": False, "error": str(exc)}, 500)
+
+            if self.path == "/api/maintenance-live":
+                try:
+                    payload = _maintenance_live_snapshot(application)
                     payload["same_classic_process"] = True
                     return self._json(payload)
                 except Exception as exc:
