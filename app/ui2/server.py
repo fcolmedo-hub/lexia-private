@@ -44,7 +44,7 @@ class _DeleteBridgeError(RuntimeError):
         self.status = int(status or 503)
 
 
-def _delete_bridge_request(method, endpoint, payload=None):
+def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
     try:
         bridge = json.loads(DELETE_BRIDGE_STATE.read_text(encoding="utf-8"))
         port = int(bridge.get("port", 0) or 0)
@@ -75,7 +75,7 @@ def _delete_bridge_request(method, endpoint, payload=None):
         method=method,
     )
     try:
-        with urllib_request.urlopen(request, timeout=8) as response:
+        with urllib_request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
             if not isinstance(body, dict):
                 raise _DeleteBridgeError("El puente de la interfaz clásica respondió incorrectamente.")
@@ -2012,7 +2012,15 @@ def _content_search_v2(
 
 def _maintenance_snapshot():
     """Read live maintenance state from the process that owns LexIA."""
-    response, _ = _delete_bridge_request("GET", "/api/maintenance-snapshot")
+    response, _ = _delete_bridge_request(
+        "GET", "/api/maintenance-snapshot", timeout=30
+    )
+    return response
+
+
+def _maintenance_live_snapshot():
+    """Read the light AutoSync/OCR status without querying the catalog."""
+    response, _ = _delete_bridge_request("GET", "/api/maintenance-live")
     return response
 
 
@@ -2027,7 +2035,7 @@ def _maintenance_create_backup():
 def _maintenance_action(body):
     """Run an explicit action in the process that owns the services."""
     response, _ = _delete_bridge_request(
-        "POST", "/api/maintenance-action", body
+        "POST", "/api/maintenance-action", body, timeout=30
     )
     return response
 
@@ -2367,6 +2375,13 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == "/api/maintenance-live":
+            try:
+                return self._json(_maintenance_live_snapshot())
+            except _DeleteBridgeError as exc:
+                return self._json({"ok": False, "error": str(exc)}, exc.status)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
         if path == "/api/maintenance":
             try:
                 return self._json(_maintenance_snapshot())
