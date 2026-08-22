@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from services import ui2_delete_bridge as bridge
+from services.ocr_queue_service import OCRQueueService
 from storage.ocr_queue_repository import OCRQueueRepository
 
 
@@ -119,3 +120,19 @@ def test_ocr_service_propagates_the_worker_page_callback():
     assert "def _publish_page_progress(" in service
     assert "ocr_progress_callback=self._publish_page_progress" in service
     assert "ocr_progress_callback(page, total)" in pipeline
+
+
+def test_ocr_service_publishes_the_page_being_scanned():
+    service = OCRQueueService.__new__(OCRQueueService)
+    service._state = {}
+
+    service._publish_page_progress(0, 12)
+    assert service.state()["current_page"] == 1
+
+    service._publish_page_progress(6, 12)
+    assert service.state()["current_page"] == 7
+    assert service.state()["completed_pages"] == 6
+    assert service.state()["total_pages"] == 12
+
+    service._publish_page_progress(12, 12)
+    assert service.state()["current_page"] == 12
