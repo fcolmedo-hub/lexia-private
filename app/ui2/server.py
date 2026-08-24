@@ -1098,6 +1098,11 @@ def _navigator_operation_payload(body):
             "source": source,
             "destination": destination,
         }
+    if operation == "reprocess_file":
+        resolved = _resolve_catalog_document(
+            requested_path=str(body.get("path", "") or "")
+        )
+        return {"operation": operation, "path": resolved}
     if operation in {"move_files", "delete_files"}:
         raw_paths = body.get("paths") or []
         if not isinstance(raw_paths, list) or not raw_paths:
