@@ -28,6 +28,8 @@ def main() -> None:
                 "--browser.gatherUsageStats=false",
             ],
             check=True,
+            input="\n",
+            text=True,
         )
     finally:
         guard.release()
