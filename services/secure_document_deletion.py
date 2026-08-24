@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import errno
 import os
 import json
 import sqlite3
+import shutil
+import sys
 import threading
 import time
 import uuid
@@ -124,6 +127,67 @@ class SecureDocumentDeletionService:
         if not relative.parts:
             raise PermissionError("No se puede eliminar la carpeta de la biblioteca.")
         return path
+
+    def _move_to_staging(self, path: Path, staged: Path) -> None:
+        """Move a source to the private staging area before deleting its records.
+
+        APFS may reject a direct rename from Documents to Application Support.
+        The copy-and-unlink fallback preserves the transaction boundary: the
+        original remains authoritative until the staged copy is complete.
+        """
+        try:
+            os.replace(path, staged)
+            return
+        except OSError as original_error:
+            if original_error.errno not in {
+                errno.EPERM,
+                errno.EACCES,
+                errno.EXDEV,
+            }:
+                raise
+
+        # Finder can mark imported files immutable. Clear only the user flag
+        # when the running platform supports it, then retry the atomic move.
+        if sys.platform == "darwin" and hasattr(os, "chflags"):
+            try:
+                os.chflags(path, 0)
+                os.replace(path, staged)
+                return
+            except OSError:
+                pass
+
+        temporary = staged.with_name(
+            f".{staged.name}.{uuid.uuid4().hex}.copying"
+        )
+        try:
+            shutil.copy2(path, temporary)
+            if temporary.stat().st_size != path.stat().st_size:
+                raise OSError("La copia temporal no coincide con el archivo original.")
+            os.replace(temporary, staged)
+            path.unlink()
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            if path.exists():
+                staged.unlink(missing_ok=True)
+            raise
+
+    def _restore_from_staging(self, staged: Path, path: Path) -> None:
+        """Restore the source if a later catalog/vector operation fails."""
+        try:
+            os.replace(staged, path)
+            return
+        except OSError:
+            pass
+
+        temporary = path.with_name(
+            f".{path.name}.{uuid.uuid4().hex}.restoring"
+        )
+        try:
+            shutil.copy2(staged, temporary)
+            os.replace(temporary, path)
+            staged.unlink(missing_ok=True)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def _vector_count(self, path: Path) -> int:
         result = self.vector_store.client.count(
@@ -257,7 +321,7 @@ class SecureDocumentDeletionService:
                 if path.exists():
                     if not path.is_file():
                         raise IsADirectoryError(str(path))
-                    os.replace(path, staged)
+                    self._move_to_staging(path, staged)
                     moved = True
 
                 self._set_stage("Retirando vectores")
@@ -320,5 +384,5 @@ class SecureDocumentDeletionService:
             except Exception:
                 if moved and staged.exists() and not path.exists():
                     path.parent.mkdir(parents=True, exist_ok=True)
-                    os.replace(staged, path)
+                    self._restore_from_staging(staged, path)
                 raise
