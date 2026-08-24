@@ -386,7 +386,17 @@ class DocumentPipeline:
                 )
 
                 if len(document.text.strip()) < min_chars:
-                    document.category = "OCR pendiente"
+                    # OCR is an operational state, never a library category.
+                    # Preserve the physical category so the navigator remains
+                    # an exact representation of the user's folder tree.
+                    from services.structural_category_policy import (
+                        classify_structural_path,
+                    )
+                    structural = classify_structural_path(
+                        document.path,
+                        library_root=self.detector.library_path,
+                    )
+                    document.category = structural.category
                     document.metadata = {
                         "physical_folder": (
                             document.physical_folder
