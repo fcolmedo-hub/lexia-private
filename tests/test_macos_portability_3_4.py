@@ -52,9 +52,12 @@ def test_macos_installer_and_launcher_keep_data_outside_the_repo():
     launcher = (
         ROOT / "INICIAR_LEXIA_MAC.command"
     ).read_text(encoding="utf-8")
+    classic_launcher = (ROOT / "run_lexia.py").read_text(encoding="utf-8")
 
     assert 'LIBRARY_ROOT="$HOME/Documents/LexIA Biblioteca"' in installer
     assert 'DATA_ROOT="$HOME/Library/Application Support/LexIA"' in installer
     assert '"qdrant_mode": "local"' in installer
+    assert 'export LEXIA_CLASSIC_HEADLESS=1' in launcher
     assert '"$PYTHON_BIN" "$ROOT/run_lexia.py"' in launcher
     assert '"$PYTHON_BIN" "$ROOT/app/ui2/launch_ui2.py"' in launcher
+    assert 'LEXIA_CLASSIC_HEADLESS' in classic_launcher
