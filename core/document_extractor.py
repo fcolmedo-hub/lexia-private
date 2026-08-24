@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 import shutil
 import subprocess
@@ -88,6 +89,12 @@ class DocumentExtractor:
                 return ExtractionResult(
                     text=self._extract_txt(path),
                     method="txt",
+                )
+
+            if extension in {".html", ".htm"}:
+                return ExtractionResult(
+                    text=self._extract_html(path),
+                    method="html",
                 )
 
             raise DocumentExtractionError(
@@ -454,6 +461,67 @@ class DocumentExtractor:
                 blocks.append("\t".join(cells))
 
         return "\n\n".join(blocks).strip()
+
+    def _extract_html(self, path: Path) -> str:
+        """Extract readable local HTML while excluding scripts and styles."""
+        class _TextCollector(HTMLParser):
+            BLOCK_TAGS = {
+                "address", "article", "br", "div", "footer", "h1", "h2",
+                "h3", "h4", "h5", "h6", "header", "li", "main", "p",
+                "section", "table", "td", "th", "tr",
+            }
+
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.parts = []
+                self.hidden_depth = 0
+
+            def handle_starttag(self, tag, attrs):
+                tag = tag.casefold()
+                if tag in {"script", "style", "noscript", "template"}:
+                    self.hidden_depth += 1
+                elif tag in self.BLOCK_TAGS:
+                    self.parts.append("\n")
+
+            def handle_endtag(self, tag):
+                tag = tag.casefold()
+                if tag in {"script", "style", "noscript", "template"}:
+                    self.hidden_depth = max(0, self.hidden_depth - 1)
+                elif tag in self.BLOCK_TAGS:
+                    self.parts.append("\n")
+
+            def handle_data(self, data):
+                if not self.hidden_depth and data.strip():
+                    self.parts.append(data)
+
+        raw = path.read_bytes()
+        text = ""
+        for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+            try:
+                text = raw.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if not text:
+            raise DocumentExtractionError(
+                f"No se pudo determinar la codificación de '{path.name}'."
+            )
+
+        parser = _TextCollector()
+        try:
+            parser.feed(text)
+            parser.close()
+        except Exception as error:
+            raise DocumentExtractionError(
+                f"HTML inválido: '{path.name}': {error}"
+            ) from error
+
+        lines = [
+            " ".join(part.split())
+            for part in "".join(parser.parts).splitlines()
+            if part.strip()
+        ]
+        return "\n\n".join(lines).strip()
 
     def _extract_txt(self, path: Path) -> str:
         for encoding in (
