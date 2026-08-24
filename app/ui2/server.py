@@ -23,13 +23,17 @@ from portability import ensure_project_on_syspath
 PROJECT_ROOT = ensure_project_on_syspath()
 os.chdir(HERE)
 
+from config.settings import SETTINGS
+RUNTIME_ROOT = Path(SETTINGS.runtime_path).expanduser()
+RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
+
 from backend import LiveReadOnlyAdapter
 from search_runtime import SearchRuntime
 
 LIVE = LiveReadOnlyAdapter()
 SEARCH = None
 
-DELETE_BRIDGE_STATE = PROJECT_ROOT / "runtime" / "ui2_delete_bridge.json"
+DELETE_BRIDGE_STATE = RUNTIME_ROOT / "ui2_delete_bridge.json"
 
 def get_search():
     global SEARCH
@@ -278,10 +282,7 @@ def _office_preview_pdf(requested_path):
     ).hexdigest()
 
     cache_dir = (
-        Path(__file__).resolve().parents[2]
-        / "runtime"
-        / "preview_cache"
-        / "office_pdf"
+        RUNTIME_ROOT / "preview_cache" / "office_pdf"
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -361,7 +362,7 @@ _FILTER_TREE_CACHE = {"signature": None, "summary": None, "trees": {}}
 
 
 def _filter_catalog_path():
-    return Path(__file__).resolve().parents[2] / "runtime" / "lexia_catalog.sqlite3"
+    return RUNTIME_ROOT / "lexia_catalog.sqlite3"
 
 
 def _filter_db_signature(db_path):
@@ -1075,7 +1076,7 @@ def _search_filename_rows(query: str, limit: int = 100, category=None, folder=No
         return []
 
     project_root = Path(__file__).resolve().parents[2]
-    db = project_root / "runtime" / "lexia_catalog.sqlite3"
+    db = RUNTIME_ROOT / "lexia_catalog.sqlite3"
     if not db.exists():
         return []
 
@@ -1144,7 +1145,7 @@ def _record_ui2_search_history(query: str, mode: str):
     if not value or search_mode not in ("filename", "professional"):
         return
     project_root = Path(__file__).resolve().parents[2]
-    db = project_root / "runtime" / "search_history.sqlite3"
+    db = RUNTIME_ROOT / "search_history.sqlite3"
     con = sqlite3.connect(str(db), timeout=5)
     try:
         con.execute(
@@ -1168,7 +1169,7 @@ def _search_history_items(mode: str, limit: int = 10):
     if search_mode not in ("filename", "professional"):
         return []
     project_root = Path(__file__).resolve().parents[2]
-    db = project_root / "runtime" / "search_history.sqlite3"
+    db = RUNTIME_ROOT / "search_history.sqlite3"
     if not db.exists():
         return []
     con = sqlite3.connect(str(db))
@@ -1214,7 +1215,7 @@ def _normalize_preview_words(text):
 
 def _resolve_catalog_document(requested_path="", name="", snippet=""):
     project_root = Path(__file__).resolve().parents[2]
-    db = project_root / "runtime" / "lexia_catalog.sqlite3"
+    db = RUNTIME_ROOT / "lexia_catalog.sqlite3"
     if not db.exists():
         raise FileNotFoundError("No existe el catálogo LexIA.")
 
@@ -1275,7 +1276,7 @@ def _resolve_catalog_document(requested_path="", name="", snippet=""):
 def _catalog_document_details(path_value):
     """Return verified catalog and filesystem metadata for one active document."""
     project_root = Path(__file__).resolve().parents[2]
-    db = project_root / "runtime" / "lexia_catalog.sqlite3"
+    db = RUNTIME_ROOT / "lexia_catalog.sqlite3"
     if not db.exists():
         raise FileNotFoundError("No existe el catálogo LexIA.")
 
@@ -1561,7 +1562,7 @@ def _read_navigator_import(handler):
     destination = ""
     category = ""
     uploads = []
-    staging = PROJECT_ROOT / "runtime" / "ui2_import_staging" / uuid.uuid4().hex
+    staging = RUNTIME_ROOT / "ui2_import_staging" / uuid.uuid4().hex
     staging.mkdir(parents=True, exist_ok=False)
     allowed = {".pdf", ".doc", ".docx", ".odt", ".txt"}
     try:
@@ -1594,7 +1595,7 @@ def _lexia321_enrich_search_results(results):
         return results
 
     project_root = Path(__file__).resolve().parents[2]
-    db = project_root / "runtime" / "lexia_catalog.sqlite3"
+    db = RUNTIME_ROOT / "lexia_catalog.sqlite3"
     if not db.exists():
         return results
 
@@ -1757,7 +1758,7 @@ def _content_search_v2(
     folder = _validated_filter_folder(category, folder)
 
     project_root = Path(__file__).resolve().parents[2]
-    db_path = project_root / "runtime" / "lexia_catalog.sqlite3"
+    db_path = RUNTIME_ROOT / "lexia_catalog.sqlite3"
     if not db_path.exists():
         raise FileNotFoundError("No existe el catálogo LexIA.")
 
@@ -2464,7 +2465,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return self._json({"ok": False, "error": "Falta path"}, 400)
 
                 project_root = Path(__file__).resolve().parents[2]
-                db = project_root / "runtime" / "lexia_catalog.sqlite3"
+                db = RUNTIME_ROOT / "lexia_catalog.sqlite3"
                 file_path = Path(requested).expanduser().resolve()
 
                 con = sqlite3.connect(str(db))
@@ -2578,7 +2579,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return self._json({"ok": False, "error": "Archivo no encontrado"}, 404)
 
                 project_root = Path(__file__).resolve().parents[2]
-                catalog_path = project_root / "runtime" / "lexia_catalog.sqlite3"
+                catalog_path = RUNTIME_ROOT / "lexia_catalog.sqlite3"
                 allowed = False
 
                 if catalog_path.exists():

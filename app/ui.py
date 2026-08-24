@@ -240,12 +240,11 @@ def _configured_local_path(value) -> Path:
 
 def _validate_openable_file(path_value) -> Path:
     candidate = _configured_local_path(path_value)
-    project_root = Path(__file__).resolve().parents[1]
     allowed_roots = [
         _configured_local_path(SETTINGS.library_path),
-        (project_root / "Rejected Documents").resolve(),
-        (project_root / "exports").resolve(),
-        (project_root / "runtime").resolve(),
+        _configured_local_path(SETTINGS.rejected_documents_path),
+        _configured_local_path(SETTINGS.exports_path),
+        _configured_local_path(SETTINGS.runtime_path),
     ]
 
     allowed = False
@@ -1928,11 +1927,7 @@ elif page == "Biblioteca":
                     destination = None
 
                 if destination is not None:
-                    staging = (
-                        Path(__file__).resolve().parents[1]
-                        / "runtime"
-                        / "import_staging"
-                    )
+                    staging = SETTINGS.runtime_path / "import_staging"
                     staging.mkdir(parents=True, exist_ok=True)
 
                     imported = []

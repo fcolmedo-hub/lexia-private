@@ -87,7 +87,7 @@ def _maintenance_monitor(
             f"{item.get('updated_at', '')} | {item.get('source', 'ERROR')} | "
             f"{item.get('name', '')} | {item.get('error', '')}"
         )
-    runtime = _project_root() / "runtime"
+    runtime = Path(SETTINGS.runtime_path)
     for filename in ("ocr_diagnostic.log", "autosync.log", "lexia.log"):
         for line in _tail_text_file(runtime / filename, limit=30):
             lines.append(f"{filename} | {line}")
@@ -529,7 +529,7 @@ def _project_root() -> Path:
 
 
 def _state_path() -> Path:
-    return _project_root() / "runtime" / "ui2_delete_bridge.json"
+    return Path(SETTINGS.runtime_path) / "ui2_delete_bridge.json"
 
 
 def _write_state(port: int, token: str) -> None:
@@ -1365,7 +1365,7 @@ def _handler_class(application, token):
                     if not destination.is_dir():
                         raise FileNotFoundError("La carpeta de destino ya no existe.")
 
-                    staging_root = (_project_root() / "runtime" / "ui2_import_staging").resolve()
+                    staging_root = (Path(SETTINGS.runtime_path) / "ui2_import_staging").resolve()
                     sources = body.get("sources") or []
                     if not isinstance(sources, list) or not sources:
                         raise ValueError("No se recibieron archivos para importar.")
