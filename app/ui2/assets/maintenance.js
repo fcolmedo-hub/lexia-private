@@ -182,7 +182,7 @@
     }
 
     const tabs=[['activity','Estado y actividad'],['automation','Automatizaciones'],['diagnosis','Diagnóstico'],['backups','Copias'],['monitor','Monitor técnico'],['about','Acerca de LexIA']].map(([id,label])=>'<button class="maint-tab '+(tab===id?'active':'')+'" data-maint-tab="'+id+'">'+label+'</button>').join('');
-    const header='<div class="maint-wrap"><div class="maint-head"><div><h1>Mantenimiento</h1><p>Operación real de AutoSync, OCR, diagnóstico y copias de LexIA.</p></div><div class="maint-actions">'+button('mRefresh',refreshing?'Actualizando…':'Actualizar','secondary',refreshing)+'</div></div><div class="maint-tabs">'+tabs+'</div><div class="maint-kpis">'+kpi('ESTADO GENERAL',attention?'Requiere atención':'Operativo',sync.status||'Biblioteca disponible','activity')+kpi('BIBLIOTECA',Number(catalog.documents||0).toLocaleString('es-AR'),'documentos activos','search')+kpi('OCR',String(ocr.pending||0)+' pendientes',String(ocr.error||0)+' con error','ocr')+kpi('AUTOSYNC',modes[config.mode]||'Automático',config.mode==='scheduled'?(config.schedule_time||'03:00'):(sync.last_sync||'sin registro'),'autosync')+'</div>'+body+'<p id="mToast" class="maint-toast '+(noticeError?'maint-toast-error':'')+'">'+esc(notice)+'</p></div>';
+    const header='<div class="maint-wrap"><div class="maint-head"><div><h1>Mantenimiento</h1><p>Operación real de AutoSync, OCR, diagnóstico y copias de LexIA.</p></div><div class="maint-actions">'+button('mRefresh',refreshing?'Actualizando…':'Actualizar','secondary',refreshing)+'</div></div><div class="maint-tabs">'+tabs+'</div><div class="maint-kpis">'+kpi('ESTADO GENERAL',attention?'Requiere atención':'Operativo',sync.status||'Biblioteca disponible','activity')+kpi('BIBLIOTECA',Number(catalog.documents||0).toLocaleString('es-AR'),'documentos activos','navigator')+kpi('OCR',String(ocr.pending||0)+' pendientes',String(ocr.error||0)+' con error','ocr')+kpi('AUTOSYNC',modes[config.mode]||'Automático',config.mode==='scheduled'?(config.schedule_time||'03:00'):(sync.last_sync||'sin registro'),'autosync')+'</div>'+body+'<p id="mToast" class="maint-toast '+(noticeError?'maint-toast-error':'')+'">'+esc(notice)+'</p></div>';
     page.innerHTML=header;
     bind();
     updateSidebar();
@@ -238,12 +238,17 @@
   };
 
   function navigate(target){
-    if(target==='search'){
+    if(target==='search'||target==='navigator'){
       closeResponsiveNavigation();
       page.style.display='none';
       const searchButton=document.querySelector('#globalSidebar .nav [data-route="searchpage"]');
       if(searchButton)searchButton.click();
       else if(window.lexiaUI2NavigateGlobal)window.lexiaUI2NavigateGlobal('searchpage');
+      if(target==='navigator'){
+        requestAnimationFrame(()=>{
+          window.lexiaNavigator330i?.activate();
+        });
+      }
       return;
     }
     if(target==='activity'){tab='activity';render();return;}
