@@ -14,6 +14,7 @@ fi
 
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
+export LEXIA_CLASSIC_HEADLESS=1
 
 "$PYTHON_BIN" "$ROOT/run_lexia.py" > "$LOG_DIR/classic_ui.log" 2>&1 &
 CLASSIC_PID=$!
