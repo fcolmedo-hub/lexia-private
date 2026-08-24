@@ -23,4 +23,6 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 sleep 8
+open "http://127.0.0.1:8501"
+sleep 3
 "$PYTHON_BIN" "$ROOT/app/ui2/launch_ui2.py"
