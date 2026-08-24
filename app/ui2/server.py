@@ -615,11 +615,29 @@ def _filter_path_is_within(path_value, folder):
 
 
 def _navigator_category_roots(category):
+    """Return the physical category root even when it contains no indexed files."""
+    category = str(category or "").strip()
+    if not category:
+        raise ValueError("Debe seleccionar una categoría de la biblioteca.")
+
+    library = Path(SETTINGS.library_path).expanduser().resolve()
+    physical_root = (library / category).resolve()
+    try:
+        physical_root.relative_to(library)
+    except ValueError as error:
+        raise ValueError("La categoría no pertenece a la biblioteca LexIA.") from error
+    if not physical_root.is_dir():
+        raise ValueError("La categoría física ya no existe en la biblioteca.")
+
     tree = _catalog_filter_tree(category)
-    category_node = tree["categories"].get(str(category or "").casefold())
-    if category_node is None:
-        raise ValueError("La categoría seleccionada ya no existe en el catálogo.")
-    return tree, list(category_node["roots"].values())
+    category_node = tree["categories"].get(category.casefold())
+    roots = list(category_node["roots"].values()) if category_node else []
+    if not any(
+        str(Path(root["folder"]).resolve()) == str(physical_root)
+        for root in roots
+    ):
+        roots.append(_new_filter_node(category, physical_root))
+    return tree, roots
 
 
 def _navigator_physical_within_roots(folder, roots):
@@ -718,30 +736,41 @@ def _navigator_child_nodes(category, parent_folder=""):
 
 
 def _navigator_root_nodes():
+    """Build the navigator from the library filesystem, not only its catalog."""
     summary = _catalog_category_summary()
-    ordered = sorted(
-        summary["categories"].values(),
+    library = Path(SETTINGS.library_path).expanduser().resolve()
+    try:
+        categories = [item for item in library.iterdir() if item.is_dir()]
+    except OSError:
+        categories = []
+
+    order = {
+        "escritos": 0,
+        "doctrina": 1,
+        "jurisprudencia": 2,
+        "legislacion": 3,
+    }
+    categories.sort(
         key=lambda item: (
-            {"escritos": 0, "doctrina": 1, "jurisprudencia": 2, "legislacion": 3}.get(
-                _filter_category_key(item["label"]), 99
-            ),
-            item["label"].casefold(),
-        ),
+            order.get(_filter_category_key(item.name), 99),
+            item.name.casefold(),
+        )
     )
+    nodes = []
+    for category in categories:
+        catalog_entry = summary["categories"].get(category.name.casefold(), {})
+        nodes.append({
+            "kind": "category",
+            "name": category.name,
+            "category": category.name,
+            "folder": "",
+            "count": int(catalog_entry.get("count", 0) or 0),
+            "has_children": _navigator_folder_has_children(category),
+        })
     return {
         "ok": True,
         "total": int(summary["total"]),
-        "nodes": [
-            {
-                "kind": "category",
-                "name": item["label"],
-                "category": item["value"],
-                "folder": "",
-                "count": int(item["count"]),
-                "has_children": True,
-            }
-            for item in ordered
-        ],
+        "nodes": nodes,
     }
 
 
