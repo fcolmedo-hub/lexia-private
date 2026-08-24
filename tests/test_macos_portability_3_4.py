@@ -61,6 +61,7 @@ def test_macos_installer_uses_docker_and_keeps_data_outside_the_repo():
     assert 'qdrant_mode"] = "server"' in installer
     assert 'LEXIA_CLASSIC_HEADLESS=1' not in launcher
     assert 'sleep 8' in launcher
+    assert 'open "http://127.0.0.1:8501"' in launcher
     assert '"$PYTHON_BIN" "$ROOT/run_lexia.py"' in launcher
     assert '"$PYTHON_BIN" "$ROOT/app/ui2/launch_ui2.py"' in launcher
     assert 'LEXIA_CLASSIC_HEADLESS' in classic_launcher
