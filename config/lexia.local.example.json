@@ -1,0 +1,9 @@
+{
+  "library_path": "~/Documents/LexIA Biblioteca",
+  "runtime_path": "~/Library/Application Support/LexIA/runtime",
+  "logs_path": "~/Library/Application Support/LexIA/logs",
+  "exports_path": "~/Library/Application Support/LexIA/exports",
+  "backups_path": "~/Library/Application Support/LexIA/backups",
+  "rejected_documents_path": "~/Library/Application Support/LexIA/Rejected Documents",
+  "qdrant_mode": "local"
+}
