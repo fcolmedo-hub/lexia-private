@@ -162,6 +162,8 @@ def _maintenance_ocr_status(
 ) -> dict:
     """Expose live OCR progress and, on demand, bounded queue details."""
     queue = application.ocr_queue
+    # Stale entries from files moved outside the library are not OCR errors.
+    queue.discard_stale_errors()
     state = queue.state()
     stats = queue.stats()
     current_file = str(state.get("current_file", "") or "")
