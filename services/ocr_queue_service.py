@@ -145,6 +145,18 @@ class OCRQueueService:
             ):
                 if self._cancel_requested.is_set():
                     break
+                # A moved or deleted document cannot be OCR-processed. It is
+                # stale queue state, not an error that needs user attention.
+                if not Path(path).is_file():
+                    self.repository.remove(path)
+                    self._state.update(
+                        current_file=str(path),
+                        document_name=Path(path).name,
+                        stage="skipped",
+                        error="",
+                        processed=position,
+                    )
+                    continue
                 queue_item = self.repository.get(path) or {}
                 total_pages = int(queue_item.get("total_pages", 0) or 0)
                 self._active_queue_path = path
@@ -174,15 +186,17 @@ class OCRQueueService:
                         ocr_progress_callback=self._publish_page_progress,
                     )
                     state = indexer.catalog.get_file_state(path)
-                    if pipeline.detected != 1 or pipeline.failed:
+                    if pipeline.detected != 1:
+                        # The document is no longer part of the active
+                        # library tree. Drop its stale OCR entry quietly.
+                        self.repository.remove(path)
+                        self._state.update(stage="skipped", error="")
+                        self._state["processed"] = position
+                        continue
+                    if pipeline.failed:
                         detail = (
                             str((state or {}).get("extraction_error") or "")
-                            or (
-                                "El detector no encontró el archivo dentro "
-                                "de la biblioteca."
-                                if pipeline.detected != 1
-                                else "La extracción u OCR terminó con error."
-                            )
+                            or "La extracción u OCR terminó con error."
                         )
                         raise RuntimeError(
                             f"OCR no pudo procesar '{Path(path).name}': {detail}"
