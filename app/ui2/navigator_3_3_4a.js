@@ -4,7 +4,7 @@
     active:false,initialized:false,selections:new Map(),
     query:'',sort:'name_asc',offset:0,total:0,selectedPath:'',selectedDocument:null,
     listRequest:0,previewRequest:0,previewTimer:null,documents:new Map(),nodes:new Map(),
-    selectedFiles:new Set(),operationTimer:null,folderMenuTimer:null,browsed:null
+    selectedFiles:new Set(),operationTimer:null,folderMenuTimer:null,statusTimer:null,browsed:null
   };
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({
@@ -74,8 +74,17 @@
   function importStatus(message,type='info'){
     const host=$('lexiaNavigatorImportStatus');
     if(!host)return;
+    if(state.statusTimer){clearTimeout(state.statusTimer);state.statusTimer=null;}
     host.textContent=String(message||'');
     host.className='lexia-nav-import-status show '+type;
+    // Success and error notices must not block the navigator indefinitely.
+    if(type!=='info'){
+      state.statusTimer=setTimeout(()=>{
+        host.textContent='';
+        host.className='lexia-nav-import-status';
+        state.statusTimer=null;
+      },6000);
+    }
   }
 
   function selectedFilePaths(){return Array.from(state.selectedFiles);}
@@ -434,7 +443,7 @@
     selector.addEventListener('click',select);
     const browseAndToggle=async event=>{
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       browseTreeNode(node,labels,false);
       if(arrow.disabled)return;
       if(children.dataset.loaded==='1'){
@@ -534,7 +543,7 @@
     };
     const browseAndToggle=event=>{
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       browseTreeNode({category:'',folder:''},['Biblioteca'],true);
       children.hidden=!children.hidden;
       arrow.textContent=children.hidden?'▸':'▾';
