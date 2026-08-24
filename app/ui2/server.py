@@ -696,6 +696,17 @@ def _navigator_folder_has_children(folder):
         return False
 
 
+def _navigator_immediate_file_count(folder):
+    """Count files visible in one physical folder without scanning its tree."""
+    try:
+        return sum(
+            1 for item in Path(folder).iterdir()
+            if item.is_file() and not item.name.startswith(".")
+        )
+    except OSError:
+        return 0
+
+
 def _navigator_child_nodes(category, parent_folder=""):
     category = str(category or "").strip()
     parent_folder = str(parent_folder or "").strip()
@@ -720,7 +731,11 @@ def _navigator_child_nodes(category, parent_folder=""):
             "name": node["name"],
             "category": category,
             "folder": node["folder"],
-            "count": int(node["count"]),
+            "count": (
+                _navigator_immediate_file_count(node["folder"])
+                if Path(node["folder"]).is_dir()
+                else int(node["count"])
+            ),
             "has_children": bool(node["children"]),
         }
 
@@ -741,7 +756,7 @@ def _navigator_child_nodes(category, parent_folder=""):
                     "name": physical.name,
                     "category": category,
                     "folder": str(physical),
-                    "count": 0,
+                    "count": _navigator_immediate_file_count(physical),
                     "has_children": _navigator_folder_has_children(physical),
                 }
             elif not existing["has_children"]:
