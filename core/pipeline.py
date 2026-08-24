@@ -82,6 +82,7 @@ class DocumentPipeline:
         full_scan: bool = True,
         deleted_paths: Iterable[str | Path] | None = None,
         force_ocr_paths: Iterable[str | Path] | None = None,
+        force_reprocess_paths: Iterable[str | Path] | None = None,
         cancel_callback: Callable[[], bool] | None = None,
         ocr_progress_callback: (
             Callable[[int, int], None] | None
@@ -90,6 +91,10 @@ class DocumentPipeline:
         force_ocr = {
             str(Path(path).resolve())
             for path in (force_ocr_paths or ())
+        }
+        force_reprocess = {
+            str(Path(path).resolve())
+            for path in (force_reprocess_paths or ())
         }
 
         documents = self.detector.scan(
@@ -140,6 +145,10 @@ class DocumentPipeline:
                     force_ocr=(
                         str(document.path.resolve())
                         in force_ocr
+                    ),
+                    force_reprocess=(
+                        str(document.path.resolve())
+                        in force_reprocess
                     ),
                     cancel_callback=cancel_callback,
                     ocr_progress_callback=ocr_progress_callback,
@@ -254,6 +263,7 @@ class DocumentPipeline:
         stats: dict,
         active_paths: set[str],
         force_ocr: bool = False,
+        force_reprocess: bool = False,
         cancel_callback: Callable[[], bool] | None = None,
         ocr_progress_callback: (
             Callable[[int, int], None] | None
@@ -266,6 +276,7 @@ class DocumentPipeline:
         # Fast path: no hash, no PDF open, no OCR.
         if (
             not force_ocr
+            and not force_reprocess
             and previous
             and self._state_is_complete(previous)
             and int(previous["size"]) == document.size
@@ -286,6 +297,7 @@ class DocumentPipeline:
 
         if (
             not force_ocr
+            and not force_reprocess
             and previous_hash == document.content_hash
             and previous
             and self._state_is_complete(previous)
