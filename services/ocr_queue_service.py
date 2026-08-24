@@ -173,12 +173,21 @@ class OCRQueueService:
                         cancel_callback=self._cancel_requested.is_set,
                         ocr_progress_callback=self._publish_page_progress,
                     )
+                    state = indexer.catalog.get_file_state(path)
                     if pipeline.detected != 1 or pipeline.failed:
+                        detail = (
+                            str((state or {}).get("extraction_error") or "")
+                            or (
+                                "El detector no encontró el archivo dentro "
+                                "de la biblioteca."
+                                if pipeline.detected != 1
+                                else "La extracción u OCR terminó con error."
+                            )
+                        )
                         raise RuntimeError(
-                            "La extraccion no produjo un documento valido."
+                            f"OCR no pudo procesar '{Path(path).name}': {detail}"
                         )
 
-                    state = indexer.catalog.get_file_state(path)
                     if state is None:
                         raise RuntimeError(
                             "La extraccion termino sin guardar el documento."
