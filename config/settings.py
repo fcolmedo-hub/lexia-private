@@ -105,7 +105,7 @@ class Settings:
     qdrant_mode: str = str(
         _setting(
             "qdrant_mode",
-            "local" if sys.platform == "darwin" else "server",
+            "server",
         )
     ).strip().lower()
     qdrant_url: str = str(
