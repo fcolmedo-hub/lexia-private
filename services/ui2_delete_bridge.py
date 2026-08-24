@@ -827,6 +827,50 @@ def _handler_class(application, token):
                     )
                 elif operation == "delete_files":
                     result = navigator_delete_files(body.get("paths") or [], report)
+                elif operation == "reprocess_file":
+                    source = navigator_safe_path(body.get("path", ""))
+                    if not source.is_file():
+                        raise FileNotFoundError("El archivo ya no existe en la biblioteca.")
+                    report(0, 2, "Extrayendo texto del documento…")
+                    from core.pipeline import DocumentPipeline
+
+                    is_pdf = source.suffix.casefold() == ".pdf"
+                    pipeline = DocumentPipeline().run(
+                        changed_paths=[source],
+                        full_scan=False,
+                        force_ocr_paths=[source] if is_pdf else None,
+                        force_reprocess_paths=[source],
+                    )
+                    state = application.catalog.get_file_state(str(source))
+                    if pipeline.detected != 1:
+                        raise RuntimeError(
+                            "El archivo no pudo ser detectado dentro de la biblioteca."
+                        )
+                    if pipeline.failed or (state or {}).get("extraction_error"):
+                        raise RuntimeError(
+                            str((state or {}).get("extraction_error") or
+                                "La extracción del documento terminó con error.")
+                        )
+                    if not str((state or {}).get("text_content") or "").strip():
+                        raise RuntimeError(
+                            "El archivo no produjo texto utilizable. Si es un PDF "
+                            "escaneado, verificá que tenga páginas legibles."
+                        )
+
+                    report(1, 2, "Indexando texto y vectores…")
+                    index_result = application.indexer.run(
+                        deleted_paths=pipeline.deleted_paths,
+                        target_paths=[str(source)],
+                    )
+                    if index_result.cancelled:
+                        raise RuntimeError("La indexación fue cancelada.")
+                    result = {
+                        "path": str(source),
+                        "ocr": is_pdf,
+                        "documents_indexed": int(
+                            index_result.documents_indexed or 0
+                        ),
+                    }
                 else:
                     raise ValueError("Operación de navegador no reconocida.")
                 with navigator_lock:
