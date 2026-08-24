@@ -25,6 +25,7 @@ def main() -> None:
                 "run",
                 "app/ui.py",
                 "--server.headless=true" if headless else "--server.headless=false",
+                "--browser.gatherUsageStats=false",
             ],
             check=True,
         )
