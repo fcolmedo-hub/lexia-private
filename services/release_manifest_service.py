@@ -114,11 +114,19 @@ class ReleaseManifestService:
     def _validate_qdrant_contract(self, manifest: dict[str, Any]) -> None:
         expected_mode = str(manifest.get("qdrant_mode", "")).strip()
         actual_mode = str(getattr(SETTINGS, "qdrant_mode", "")).strip()
+        configured_modes = manifest.get("qdrant_modes")
+        allowed_modes = (
+            {str(value).strip() for value in configured_modes}
+            if isinstance(configured_modes, list)
+            else {expected_mode}
+        )
+        allowed_modes.discard("")
 
-        if expected_mode and actual_mode != expected_mode:
+        if allowed_modes and actual_mode not in allowed_modes:
             raise ReleaseManifestError(
                 "Contrato Qdrant incompatible: "
-                f"RELEASE={expected_mode}, SETTINGS={actual_mode}."
+                f"RELEASE admite {', '.join(sorted(allowed_modes))}; "
+                f"SETTINGS={actual_mode}."
             )
 
         expected_collection = str(
