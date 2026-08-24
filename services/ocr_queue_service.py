@@ -48,6 +48,22 @@ class OCRQueueService:
     def list_pending(self) -> list[dict]:
         return self.repository.list_pending()
 
+    def discard_stale_errors(self) -> int:
+        """Remove OCR errors for entries that no longer belong to this library."""
+        removed = 0
+        for item in self.repository.list_pending():
+            if str(item.get("status") or "").casefold() != "error":
+                continue
+            path = str(item.get("document_path") or "")
+            error = str(item.get("error") or "").casefold()
+            if (
+                not Path(path).is_file()
+                or "detector no encontró el archivo dentro de la biblioteca" in error
+            ):
+                if self.repository.remove(path):
+                    removed += 1
+        return removed
+
     def stats(self) -> dict:
         return self.repository.stats()
 
