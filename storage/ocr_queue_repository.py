@@ -213,6 +213,15 @@ class OCRQueueRepository:
             error=error,
         )
 
+    def remove(self, path: str) -> bool:
+        """Discard a queue entry that no longer belongs to the library."""
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM ocr_queue WHERE document_path = ?",
+                (str(path),),
+            )
+            return bool(cursor.rowcount)
+
     def remove_completed(self) -> int:
         with self._connect() as connection:
             cursor = connection.execute(
