@@ -391,6 +391,49 @@ class DocumentCatalog:
                 ),
             )
 
+    def repair_ocr_pending_categories(
+        self,
+        library_root: str | Path,
+    ) -> int:
+        """Restore structural categories for legacy OCR-pending entries."""
+        from services.structural_category_policy import (
+            classify_structural_path,
+        )
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT path, metadata_json
+                FROM documents
+                WHERE is_deleted = 0
+                  AND LOWER(TRIM(category)) IN (
+                      'ocr pendiente', 'ocr pendientes'
+                  )
+                """
+            ).fetchall()
+
+        repaired = 0
+        for row in rows:
+            try:
+                structural = classify_structural_path(
+                    row["path"],
+                    library_root=library_root,
+                )
+            except (OSError, ValueError):
+                continue
+            try:
+                metadata = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            metadata["ocr_pending"] = True
+            self.update_classification(
+                row["path"],
+                structural.category,
+                metadata,
+            )
+            repaired += 1
+        return repaired
+
     def find_relocation_candidate(
         self,
         content_hash: str,
