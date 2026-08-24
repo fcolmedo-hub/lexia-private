@@ -1,36 +1,92 @@
 from dataclasses import dataclass
+import json
+import os
+import sys
 from pathlib import Path
+
+
+def _default_data_root() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "LexIA"
+    return Path(r"D:\LexIA_2.3_DEV")
+
+
+def _load_local_config() -> dict:
+    """Load per-machine settings without ever storing them in Git."""
+    configured = str(os.environ.get("LEXIA_CONFIG_FILE", "") or "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+    elif sys.platform == "darwin":
+        path = _default_data_root() / "lexia.local.json"
+    else:
+        return {}
+
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+_LOCAL_CONFIG = _load_local_config()
+
+
+def _setting(name: str, default):
+    env_name = "LEXIA_" + name.upper()
+    override = os.environ.get(env_name)
+    if override is not None and str(override).strip():
+        return override
+    return _LOCAL_CONFIG.get(name, default)
+
+
+def _path_setting(name: str, default: Path) -> Path:
+    return Path(str(_setting(name, default))).expanduser()
+
+
+_DATA_ROOT = _path_setting("data_root", _default_data_root())
+_LIBRARY_DEFAULT = (
+    Path.home() / "Documents" / "LexIA Biblioteca"
+    if sys.platform == "darwin"
+    else Path(r"D:\LexIA_2.3_DEV\data_test")
+)
+_LIBRARY_PATH = _path_setting("library_path", _LIBRARY_DEFAULT)
+_RUNTIME_PATH = _path_setting("runtime_path", _DATA_ROOT / "runtime")
+_LOGS_PATH = _path_setting("logs_path", _DATA_ROOT / "logs")
+_EXPORTS_PATH = _path_setting("exports_path", _DATA_ROOT / "exports")
+_BACKUPS_PATH = _path_setting("backups_path", _DATA_ROOT / "backups")
+_REJECTED_PATH = _path_setting(
+    "rejected_documents_path",
+    _DATA_ROOT / "Rejected Documents",
+)
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
     # Directorios
-    library_path: Path = Path(r"D:\LexIA_2.3_DEV\data_test")
-    runtime_path: Path = Path(r"D:\LexIA_2.3_DEV\runtime")
-    logs_path: Path = Path(r"D:\LexIA_2.3_DEV\logs")
-    exports_path: Path = Path(r"D:\LexIA_2.3_DEV\exports")
-    backups_path: Path = Path(r"D:\LexIA_2.3_DEV\backups")
+    library_path: Path = _LIBRARY_PATH
+    runtime_path: Path = _RUNTIME_PATH
+    logs_path: Path = _LOGS_PATH
+    exports_path: Path = _EXPORTS_PATH
+    backups_path: Path = _BACKUPS_PATH
 
     # Documentos rechazados
     rejected_documents_enabled: bool = True
-    rejected_documents_path: Path = Path(
-        r"D:\LexIA_2.3_DEV\Rejected Documents"
-    )
+    rejected_documents_path: Path = _REJECTED_PATH
 
     # Bases internas
-    catalog_path: Path = Path("runtime/lexia_catalog.sqlite3")
-    cases_path: Path = Path("runtime/cases.sqlite3")
-    feedback_path: Path = Path("runtime/search_feedback.sqlite3")
-    jobs_path: Path = Path("runtime/ingestion_jobs.sqlite3")
-    app_state_path: Path = Path("runtime/app_state.json")
-    search_cache_path: Path = Path("runtime/search_cache.sqlite3")
-    matrix_path: Path = Path("runtime/legal_matrix.sqlite3")
-    query_interpretations_path: Path = Path(
-        "runtime/query_interpretations.sqlite3"
+    catalog_path: Path = _RUNTIME_PATH / "lexia_catalog.sqlite3"
+    cases_path: Path = _RUNTIME_PATH / "cases.sqlite3"
+    feedback_path: Path = _RUNTIME_PATH / "search_feedback.sqlite3"
+    jobs_path: Path = _RUNTIME_PATH / "ingestion_jobs.sqlite3"
+    app_state_path: Path = _RUNTIME_PATH / "app_state.json"
+    search_cache_path: Path = _RUNTIME_PATH / "search_cache.sqlite3"
+    matrix_path: Path = _RUNTIME_PATH / "legal_matrix.sqlite3"
+    query_interpretations_path: Path = (
+        _RUNTIME_PATH / "query_interpretations.sqlite3"
     )
-    precedent_path: Path = Path("runtime/precedents.sqlite3")
-    strategy_path: Path = Path("runtime/case_strategy.sqlite3")
-    drafting_path: Path = Path("runtime/drafting_workspace.sqlite3")
+    precedent_path: Path = _RUNTIME_PATH / "precedents.sqlite3"
+    strategy_path: Path = _RUNTIME_PATH / "case_strategy.sqlite3"
+    drafting_path: Path = _RUNTIME_PATH / "drafting_workspace.sqlite3"
 
     # AutoSync
     autosync_enabled: bool = True
@@ -38,16 +94,23 @@ class Settings:
     autosync_debounce_seconds: int = 8
     autosync_scan_interval_seconds: int = 0
     autosync_startup_mode: str = "watch_only"
-    autosync_state_path: Path = Path("runtime/autosync_state.json")
+    autosync_state_path: Path = _RUNTIME_PATH / "autosync_state.json"
     synchronization_mode: str = "automatic"
     reconciliation_schedule_time: str = "03:00"
-    reconciliation_config_path: Path = Path(
-        "runtime/reconciliation_config.json"
+    reconciliation_config_path: Path = (
+        _RUNTIME_PATH / "reconciliation_config.json"
     )
 
     # Qdrant
-    qdrant_mode: str = "server"
-    qdrant_url: str = "http://127.0.0.1:6333"
+    qdrant_mode: str = str(
+        _setting(
+            "qdrant_mode",
+            "local" if sys.platform == "darwin" else "server",
+        )
+    ).strip().lower()
+    qdrant_url: str = str(
+        _setting("qdrant_url", "http://127.0.0.1:6333")
+    ).strip()
     qdrant_timeout_seconds: int = 120
     qdrant_upsert_batch_size: int = 256
     qdrant_upsert_retries: int = 3
@@ -55,9 +118,7 @@ class Settings:
 
     # Se conserva por compatibilidad con VectorStore,
     # aunque en modo server no se utiliza.
-    vector_path: Path = Path(
-        r"D:\LexIA_2.3_DEV\runtime\qdrant_local_unused"
-    )
+    vector_path: Path = _RUNTIME_PATH / "qdrant_local"
     collection_name: str = "lexia_fragments_platform_2_3_dev"
 
     # Fragmentación
@@ -121,23 +182,23 @@ class Settings:
     prompt_bridge_max_chars_per_source: int = 2400
     prompt_bridge_max_total_chars: int = 42000
     prompt_bridge_upload_max_chars: int = 80000
-    prompt_exports_path: Path = Path("exports/prompts")
+    prompt_exports_path: Path = _EXPORTS_PATH / "prompts"
 
     # Context Builder / ChatGPT Plus
     context_builder_max_sources: int = 30
     context_builder_max_chars_per_source: int = 2600
     context_builder_max_total_chars: int = 52000
     context_builder_upload_max_chars: int = 95000
-    context_builder_exports_path: Path = Path("exports/context_packages")
+    context_builder_exports_path: Path = _EXPORTS_PATH / "context_packages"
 
     # Knowledge Engine determinista
-    knowledge_path: Path = Path("runtime/knowledge.sqlite3")
+    knowledge_path: Path = _RUNTIME_PATH / "knowledge.sqlite3"
     knowledge_candidate_multiplier: int = 3
     knowledge_max_search_queries: int = 5
     knowledge_sync_on_context_build: bool = True
 
     # Cola OCR manual
-    ocr_queue_path: Path = Path("runtime/ocr_queue.sqlite3")
+    ocr_queue_path: Path = _RUNTIME_PATH / "ocr_queue.sqlite3"
     ocr_auto_process: bool = False
 
     # OCR
@@ -168,9 +229,7 @@ class Settings:
 
     # Checkpoint
     checkpoint_enabled: bool = True
-    checkpoint_path: Path = Path(
-        "runtime/checkpoints"
-    )
+    checkpoint_path: Path = _RUNTIME_PATH / "checkpoints"
 
 
 SETTINGS = Settings()
