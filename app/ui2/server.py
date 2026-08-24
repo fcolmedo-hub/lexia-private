@@ -615,29 +615,32 @@ def _filter_path_is_within(path_value, folder):
 
 
 def _navigator_category_roots(category):
-    """Return the physical category root even when it contains no indexed files."""
+    """Return one canonical, physical category root for the navigator.
+
+    The filesystem is the authority here. Catalog paths may predate a move
+    between machines or differ only by accents (Legislacion/Legislación).
+    """
     category = str(category or "").strip()
     if not category:
         raise ValueError("Debe seleccionar una categoría de la biblioteca.")
 
     library = Path(SETTINGS.library_path).expanduser().resolve()
-    physical_root = (library / category).resolve()
+    wanted = _filter_category_key(category)
     try:
-        physical_root.relative_to(library)
-    except ValueError as error:
-        raise ValueError("La categoría no pertenece a la biblioteca LexIA.") from error
-    if not physical_root.is_dir():
+        candidates = [
+            item for item in library.iterdir()
+            if item.is_dir() and _filter_category_key(item.name) == wanted
+        ]
+    except OSError:
+        candidates = []
+
+    if len(candidates) != 1:
         raise ValueError("La categoría física ya no existe en la biblioteca.")
 
+    physical_root = candidates[0].resolve()
     tree = _catalog_filter_tree(category)
-    category_node = tree["categories"].get(category.casefold())
-    roots = list(category_node["roots"].values()) if category_node else []
-    if not any(
-        str(Path(root["folder"]).resolve()) == str(physical_root)
-        for root in roots
-    ):
-        roots.append(_new_filter_node(category, physical_root))
-    return tree, roots
+    # Do not let an old catalog root authorize or replace the real directory.
+    return tree, [_new_filter_node(physical_root.name, physical_root)]
 
 
 def _navigator_physical_within_roots(folder, roots):
@@ -656,6 +659,7 @@ def _navigator_physical_within_roots(folder, roots):
 
 
 def _validated_navigator_folder(category, folder):
+    """Resolve a navigator selection exclusively against the physical library."""
     category = str(category or "").strip()
     folder = str(folder or "").strip()
     if not folder:
@@ -663,12 +667,23 @@ def _validated_navigator_folder(category, folder):
     if not category:
         raise ValueError("Debe seleccionar una categoría antes de navegar una carpeta.")
 
-    tree, roots = _navigator_category_roots(category)
-    found = tree["folders"].get(folder.casefold())
-    if found is not None and found[0] == category.casefold():
-        return found[1]["folder"]
-
+    _tree, roots = _navigator_category_roots(category)
     physical = _navigator_physical_within_roots(folder, roots)
+
+    # Older browser state can contain a relative child path. Resolve it only
+    # below the selected category; never accept an arbitrary external path.
+    if physical is None:
+        raw = Path(folder).expanduser()
+        if not raw.is_absolute():
+            for root in roots:
+                candidate = _navigator_physical_within_roots(
+                    Path(root["folder"]) / raw,
+                    roots,
+                )
+                if candidate is not None:
+                    physical = candidate
+                    break
+
     if physical is None or not physical.is_dir():
         raise ValueError("La carpeta no pertenece al árbol activo de LexIA.")
     return str(physical)
@@ -808,7 +823,8 @@ def _validated_navigator_selections(selections=None, category="", folder=""):
                 selected_category, selected_folder
             )
         else:
-            _navigator_category_roots(selected_category)
+            _tree, roots = _navigator_category_roots(selected_category)
+            selected_folder = str(Path(roots[0]["folder"]).resolve())
 
         key = (selected_category.casefold(), selected_folder.casefold())
         if key in seen:
@@ -848,16 +864,12 @@ def _navigator_browse_documents(
     if validated_selections:
         selection_clauses = []
         for selected in validated_selections:
+            # The validated physical folder is sufficient and survives
+            # catalog category spelling differences between Windows and macOS.
             selection_clauses.append(
-                "(category = ? AND (? = '' OR "
-                "REPLACE(path, '\\', '/') LIKE ? COLLATE NOCASE ESCAPE '!'))"
+                "REPLACE(path, '\\', '/') LIKE ? COLLATE NOCASE ESCAPE '!'"
             )
-            selected_folder = selected["folder"]
-            params.extend([
-                selected["category"],
-                selected_folder,
-                _filter_like_pattern(selected_folder) if selected_folder else "",
-            ])
+            params.append(_filter_like_pattern(selected["folder"]))
         where.append("(" + " OR ".join(selection_clauses) + ")")
 
     sort_options = {
