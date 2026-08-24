@@ -24,4 +24,4 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 sleep 3
-exec "$PYTHON_BIN" "$ROOT/app/ui2/launch_ui2.py"
+"$PYTHON_BIN" "$ROOT/app/ui2/launch_ui2.py"
