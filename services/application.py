@@ -78,6 +78,9 @@ class LexIAApplication:
         MigrationService().migrate()
 
         self.catalog = DocumentCatalog(SETTINGS.catalog_path)
+        self.catalog.repair_ocr_pending_categories(
+            SETTINGS.library_path
+        )
         self.cases = CaseRepository(SETTINGS.cases_path)
         self.jobs = IngestionJobRepository(SETTINGS.jobs_path)
         self.matrix = LegalMatrixRepository(SETTINGS.matrix_path)
