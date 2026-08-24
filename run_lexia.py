@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -13,6 +14,7 @@ def main() -> None:
     guard = RuntimeGuard()
     guard.clear_stale()
     guard.acquire()
+    headless = os.environ.get("LEXIA_CLASSIC_HEADLESS", "").strip() == "1"
 
     try:
         subprocess.run(
@@ -22,7 +24,7 @@ def main() -> None:
                 "streamlit",
                 "run",
                 "app/ui.py",
-                "--server.headless=false",
+                "--server.headless=true" if headless else "--server.headless=false",
             ],
             check=True,
         )
