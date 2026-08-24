@@ -24,7 +24,7 @@ def _load_settings(monkeypatch, tmp_path):
     return module.Settings(), data_root, library_root
 
 
-def test_macos_uses_an_empty_library_outside_the_repository(
+def test_macos_uses_an_empty_library_and_qdrant_server_outside_repository(
     monkeypatch,
     tmp_path,
 ):
@@ -34,7 +34,7 @@ def test_macos_uses_an_empty_library_outside_the_repository(
     assert settings.runtime_path == data_root / "runtime"
     assert settings.catalog_path == data_root / "runtime" / "lexia_catalog.sqlite3"
     assert settings.vector_path == data_root / "runtime" / "qdrant_local"
-    assert settings.qdrant_mode == "local"
+    assert settings.qdrant_mode == "server"
     assert ROOT not in settings.library_path.parents
 
 
@@ -45,7 +45,7 @@ def test_release_accepts_local_or_server_qdrant():
     assert set(manifest["qdrant_modes"]) == {"server", "local"}
 
 
-def test_macos_installer_and_launcher_keep_data_outside_the_repo():
+def test_macos_installer_uses_docker_and_keeps_data_outside_the_repo():
     installer = (
         ROOT / "scripts" / "install_macos_3_4.sh"
     ).read_text(encoding="utf-8")
@@ -56,7 +56,9 @@ def test_macos_installer_and_launcher_keep_data_outside_the_repo():
 
     assert 'LIBRARY_ROOT="$HOME/Documents/LexIA Biblioteca"' in installer
     assert 'DATA_ROOT="$HOME/Library/Application Support/LexIA"' in installer
-    assert '"qdrant_mode": "local"' in installer
+    assert 'brew install --cask docker' in installer
+    assert 'QDRANT_CONTAINER="lexia-qdrant"' in installer
+    assert 'qdrant_mode"] = "server"' in installer
     assert 'export LEXIA_CLASSIC_HEADLESS=1' in launcher
     assert '"$PYTHON_BIN" "$ROOT/run_lexia.py"' in launcher
     assert '"$PYTHON_BIN" "$ROOT/app/ui2/launch_ui2.py"' in launcher
