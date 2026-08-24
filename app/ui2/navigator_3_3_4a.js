@@ -676,6 +676,7 @@
     const pageEnd=Number(document.page_end||0);
     const pageLabel=pageStart?('Pág. '+number(pageStart)+
       (pageEnd&&pageEnd!==pageStart?'–'+number(pageEnd):'')):'Sin página informada';
+    const missingText=!String(document.text||'').trim();
     const text=document.text||'LexIA todavía no dispone de texto indexado para este archivo.';
     return '<div class="result-card lexia-nav-preview-document">'+
       '<div class="result-title">'+esc(document.name||'Documento')+'</div>'+
@@ -689,6 +690,7 @@
       '<div class="lexia-nav-preview-text">'+esc(text)+'</div>'+
       '<div class="lexia-nav-preview-path">'+esc(document.path||'')+'</div>'+
       '<div class="lexia-nav-preview-actions">'+
+        (missingText?'<button type="button" class="lexia-nav-quick" data-nav-reprocess="'+path+'">Reprocesar e indexar</button>':'')+
         '<button type="button" class="lexia-nav-quick" data-nav-quick="'+path+'">Vista rápida</button>'+
         '<button type="button" class="search-file-info" data-path="'+path+'">Detalles</button>'+
         '<button type="button" class="search-delete-file" data-path="'+path+'">Eliminar</button>'+
@@ -736,6 +738,23 @@
       }catch(_){}
     }
     window.lexiaQuickViewerOpen(path,page,snippet);
+  }
+
+  async function reprocessNavigatorFile(path,button){
+    path=String(path||'');
+    if(!path)return;
+    const old=button?.textContent||'Reprocesar e indexar';
+    if(button){button.disabled=true;button.textContent='Procesando…';}
+    try{
+      await runNavigatorOperation(
+        {operation:'reprocess_file',path:path},
+        'Documento reprocesado e indexado.'
+      );
+    }catch(error){
+      importStatus(error.message||String(error),'error');
+    }finally{
+      if(button){button.disabled=false;button.textContent=old;}
+    }
   }
 
   async function openNavigatorFile(path,button){
@@ -798,6 +817,16 @@
     const menuAction=event.target.closest?.('#lexiaNavigatorFiles .result-actions button');
     if(menuAction)closeFileMenus();
     else if(!event.target.closest?.('#lexiaNavigatorFiles .result-actions'))closeFileMenus();
+    const reprocess=event.target.closest?.('[data-nav-reprocess]');
+    if(reprocess){
+      event.preventDefault();
+      event.stopPropagation();
+      reprocessNavigatorFile(
+        decodePath(reprocess.dataset.navReprocess),
+        reprocess
+      );
+      return;
+    }
     const quick=event.target.closest?.('[data-nav-quick]');
     if(quick){
       event.preventDefault();
