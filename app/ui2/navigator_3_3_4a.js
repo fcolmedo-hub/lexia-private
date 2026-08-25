@@ -162,6 +162,24 @@
       if(skipped)message+=' · '+number(skipped)+' omitido'+(skipped===1?'':'s')+' porque ya existían';
       if(errors.length)message+=' · '+number(errors.length)+' con error';
       importStatus(message,errors.length&&!imported?'error':'success');
+      if(imported){
+        // La importación termina exactamente en la carpeta que recibió los archivos.
+        const destinationKey=selectionKey(destination.category,destination.folder);
+        state.selections.clear();
+        state.selections.set(destinationKey,{
+          category:destination.category,
+          folder:destination.folder,
+          labels:Array.isArray(destination.labels)&&destination.labels.length?
+            destination.labels:['Biblioteca',destination.category,destination.folder]
+        });
+        state.browsed={
+          category:destination.category,
+          folder:destination.folder,
+          labels:Array.isArray(destination.labels)&&destination.labels.length?
+            destination.labels:['Biblioteca',destination.category,destination.folder],
+          libraryRoot:false
+        };
+      }
       await buildTree();
     }catch(error){importStatus(error.message||String(error),'error');}
     finally{if(button)button.disabled=false;const input=$('lexiaNavigatorImportInput');if(input)input.value='';}
@@ -179,13 +197,10 @@
   }
 
   function isTreeNodeSelected(key){
-    if(state.selections.has(key))return true;
-    let current=state.nodes.get(key);
-    while(current&&current.parentKey){
-      if(state.selections.has(current.parentKey))return true;
-      current=state.nodes.get(current.parentKey);
-    }
-    return false;
+    // Sólo se marca el botón que el usuario eligió expresamente.
+    // Una carpeta madre sigue abarcando su subárbol para la búsqueda,
+    // pero no convierte visualmente a sus hijas en selecciones ficticias.
+    return state.selections.has(key);
   }
 
   function descendantsOf(key){
