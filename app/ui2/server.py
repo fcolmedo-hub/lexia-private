@@ -1625,7 +1625,10 @@ def _read_navigator_import(handler):
     uploads = []
     staging = RUNTIME_ROOT / "ui2_import_staging" / uuid.uuid4().hex
     staging.mkdir(parents=True, exist_ok=False)
-    allowed = {".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm"}
+    allowed = {
+        ".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm",
+        ".rtf", ".xls", ".ods",
+    }
     try:
         for part in message.iter_parts():
             field = str(part.get_param("name", header="content-disposition") or "")
