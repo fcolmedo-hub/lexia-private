@@ -70,19 +70,39 @@ class DocumentExtractor:
                     method="docx",
                 )
 
-            if extension == ".doc":
-                with tempfile.TemporaryDirectory(prefix="lexia_doc_") as temporary:
+            if extension in {".doc", ".rtf"}:
+                with tempfile.TemporaryDirectory(prefix="lexia_office_") as temporary:
                     output_path = Path(temporary) / f"{path.stem}.docx"
-                    self._convert_doc_to_docx(path, output_path)
+                    if extension == ".doc":
+                        self._convert_doc_to_docx(path, output_path)
+                        method = "doc_via_docx"
+                    else:
+                        self._convert_rtf_to_docx(path, output_path)
+                        method = "rtf_via_docx"
                     return ExtractionResult(
                         text=self._extract_docx(output_path),
-                        method="doc_via_docx",
+                        method=method,
+                    )
+
+            if extension == ".xls":
+                with tempfile.TemporaryDirectory(prefix="lexia_xls_") as temporary:
+                    output_path = Path(temporary) / f"{path.stem}.ods"
+                    self._convert_xls_to_ods(path, output_path)
+                    return ExtractionResult(
+                        text=self._extract_ods(output_path),
+                        method="xls_via_ods",
                     )
 
             if extension == ".odt":
                 return ExtractionResult(
                     text=self._extract_odt(path),
                     method="odt",
+                )
+
+            if extension == ".ods":
+                return ExtractionResult(
+                    text=self._extract_ods(path),
+                    method="ods",
                 )
 
             if extension == ".txt":
@@ -345,15 +365,17 @@ class DocumentExtractor:
                 )
         return "\n\n".join(output).strip()
 
-    def _convert_doc_to_docx(
+    def _convert_with_libreoffice(
         self,
         source_path: Path,
         output_path: Path,
     ) -> None:
         executable = shutil.which("soffice") or shutil.which("libreoffice")
+        target_format = output_path.suffix.lower().lstrip(".")
         if not executable:
             raise DocumentExtractionError(
-                "Para leer archivos .doc se requiere LibreOffice instalado."
+                f"Para leer archivos {source_path.suffix.lower()} se requiere "
+                "LibreOffice instalado."
             )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         process = subprocess.run(
@@ -361,7 +383,7 @@ class DocumentExtractor:
                 executable,
                 "--headless",
                 "--convert-to",
-                "docx",
+                target_format,
                 "--outdir",
                 str(output_path.parent),
                 str(source_path),
@@ -372,14 +394,40 @@ class DocumentExtractor:
             check=False,
             timeout=120,
         )
-        generated = output_path.parent / f"{source_path.stem}.docx"
+        generated = output_path.parent / f"{source_path.stem}.{target_format}"
         if process.returncode != 0 or not generated.exists():
-            detail = process.stderr.strip() or process.stdout.strip() or "conversión sin resultado"
+            detail = (
+                process.stderr.strip()
+                or process.stdout.strip()
+                or "conversión sin resultado"
+            )
             raise DocumentExtractionError(
-                f"No se pudo convertir '{source_path.name}' a DOCX: {detail}"
+                f"No se pudo convertir '{source_path.name}' a "
+                f"{target_format.upper()}: {detail}"
             )
         if generated.resolve() != output_path.resolve():
             shutil.move(str(generated), str(output_path))
+
+    def _convert_doc_to_docx(
+        self,
+        source_path: Path,
+        output_path: Path,
+    ) -> None:
+        self._convert_with_libreoffice(source_path, output_path)
+
+    def _convert_rtf_to_docx(
+        self,
+        source_path: Path,
+        output_path: Path,
+    ) -> None:
+        self._convert_with_libreoffice(source_path, output_path)
+
+    def _convert_xls_to_ods(
+        self,
+        source_path: Path,
+        output_path: Path,
+    ) -> None:
+        self._convert_with_libreoffice(source_path, output_path)
 
     def _extract_docx(self, path: Path) -> str:
         document = DocxDocument(path)
@@ -461,6 +509,75 @@ class DocumentExtractor:
                 blocks.append("\t".join(cells))
 
         return "\n\n".join(blocks).strip()
+
+    def _extract_ods(self, path: Path) -> str:
+        """Extrae texto y valores visibles de hojas de cálculo OpenDocument."""
+        try:
+            with zipfile.ZipFile(path, "r") as archive:
+                try:
+                    content = archive.read("content.xml")
+                except KeyError as error:
+                    raise DocumentExtractionError(
+                        f"ODS inválido: '{path.name}' no contiene content.xml."
+                    ) from error
+        except zipfile.BadZipFile as error:
+            raise DocumentExtractionError(
+                f"ODS inválido o corrupto: '{path.name}'."
+            ) from error
+        except OSError as error:
+            raise DocumentExtractionError(
+                f"No se pudo leer el ODS '{path.name}': {error}"
+            ) from error
+
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError as error:
+            raise DocumentExtractionError(
+                f"ODS inválido: content.xml de '{path.name}' no es XML válido."
+            ) from error
+
+        office_ns = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+        table_ns = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+        text_body = root.find(
+            f"{{{office_ns}}}body/{{{office_ns}}}spreadsheet"
+        )
+        if text_body is None:
+            return ""
+
+        table_tag = f"{{{table_ns}}}table"
+        row_tag = f"{{{table_ns}}}table-row"
+        cell_tag = f"{{{table_ns}}}table-cell"
+        covered_tag = f"{{{table_ns}}}covered-table-cell"
+        name_attribute = f"{{{table_ns}}}name"
+        repeated_columns = f"{{{table_ns}}}number-columns-repeated"
+
+        sheets = []
+        for sheet in text_body.findall(table_tag):
+            name = str(sheet.get(name_attribute) or "Hoja")
+            rows = []
+            for row in sheet.iter(row_tag):
+                values = []
+                for cell in list(row):
+                    if cell.tag not in {cell_tag, covered_tag}:
+                        continue
+                    text = " ".join(
+                        part.strip()
+                        for part in cell.itertext()
+                        if part and part.strip()
+                    ).strip()
+                    if text:
+                        repeat = min(
+                            max(1, int(cell.get(repeated_columns, "1") or 1)),
+                            100,
+                        )
+                        values.extend([text] * repeat)
+                if values:
+                    rows.append("\t".join(values))
+            if rows:
+                sheets.append(
+                    f"--- HOJA {name} ---\n" + "\n".join(rows)
+                )
+        return "\n\n".join(sheets).strip()
 
     def _extract_html(self, path: Path) -> str:
         """Extract readable local HTML while excluding scripts and styles."""
