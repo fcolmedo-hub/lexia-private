@@ -104,10 +104,14 @@
 #homeQuickSearchButton{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:8px!important}
 #homeQuickSearchButton .nav-glyph{margin:0!important;flex:0 0 auto!important}
 #home .hr-search kbd{display:none!important}
-.global-sidebar .health{height:176px!important;min-height:176px!important;max-height:176px!important}
-.global-sidebar .profile{bottom:200px!important}
-.lexia-sidebar-refresh{display:block;width:100%;height:23px;margin-top:6px;border:1px solid #dcd9ff;border-radius:6px;background:#fff;color:#4035c7;font:700 9px/1 inherit;cursor:pointer}
-.lexia-sidebar-refresh:hover{background:#f2f0ff}.lexia-sidebar-refresh:disabled{opacity:.6;cursor:wait}
+.global-sidebar .health{height:216px!important;min-height:216px!important;max-height:216px!important;cursor:pointer}
+.global-sidebar .profile{bottom:240px!important}
+.global-sidebar .health:focus{outline:2px solid #8e86ff;outline-offset:-2px}
+.lexia-operation-file,.lexia-operation-page{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#66708f}
+.lexia-operation-file{margin-top:2px}
+.lexia-operation-page{margin-top:1px}
+.lexia-sidebar-refresh{display:block;width:100%;height:22px;margin-top:5px;border:1px solid #b8dfc6;border-radius:6px;background:#fff;color:#168b4c;font:700 8px/1 inherit;cursor:pointer}
+.lexia-sidebar-refresh:hover{background:#edf8f0}.lexia-sidebar-refresh:disabled{opacity:.6;cursor:wait}
 #maintenance .maint-ocr-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0}
 #maintenance .maint-ocr-stats button{display:flex;align-items:center;justify-content:space-between;gap:7px;min-width:0;min-height:38px;padding:7px 9px;border:1px solid #e2e4ef;border-radius:8px;background:#fafaff;color:#4e597b;font-size:10px;cursor:pointer}
 #maintenance .maint-ocr-stats button:hover,#maintenance .maint-ocr-stats button.active{border-color:#8e86ff;background:#f0efff;color:#352bc7}
