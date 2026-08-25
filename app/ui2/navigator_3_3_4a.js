@@ -61,13 +61,16 @@
   }
 
   function importDestination(){
-    if(state.selections.size!==1){
-      throw new Error('Para importar archivos debe haber una sola carpeta seleccionada.');
+    // Defensa frente a sesiones anteriores que hayan conservado una selección
+    // invisible: la última carpeta concreta elegida es el único destino válido.
+    const selected=Array.from(state.selections.values())
+      .filter(item=>String(item.folder||'').trim())
+      .at(-1);
+    if(!selected){
+      throw new Error('Seleccioná una carpeta concreta para importar archivos.');
     }
-    const selected=state.selections.values().next().value;
-    if(!String(selected.folder||'').trim()){
-      throw new Error('Seleccioná una única carpeta concreta, no la biblioteca ni sólo la categoría.');
-    }
+    state.selections.clear();
+    state.selections.set(selectionKey(selected.category,selected.folder),selected);
     return selected;
   }
 
@@ -276,17 +279,13 @@
       const category=String(node.category||'');
       const folder=String(node.folder||'');
       const key=selectionKey(category,folder);
-      if(state.selections.has(key)){
-        state.selections.delete(key);
-        descendantsOf(key).forEach(childKey=>state.selections.delete(childKey));
-      }else{
-        // Una selección de carpeta representa todo su subárbol.
-        Array.from(state.selections.keys()).forEach(selectedKey=>{
-          if(descendantsOf(selectedKey).includes(key))state.selections.delete(selectedKey);
-        });
-        descendantsOf(key).forEach(childKey=>state.selections.delete(childKey));
+      const alreadySelected=state.selections.has(key);
+      // El selector es exclusivo: una nueva carpeta reemplaza cualquier
+      // selección previa, incluso la que no esté visible por estar colapsada.
+      state.selections.clear();
+      if(!alreadySelected){
         state.selections.set(key,{
-        category,folder,labels:labels&&labels.length?labels:['Biblioteca']
+          category,folder,labels:labels&&labels.length?labels:['Biblioteca']
         });
       }
     }
