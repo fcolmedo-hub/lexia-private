@@ -61,17 +61,12 @@
   }
 
   function importDestination(){
-    // Defensa frente a sesiones anteriores que hayan conservado una selección
-    // invisible: la última carpeta concreta elegida es el único destino válido.
-    const selected=Array.from(state.selections.values())
-      .filter(item=>String(item.folder||'').trim())
-      .at(-1);
-    if(!selected){
-      throw new Error('Seleccioná una carpeta concreta para importar archivos.');
+    const folders=Array.from(state.selections.values())
+      .filter(item=>String(item.folder||'').trim());
+    if(folders.length!==1){
+      throw new Error('Para importar archivos seleccioná una sola carpeta destino.');
     }
-    state.selections.clear();
-    state.selections.set(selectionKey(selected.category,selected.folder),selected);
-    return selected;
+    return folders[0];
   }
 
   function importStatus(message,type='info'){
@@ -271,7 +266,7 @@
     loadDocuments(false);
   }
 
-  function toggleTreeNode(node,labels,libraryRoot=false){
+  function toggleTreeNode(node,labels,libraryRoot=false,additive=false){
     state.browsed=null;
     if(libraryRoot){
       state.selections.clear();
@@ -280,10 +275,18 @@
       const folder=String(node.folder||'');
       const key=selectionKey(category,folder);
       const alreadySelected=state.selections.has(key);
-      // El selector es exclusivo: una nueva carpeta reemplaza cualquier
-      // selección previa, incluso la que no esté visible por estar colapsada.
-      state.selections.clear();
-      if(!alreadySelected){
+      if(!additive){
+        // Clic común: una única carpeta, apropiada también para importar.
+        state.selections.clear();
+      }
+      if(alreadySelected){
+        state.selections.delete(key);
+      }else{
+        // Evita duplicar el alcance si se elige una carpeta madre o una hija.
+        Array.from(state.selections.keys()).forEach(selectedKey=>{
+          if(descendantsOf(selectedKey).includes(key))state.selections.delete(selectedKey);
+        });
+        descendantsOf(key).forEach(childKey=>state.selections.delete(childKey));
         state.selections.set(key,{
           category,folder,labels:labels&&labels.length?labels:['Biblioteca']
         });
@@ -452,7 +455,7 @@
     const select=event=>{
       event.preventDefault();
       event.stopPropagation();
-      toggleTreeNode(node,labels,false);
+      toggleTreeNode(node,labels,false,Boolean(event.ctrlKey||event.metaKey));
     };
     selector.addEventListener('click',select);
     const browseAndToggle=async event=>{
