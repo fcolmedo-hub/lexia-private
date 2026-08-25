@@ -4176,18 +4176,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
     document.getElementById('searchRecentHistory')?.classList.add('open');
   }
 
-  document.addEventListener('pointerover',function(ev){
-    const input=ev.target.closest?.('#legalQuery');
-    if(!input)return;
-    const panel=document.getElementById('searchRecentHistory');
-    const from=ev.relatedTarget;
-    if(panel && from && panel.contains(from)){
-      recentSuppressOpenUntil=performance.now()+450;
-      closeRecentHistory();
-      return;
-    }
-    openRecentHistory();
-  },true);
+  // El historial se abre sólo mediante clic explícito en el cuadro de consulta.
 
   document.addEventListener('pointerout',function(ev){
     const panel=ev.target.closest?.('#searchRecentHistory');
