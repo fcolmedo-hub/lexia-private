@@ -80,6 +80,11 @@
   },true);
 
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
+  const shortFileName=value=>{
+    const normalized=String(value??'').replace(/\\/g,'/');
+    const parts=normalized.split('/').filter(Boolean);
+    return parts[parts.length-1]||'';
+  };
   const modes={manual:'Manual',automatic:'Automático',scheduled:'Programado'};
   let state=null;
   let tab='activity';
@@ -163,9 +168,30 @@
     }
     const live=state.live||{},sync=live.autosync||{},ocr=live.ocr||{},catalog=live.catalog||{},config=state.autosync_config||{},items=state.problems||[],events=state.history||[],operation=state.operation||{};
     const attention=sync.phase==='error'||Number(ocr.error||0)>0;
+    const activeOcr=Boolean(ocr.running);
+    const activeOperation=activeOcr?{
+      engine:'OCR',
+      function:ocr.stage||'ocr',
+      status:'Procesando OCR',
+      current_file:ocr.current_file||'',
+      document_name:ocr.document_name||'',
+      processed:Number(ocr.processed||0),
+      total:Number(ocr.total||0),
+      percentage:Number(ocr.total||0)?Math.round(100*Number(ocr.processed||0)/Number(ocr.total||0)):0,
+      queued:Number(ocr.pending||0),
+      current_page:Number(ocr.current_page||0),
+      total_pages:Number(ocr.total_pages||0),
+      page_percentage:Number(ocr.page_percentage||0)
+    }:operation;
+    const activePath=String(activeOperation.current_file||'');
+    const activeFile=String(activeOperation.document_name||shortFileName(activePath)||'');
+    const activeCurrentPage=Number(activeOperation.current_page||0);
+    const activeTotalPages=Number(activeOperation.total_pages||0);
+    const activePagePercentage=Number(activeOperation.page_percentage||0);
+    const currentActivitySummary='<div class="maint-current"><b>'+esc(activeOperation.engine||'LexIA')+' · '+esc(phaseLabel(activeOperation.function))+'</b><p>'+esc(activeOperation.status||'Biblioteca al día')+'</p>'+(activeFile?'<p class="maint-current-file" title="'+esc(activePath)+'">Archivo: <b>'+esc(activeFile)+'</b></p>':'')+(activeTotalPages?'<small class="maint-current-page">Página '+esc(activeCurrentPage)+' de '+esc(activeTotalPages)+' · '+esc(activePagePercentage)+'%</small>':'')+(Number(activeOperation.total||0)?progress(activeOperation.processed,activeOperation.total,activeOperation.percentage):'')+'<small>Cola: '+esc(activeOperation.queued||0)+' tarea(s)</small></div>';
     let body='';
     if(tab==='activity'){
-      body='<div class="maint-grid">'+card('<h3>Actividad actual</h3><div class="maint-row"><i class="maint-icon">↻</i><div><b>AutoSync</b><p>'+esc(sync.current_file||sync.status||'Biblioteca disponible')+'</p></div><span class="maint-tag">'+esc(phaseLabel(sync.phase))+'</span></div><div class="maint-row"><i class="maint-icon">O</i><div><b>OCR</b><p>'+esc(ocr.running?((ocr.document_name||'Procesando OCR')+(ocr.total_pages?' · página '+ocr.current_page+' de '+ocr.total_pages:'')):(String(ocr.pending||0)+' pendiente(s) en cola.'))+'</p></div><span class="maint-tag '+(ocr.error?'maint-bad':'maint-good')+'">'+(ocr.error?esc(String(ocr.error)+' error(es)'):'OK')+'</span></div>'+((ocr.running||ocr.document_name)?ocrDetails(ocr):'')+'<div class="maint-current"><b>'+esc(operation.engine||'LexIA')+' · '+esc(operation.function||'idle')+'</b><p>'+esc(operation.status||'Biblioteca al día')+'</p>'+progress(operation.processed,operation.total,operation.percentage)+'<small>Cola: '+esc(operation.queued||0)+' tarea(s)</small></div><div class="maint-actions">'+button('mScan','Buscar cambios ahora')+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Errores y recuperación</h3>'+problems(items))+card('<h3>Historial operativo</h3><p class="maint-note">Se muestran únicamente las últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
+      body='<div class="maint-grid">'+card('<h3>Actividad actual</h3><div class="maint-row"><i class="maint-icon">↻</i><div><b>AutoSync</b><p>'+esc(sync.current_file||sync.status||'Biblioteca disponible')+'</p></div><span class="maint-tag">'+esc(phaseLabel(sync.phase))+'</span></div><div class="maint-row"><i class="maint-icon">O</i><div><b>OCR</b><p>'+esc(ocr.running?((ocr.document_name||'Procesando OCR')+(ocr.total_pages?' · página '+ocr.current_page+' de '+ocr.total_pages:'')):(String(ocr.pending||0)+' pendiente(s) en cola.'))+'</p></div><span class="maint-tag '+(ocr.error?'maint-bad':'maint-good')+'">'+(ocr.error?esc(String(ocr.error)+' error(es)'):'OK')+'</span></div>'+((ocr.running||ocr.document_name)?ocrDetails(ocr):'')+''+currentActivitySummary+'<div class="maint-actions">'+button('mScan','Buscar cambios ahora')+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Errores y recuperación</h3>'+problems(items))+card('<h3>Historial operativo</h3><p class="maint-note">Se muestran únicamente las últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
     }else if(tab==='automation'){
       body='<div class="maint-grid">'+card('<h3>AutoSync</h3><p class="maint-note">Elegí cómo LexIA detecta y procesa los cambios de la biblioteca.</p><div class="maint-form"><label>Modo<select id="mMode" class="maint-select"><option value="manual" '+(config.mode==='manual'?'selected':'')+'>Manual</option><option value="automatic" '+(config.mode==='automatic'?'selected':'')+'>Automático</option><option value="scheduled" '+(config.mode==='scheduled'?'selected':'')+'>Programado</option></select></label><label>Hora programada<input id="mSchedule" class="maint-time" type="time" value="'+esc(config.schedule_time||'03:00')+'" '+(config.mode==='scheduled'?'':'disabled')+'></label>'+button('mSaveMode','Guardar modo','primary',working)+'</div><div class="maint-actions">'+button('mScan','Ejecutar sincronización manual','secondary',working)+'</div>','maint-autosync-card')+card('<h3>OCR</h3><p class="maint-note">'+esc((state.ocr_policy||{}).description||'Los documentos escaneados se procesan desde la cola manual.')+'</p>'+ocrStatusButtons(ocr)+ocrQueuePanel(ocr)+ocrDetails(ocr)+progress(ocr.processed,ocr.total,0)+'<div class="maint-actions">'+button('mOcrStart','Procesar pendientes y errores OCR','primary',working||Boolean(ocr.running))+button('mOcrStop','Detener OCR','secondary',working||!ocr.running)+'</div>','maint-ocr-card')+'</div>';
     }else if(tab==='diagnosis'){
@@ -194,7 +220,7 @@
     let detail=box.querySelector('.lexia-operation-detail');
     if(!detail){
       const paragraph=box.querySelector('p')||document.createElement('p');
-      paragraph.innerHTML='<b id="liveAutoSyncLabel">AutoSync activo</b><br><span id="liveAutoSyncDetail">Estado sin actualizar</span><span class="lexia-operation-detail"><span id="liveOperationFunction">En reposo</span><span class="lexia-operation-progress"><i id="liveOperationProgress"></i></span><small id="liveOperationQueue">Cola: 0</small><button type="button" id="liveOperationRefresh" class="lexia-sidebar-refresh">↻ Actualizar estado</button></span>';
+      paragraph.innerHTML='<b id="liveAutoSyncLabel">AutoSync activo</b><br><span id="liveAutoSyncDetail">Estado sin actualizar</span><span class="lexia-operation-detail"><span id="liveOperationFunction">LexIA · en reposo</span><small id="liveOperationFile" class="lexia-operation-file" hidden></small><small id="liveOperationPage" class="lexia-operation-page" hidden></small><span class="lexia-operation-progress"><i id="liveOperationProgress"></i></span><small id="liveOperationProgressLabel">0%</small><small id="liveOperationQueue">Cola: 0 tarea(s)</small><button type="button" id="liveOperationRefresh" class="lexia-sidebar-refresh">↻ Actualizar estado</button></span>';
       if(!paragraph.parentElement)box.appendChild(paragraph);
       detail=paragraph.querySelector('.lexia-operation-detail');
     }
@@ -203,7 +229,26 @@
       refreshButton.dataset.bound='1';
       refreshButton.addEventListener('click',event=>{
         event.preventDefault();
+        event.stopPropagation();
         refreshGlobalSidebar(true);
+      });
+    }
+    if(!box.dataset.maintenanceBound){
+      box.dataset.maintenanceBound='1';
+      box.tabIndex=0;
+      box.setAttribute('role','button');
+      box.setAttribute('aria-label','Abrir Mantenimiento');
+      const openMaintenance=event=>{
+        if(event.target.closest?.('#liveOperationRefresh'))return;
+        event.preventDefault();
+        window.lexiaMaintenanceOpen?.();
+      };
+      box.addEventListener('click',openMaintenance);
+      box.addEventListener('keydown',event=>{
+        if(event.key==='Enter'||event.key===' '){
+          event.preventDefault();
+          window.lexiaMaintenanceOpen?.();
+        }
       });
     }
     return detail;
@@ -215,10 +260,26 @@
     set('liveAutoSyncLabel',op.engine==='OCR'?'OCR trabajando':(['waiting','scanning','indexing','knowledge'].includes(sync.phase)?'AutoSync trabajando':'AutoSync activo'));
     set('liveAutoSyncDetail',op.status||sync.status||'Biblioteca al día');
     set('liveOperationFunction',(op.engine||'LexIA')+' · '+phaseLabel(op.function));
-    const pageDetail=op.engine==='OCR'&&Number(op.total_pages||0)?' · pág. '+Number(op.current_page||0)+'/'+Number(op.total_pages||0):'';
-    set('liveOperationQueue','Cola: '+Number(op.queued||0)+' · '+Number(op.processed||0)+' de '+Number(op.total||0)+pageDetail);
+    const rawFile=String(op.current_file||'');
+    const fileLabel=String(op.document_name||shortFileName(rawFile)||'');
+    const fileElement=document.getElementById('liveOperationFile');
+    if(fileElement){
+      fileElement.textContent=fileLabel?'Archivo: '+fileLabel:'';
+      fileElement.title=rawFile;
+      fileElement.hidden=!fileLabel;
+    }
+    const currentPage=Number(op.current_page||0);
+    const totalPages=Number(op.total_pages||0);
+    const pageElement=document.getElementById('liveOperationPage');
+    if(pageElement){
+      pageElement.textContent=totalPages?'Página '+currentPage+' de '+totalPages:'';
+      pageElement.hidden=!totalPages;
+    }
+    const percentage=Math.max(0,Math.min(100,Number(op.percentage||0)));
+    set('liveOperationProgressLabel',percentage+'%');
+    set('liveOperationQueue','Cola: '+Number(op.queued||0)+' tarea(s)'+(Number(op.total||0)?' · '+Number(op.processed||0)+' de '+Number(op.total||0):''));
     const bar=document.getElementById('liveOperationProgress');
-    if(bar)bar.style.width=Math.max(0,Math.min(100,Number(op.percentage||0)))+'%';
+    if(bar)bar.style.width=percentage+'%';
     const title=document.querySelector('#globalSidebar .health h4');
     if(title){
       const healthy=sync.phase!=='error'&&Number(ocr.error||0)===0;
@@ -232,7 +293,7 @@
     const activeOcr=Boolean(ocr.running);
     const activeSync=['waiting','scanning','indexing','knowledge'].includes(autosync.phase);
     const total=Number((activeOcr?ocr.total:autosync.total)||0),processed=Number((activeOcr?ocr.processed:autosync.processed)||0);
-    const op={engine:activeOcr?'OCR':activeSync?'AutoSync':'LexIA',function:activeOcr?(ocr.stage||'ocr'):(autosync.phase||'idle'),status:activeOcr?(ocr.document_name||'Procesando OCR'):(autosync.status||'Biblioteca al día'),processed,total,percentage:Number((activeOcr?0:autosync.percentage)||0)||(total?Math.round(100*processed/total):0),queued:activeOcr?Number(ocr.pending||0):Math.max(0,total-processed),current_page:Number(ocr.current_page||0),total_pages:Number(ocr.total_pages||0)};
+    const op={engine:activeOcr?'OCR':activeSync?'AutoSync':'LexIA',function:activeOcr?(ocr.stage||'ocr'):(autosync.phase||'idle'),status:activeOcr?'Procesando OCR':(autosync.status||'Biblioteca al día'),current_file:activeOcr?(ocr.current_file||''):(autosync.current_file||''),document_name:activeOcr?(ocr.document_name||''):'',processed,total,percentage:Number((activeOcr?0:autosync.percentage)||0)||(total?Math.round(100*processed/total):0),queued:activeOcr?Number(ocr.pending||0):Math.max(0,total-processed),current_page:Number(ocr.current_page||0),total_pages:Number(ocr.total_pages||0),page_percentage:Number(ocr.page_percentage||0)};
     state={...(state||{}),live:{...((state||{}).live||{}),autosync,ocr},operation:op};
     updateSidebar();
   };
