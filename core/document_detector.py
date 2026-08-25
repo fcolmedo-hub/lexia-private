@@ -6,7 +6,10 @@ from models.document import Document
 
 
 class DocumentDetector:
-    SUPPORTED_EXTENSIONS = {".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm"}
+    SUPPORTED_EXTENSIONS = {
+        ".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm",
+        ".rtf", ".xls", ".ods",
+    }
 
     def __init__(self, library_path: str | Path):
         self.library_path = Path(library_path).resolve()
