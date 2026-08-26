@@ -9,6 +9,8 @@ from search.authority_ranker import LegalAuthorityRanker
 from search.fuzzy_matcher import FuzzyLegalMatcher
 from search.legal_thesaurus import LegalQueryExpander
 from search.query_parser import LegalQueryParser
+from search.boolean_query import parse_boolean_query
+from search.boolean_document_search import search_boolean_documents
 from search.result_diversifier import ResultDiversifier
 from search.vector_store import VectorStore
 from storage.catalog import DocumentCatalog
@@ -46,9 +48,53 @@ class ProfessionalLegalSearchEngine:
         expand_query: bool = True,
     ) -> list[SearchResult]:
         parsed = self.parser.parse(query)
-        variants = self._variants(
-            query,
-            expand_query,
+        boolean_query = parse_boolean_query(query)
+
+        if boolean_query.explicit:
+            rows = search_boolean_documents(
+                self.catalog.database_path,
+                boolean_query,
+                limit=limit,
+                category=category,
+            )
+
+            final = []
+
+            for rank, row in enumerate(rows, start=1):
+                result = SearchResult(
+                    document_name=row["document_name"],
+                    document_path=Path(
+                        row["document_path"]
+                    ),
+                    category=row["category"],
+                    fragment_index=int(
+                        row.get("fragment_index", 0)
+                    ),
+                    text=row["text_content"],
+                    score=max(
+                        0.01,
+                        1.0 - (rank - 1) * 0.01,
+                    ),
+                    lexical_rank=rank,
+                    page_start=row.get("page_start"),
+                    page_end=row.get("page_end"),
+                )
+
+                result.matched_queries.append(query)
+                final.append(result)
+
+            self.history.add(
+                query,
+                category,
+                len(final),
+            )
+
+            return final
+
+        variants = (
+            [query]
+            if boolean_query.explicit
+            else self._variants(query, expand_query)
         )
         candidate_limit = min(
             SETTINGS.search_candidates_per_variant,
@@ -71,13 +117,19 @@ class ProfessionalLegalSearchEngine:
                 )
             )
 
-            semantic = self.vector_store.search(
-                variant,
-                candidate_limit,
-                category,
-            )
+            if boolean_query.explicit:
+                semantic = []
+                lexical_query = boolean_query.fts_query
+            else:
+                semantic = self.vector_store.search(
+                    variant,
+                    candidate_limit,
+                    category,
+                )
+                lexical_query = self._fts_query(variant)
+
             lexical = self.catalog.lexical_search(
-                self._fts_query(variant),
+                lexical_query,
                 candidate_limit,
                 category,
             )

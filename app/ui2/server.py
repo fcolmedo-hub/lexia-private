@@ -29,6 +29,8 @@ RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
 
 from backend import LiveReadOnlyAdapter
 from search_runtime import SearchRuntime
+from search.boolean_query import parse_boolean_query, BooleanQuerySyntaxError
+from search.boolean_document_search import search_boolean_documents
 
 LIVE = LiveReadOnlyAdapter()
 SEARCH = None
@@ -870,6 +872,7 @@ def _navigator_browse_documents(
     db_path = _filter_catalog_path()
     if not db_path.exists():
         raise FileNotFoundError("No existe el catálogo LexIA.")
+
 
     where = ["COALESCE(is_deleted,0)=0"]
     params = []
@@ -1812,6 +1815,11 @@ def _content_search_v2(
     if not raw:
         raise ValueError("La consulta está vacía.")
 
+    try:
+        boolean_query = parse_boolean_query(raw)
+    except BooleanQuerySyntaxError as exc:
+        raise ValueError(str(exc)) from exc
+
     limit = max(1, min(int(limit or 20), 50))
     # A modest candidate pool is enough for the visible result list and avoids
     # normalizing hundreds of long fragments on every keystroke/search.
@@ -1826,6 +1834,56 @@ def _content_search_v2(
     if not db_path.exists():
         raise FileNotFoundError("No existe el catálogo LexIA.")
 
+
+    # Las consultas booleanas explícitas se evalúan sobre
+    # el documento completo, no sobre un fragmento aislado.
+    if boolean_query.explicit:
+        boolean_rows = search_boolean_documents(
+            db_path,
+            boolean_query,
+            limit=limit,
+            category=category,
+            folder=folder,
+        )
+
+        results = []
+
+        for rank, row in enumerate(boolean_rows, start=1):
+            results.append({
+                "document_path": row["document_path"],
+                "document_name": row["document_name"],
+                "category": row["category"],
+                "text": row["text_content"],
+                "page_start": row.get("page_start"),
+                "page_end": row.get("page_end"),
+                "fragment_index": row.get("fragment_index", 0),
+                "lexical_rank": rank,
+                "semantic_rank": None,
+                "rank": rank,
+                "score": round(
+                    max(
+                        70.0,
+                        99.0 - (rank - 1) * 1.5,
+                    ),
+                    1,
+                ),
+                "near_match": bool(
+                    row.get("near_match")
+                ),
+            })
+
+        return {
+            "ok": True,
+            "query": raw,
+            "results": results,
+            "elapsed_seconds": round(
+                perf_counter() - started,
+                4,
+            ),
+            "service": "LexIA Boolean Document Search 1.0",
+            "search_strategy": "document_boolean_fts5",
+        }
+
     # If the user did not quote anything, the full query itself is still an
     # important legal phrase candidate. This strongly favors literal formulations
     # such as "solve et repete", "plazo razonable", "acción de repetición", etc.
@@ -1835,15 +1893,22 @@ def _content_search_v2(
         auto_phrase = raw
 
     stages = []
+
     if phrases:
-        stages.append(("phrase", " AND ".join(_fts_quote(p) for p in phrases)))
+        stages.append(
+            ("phrase", " AND ".join(_fts_quote(p) for p in phrases))
+        )
     elif auto_phrase:
         stages.append(("phrase", _fts_quote(auto_phrase)))
 
     if terms:
-        stages.append(("and", " AND ".join(_fts_quote(t) for t in terms)))
+        stages.append(
+            ("and", " AND ".join(_fts_quote(t) for t in terms))
+        )
         if len(terms) > 1:
-            stages.append(("or", " OR ".join(_fts_quote(t) for t in terms)))
+            stages.append(
+                ("or", " OR ".join(_fts_quote(t) for t in terms))
+            )
 
     if not stages:
         stages.append(("phrase", _fts_quote(raw)))
@@ -1922,7 +1987,7 @@ def _content_search_v2(
 
                 # Stable, interpretable legal ranking. Stage weight dominates:
                 # exact phrase > AND > OR. Lexical BM25 then breaks ties.
-                stage_bonus = {"phrase": 10000, "and": 6000, "or": 2000}[stage_name]
+                stage_bonus = {"boolean": 12000, "phrase": 10000, "and": 6000, "or": 2000}[stage_name]
                 score = float(stage_bonus)
                 if full_phrase:
                     score += 5000
@@ -1961,7 +2026,7 @@ def _content_search_v2(
                 1 for item in candidates.values()
                 if item["_rank_score"] >= 6000
             )
-            if strong_count >= limit and stage_name in {"phrase", "and"}:
+            if strong_count >= limit and stage_name in {"boolean", "phrase", "and"}:
                 break
     finally:
         con.close()
