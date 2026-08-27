@@ -34,8 +34,8 @@ def metadata_from_path(document_path: str | Path) -> JurisprudencePathMetadata |
     """Derive only organizational metadata from the Jurisprudencia tree.
 
     Important: a folder may group decisions by hierarchical dependence rather
-    than by the court that actually issued them.  Therefore the path never
-    determines the exact deciding court.  That value must later be extracted
+    than by the court that actually issued them. Therefore the path never
+    determines the exact deciding court. That value must later be extracted
     from the document itself.
     """
     path = Path(document_path)
@@ -73,13 +73,10 @@ def metadata_from_path(document_path: str | Path) -> JurisprudencePathMetadata |
         hierarchy_detail = "/".join(folders[3:]) if len(folders) >= 4 else ""
 
     elif folded_first == "otras jurisdicciones":
-        # Carpeta puramente organizativa. No se infiere jurisdicción ni tribunal.
         hierarchy_group = first
         hierarchy_detail = "/".join(folders[1:]) if len(folders) >= 2 else ""
 
     else:
-        # En el árbol actual el primer nivel suele ser una provincia o región
-        # geográfica. Puede contener tanto justicia provincial como federal.
         province = first
 
         if _contains_federal(folders[1:]):
@@ -91,14 +88,10 @@ def metadata_from_path(document_path: str | Path) -> JurisprudencePathMetadata |
 
         hierarchy_group = folders[1] if len(folders) >= 2 else ""
 
-        # Casos conocidos del árbol actual: se preserva la semántica física
-        # sin afirmar que esos niveles describan el tribunal decisor.
         if hierarchy_group.casefold() == "1 instancia":
-            # Ej.: Santa Fe/1 Instancia/Federal/Santa Fe/1
             hierarchy_location = folders[3] if len(folders) >= 4 else ""
             hierarchy_detail = "/".join(folders[4:]) if len(folders) >= 5 else ""
         elif hierarchy_group.casefold().startswith("camara federal"):
-            # Ej.: Santa Fe/Camara Federal de Rosario
             if "rosario" in hierarchy_group.casefold():
                 hierarchy_location = "Rosario"
             hierarchy_detail = "/".join(folders[2:]) if len(folders) >= 3 else ""
@@ -187,8 +180,27 @@ def ensure_jurisprudence_index(connection: sqlite3.Connection) -> None:
     )
 
 
+def _load_confidence(connection: sqlite3.Connection, document_path: str) -> dict:
+    row = connection.execute(
+        "SELECT confidence_json FROM jurisprudence_index WHERE document_path = ?",
+        (document_path,),
+    ).fetchone()
+    if not row:
+        return {}
+    try:
+        value = json.loads(row[0] or "{}")
+    except Exception:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 def rebuild_structural_index(database_path: str | Path) -> dict[str, int]:
-    """Populate/update organizational jurisprudence metadata."""
+    """Populate/update organizational jurisprudence metadata.
+
+    Structural refreshes preserve confidence scores already generated from the
+    judgment content. This makes the path index and the legal-content index
+    independent layers that can be rebuilt in either order.
+    """
     database_path = Path(database_path)
     connection = sqlite3.connect(database_path, timeout=30)
     connection.row_factory = sqlite3.Row
@@ -220,14 +232,14 @@ def rebuild_structural_index(database_path: str | Path) -> dict[str, int]:
                 continue
 
             active_paths.add(document_path)
-            confidence = {
+            confidence = _load_confidence(connection, document_path)
+            confidence.update({
                 "scope": 1.0 if metadata.scope else 0.0,
                 "province": 1.0 if metadata.province else 0.0,
                 "hierarchy_group": 1.0 if metadata.hierarchy_group else 0.0,
                 "hierarchy_location": 1.0 if metadata.hierarchy_location else 0.0,
                 "hierarchy_detail": 1.0 if metadata.hierarchy_detail else 0.0,
-                "decision_court_name": 0.0,
-            }
+            })
 
             connection.execute(
                 """
@@ -250,7 +262,11 @@ def rebuild_structural_index(database_path: str | Path) -> dict[str, int]:
                     hierarchy_location = excluded.hierarchy_location,
                     hierarchy_detail = excluded.hierarchy_detail,
                     folder_path = excluded.folder_path,
-                    metadata_source = 'path-organizational',
+                    metadata_source = CASE
+                        WHEN jurisprudence_index.metadata_source LIKE '%content%'
+                        THEN 'path-organizational+content'
+                        ELSE 'path-organizational'
+                    END,
                     confidence_json = excluded.confidence_json,
                     updated_at = CURRENT_TIMESTAMP
                 """,
