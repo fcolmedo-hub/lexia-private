@@ -108,8 +108,12 @@ def _parse_parties(title: str) -> tuple[str, str]:
     match = re.search(r"^(.*?)\s+(?:c/|contra)\s+(.*?)(?:\s+s/|$)", value, re.I)
     if not match:
         return "", ""
-    plaintiff = re.sub(r"\s+", " ", match.group(1)).strip(' “"”.,;:-')
-    defendant = re.sub(r"\s+", " ", match.group(2)).strip(' “"”.,;:-')
+
+    # No eliminar el punto final: puede formar parte de una razón social
+    # (S.A., S.R.L., S.A.S., etc.). Sólo limpiamos comillas y separadores
+    # inequívocamente externos a la denominación de la parte.
+    plaintiff = re.sub(r"\s+", " ", match.group(1)).strip(' “"”,;:-')
+    defendant = re.sub(r"\s+", " ", match.group(2)).strip(' “"”,;:-')
     if not (2 <= len(plaintiff) <= 160 and 2 <= len(defendant) <= 160):
         return "", ""
     return plaintiff, defendant
