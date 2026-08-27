@@ -1,16 +1,23 @@
+param(
+    [switch]$LocalQdrant
+)
+
 $ErrorActionPreference = 'Stop'
 
 $Root = if ($env:LEXIA_ROOT) { $env:LEXIA_ROOT } else { 'D:\LexIA_2.3_DEV' }
 $Py = Join-Path $Root '.venv\Scripts\python.exe'
-$Entry = Join-Path $Root 'app\ui2\windows_desktop.py'
+$EntryName = if ($LocalQdrant) { 'windows_desktop_local.py' } else { 'windows_desktop.py' }
+$Entry = Join-Path $Root (Join-Path 'app\ui2' $EntryName)
+$AppName = if ($LocalQdrant) { 'LexIA_LocalQdrant' } else { 'LexIA' }
+$ShortcutName = if ($LocalQdrant) { 'LexIA Local Qdrant.lnk' } else { 'LexIA.lnk' }
 $BuildRoot = Join-Path $Root '.build_lexia_windows'
 $Dist = Join-Path $BuildRoot 'dist'
 $Work = Join-Path $BuildRoot 'build'
-$Spec = Join-Path $BuildRoot 'LexIA.spec'
-$ExeOut = Join-Path $Dist 'LexIA\LexIA.exe'
+$Spec = Join-Path $BuildRoot "$AppName.spec"
+$ExeOut = Join-Path $Dist "$AppName\$AppName.exe"
 $InstallRoot = Join-Path $Root '.lexia_windows_app'
-$InstallDir = Join-Path $InstallRoot 'LexIA'
-$ExeTarget = Join-Path $InstallDir 'LexIA.exe'
+$InstallDir = Join-Path $InstallRoot $AppName
+$ExeTarget = Join-Path $InstallDir "$AppName.exe"
 
 if (-not (Test-Path $Py)) { throw "No se encontró $Py" }
 if (-not (Test-Path $Entry)) { throw "No se encontró $Entry" }
@@ -70,7 +77,7 @@ $Args = @(
     '--clean',
     '--onedir',
     '--windowed',
-    '--name','LexIA',
+    '--name',$AppName,
     '--collect-all','webview',
     '--distpath',$Dist,
     '--workpath',$Work,
@@ -79,12 +86,12 @@ $Args = @(
 
 & $Py @Args
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ExeOut)) {
-    throw 'PyInstaller no pudo generar LexIA.exe'
+    throw "PyInstaller no pudo generar $AppName.exe"
 }
 
 Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
-Copy-Item -Recurse -Force (Join-Path $Dist 'LexIA') $InstallDir
+Copy-Item -Recurse -Force (Join-Path $Dist $AppName) $InstallDir
 
 # Eliminar el antiguo ejecutable onefile para evitar que un acceso viejo siga
 # lanzando la versión lenta.
@@ -92,7 +99,7 @@ $LegacyExe = Join-Path $Root 'LexIA.exe'
 Remove-Item -Force $LegacyExe -ErrorAction SilentlyContinue
 
 $Desktop = [Environment]::GetFolderPath('Desktop')
-$Shortcut = Join-Path $Desktop 'LexIA.lnk'
+$Shortcut = Join-Path $Desktop $ShortcutName
 $Shell = New-Object -ComObject WScript.Shell
 $Link = $Shell.CreateShortcut($Shortcut)
 $Link.TargetPath = $ExeTarget
@@ -102,13 +109,17 @@ if ($Icon) {
 } else {
     $Link.IconLocation = "$ExeTarget,0"
 }
-$Link.Description = 'LexIA'
+$Link.Description = if ($LocalQdrant) { 'LexIA - Qdrant local experimental' } else { 'LexIA' }
 $Link.Save()
 
 Write-Host ''
 Write-Host "LexIA instalada en: $ExeTarget"
 Write-Host "Acceso directo creado en: $Shortcut"
 Write-Host 'Modo de arranque: ONEDIR (sin extracción temporal por cada inicio).'
+if ($LocalQdrant) {
+    Write-Host 'Modo Qdrant: LOCAL embebido experimental. No usa Docker Desktop.'
+    Write-Host 'IMPORTANTE: requiere reconstruir el índice vectorial local antes de comparar búsquedas.'
+}
 if (-not $Icon) {
     Write-Host 'No se encontró LexIA.ico; se usó el icono del ejecutable. Podremos reemplazarlo luego por la pluma azul.'
 }
