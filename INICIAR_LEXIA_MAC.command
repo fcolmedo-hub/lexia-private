@@ -14,11 +14,25 @@ fi
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
 
-# Docker Desktop/Qdrant: si Docker no está ejecutándose, iniciarlo y esperar
-# a que Qdrant quede disponible antes de levantar los servicios de LexIA.
+# Docker Desktop/Qdrant: si Docker no está ejecutándose, iniciarlo en segundo
+# plano. -g evita activar la aplicación y -j la inicia oculta, para que LexIA
+# no muestre la ventana principal de Docker durante su propio arranque.
 if ! /usr/bin/pgrep -f "/Applications/Docker.app" >/dev/null 2>&1; then
     /usr/bin/open -gja Docker >/dev/null 2>&1 || true
 fi
+
+# Si macOS/Docker muestran alguna ventana durante la inicialización, ocultar
+# la aplicación sin interferir con el daemon. Es best-effort: el arranque de
+# LexIA no depende de permisos de Automatización/Accesibilidad.
+(
+    for _ in {1..20}; do
+        if /usr/bin/pgrep -f "/Applications/Docker.app" >/dev/null 2>&1; then
+            /usr/bin/osascript -e 'tell application "System Events" to set visible of process "Docker Desktop" to false' >/dev/null 2>&1 || \
+            /usr/bin/osascript -e 'tell application "System Events" to set visible of process "Docker" to false' >/dev/null 2>&1 || true
+        fi
+        sleep 1
+    done
+) >/dev/null 2>&1 &
 
 DOCKER_BIN=""
 for candidate in \
