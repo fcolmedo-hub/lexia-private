@@ -34,7 +34,7 @@
       field('Expediente',ids.case_number,'text','Número o prefijo')+
       field('Parte',ids.party,'text','Actor o demandado')+
       field('Norma',ids.law,'text','Ej. Ley 11.683')+
-      '<div class="lexia-juris-note">Estos filtros usan el índice jurídico del fallo y se combinan con la búsqueda de contenido.</div>'+
+      '<div class="lexia-juris-note">Los filtros se aplican sobre el índice jurídico y luego LexIA ordena por relevancia de contenido + metadatos.</div>'+
       '</section>';
   }
 
@@ -57,8 +57,7 @@
   function render(){
     const h=host(),category=categoryElement();
     if(!h||!category)return;
-    const active=isJuris(category.value);
-    if(!active){panel()?.remove();return;}
+    if(!isJuris(category.value)){panel()?.remove();return;}
     ensureStyles();
     if(!panel())h.insertAdjacentHTML('beforeend',markup());
   }
@@ -66,21 +65,17 @@
   function values(){
     const out={};
     Object.entries(ids).forEach(([key,id])=>{
-      const el=document.getElementById(id);
-      const value=String(el?.value||'').trim();
+      const value=String(document.getElementById(id)?.value||'').trim();
       if(value)out[key]=value;
     });
     return out;
   }
 
-  function hasValues(obj){return Object.keys(obj||{}).length>0;}
   function clear(){Object.values(ids).forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
 
-  function encode(payload){
+  function encodeHex(payload){
     const bytes=new TextEncoder().encode(JSON.stringify(payload));
-    let binary='';
-    bytes.forEach(byte=>{binary+=String.fromCharCode(byte);});
-    return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
   }
 
   function installFetchBridge(){
@@ -95,9 +90,9 @@
           const body=JSON.parse(String(init.body));
           if(isJuris(body.category)){
             const filters=values();
-            if(hasValues(filters)){
+            if(Object.keys(filters).length){
               const payload={...filters,text_query:String(body.query||'').trim()};
-              body.query='[[LEXIA_JURIS:'+encode(payload)+']]';
+              body.query='LEXIAJURISX'+encodeHex(payload);
               body.semantic_fallback=true;
               init={...init,body:JSON.stringify(body)};
             }
