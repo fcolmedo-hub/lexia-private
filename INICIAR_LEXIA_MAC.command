@@ -14,6 +14,59 @@ fi
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
 
+# Docker Desktop/Qdrant: si Docker no está ejecutándose, iniciarlo y esperar
+# a que Qdrant quede disponible antes de levantar los servicios de LexIA.
+if ! /usr/bin/pgrep -f "/Applications/Docker.app" >/dev/null 2>&1; then
+    /usr/bin/open -gja Docker >/dev/null 2>&1 || true
+fi
+
+DOCKER_BIN=""
+for candidate in \
+    /usr/local/bin/docker \
+    /opt/homebrew/bin/docker \
+    "$HOME/.docker/bin/docker"
+do
+    if [[ -x "$candidate" ]]; then
+        DOCKER_BIN="$candidate"
+        break
+    fi
+done
+
+DOCKER_READY=0
+for _ in {1..90}; do
+    if [[ -n "$DOCKER_BIN" ]]; then
+        if "$DOCKER_BIN" info >/dev/null 2>&1; then
+            DOCKER_READY=1
+            break
+        fi
+    elif /usr/bin/pgrep -f "/Applications/Docker.app" >/dev/null 2>&1; then
+        DOCKER_READY=1
+        break
+    fi
+    sleep 1
+done
+
+if [[ "$DOCKER_READY" -ne 1 ]]; then
+    print -u2 "Docker Desktop no quedó disponible dentro del tiempo esperado."
+    exit 1
+fi
+
+# Qdrant suele iniciarse junto con Docker Desktop mediante su contenedor
+# persistente. Esperar al puerto antes de arrancar LexIA evita fallos de inicio.
+QDRANT_READY=0
+for _ in {1..90}; do
+    if /usr/sbin/lsof -nP -iTCP:6333 -sTCP:LISTEN >/dev/null 2>&1; then
+        QDRANT_READY=1
+        break
+    fi
+    sleep 1
+done
+
+if [[ "$QDRANT_READY" -ne 1 ]]; then
+    print -u2 "Qdrant no quedó disponible en el puerto 6333."
+    exit 1
+fi
+
 # Limpiar únicamente procesos anteriores del runtime UI2 de este checkout.
 pkill -f "$ROOT/run_lexia_services.py" >/dev/null 2>&1 || true
 pkill -f "$ROOT/app/ui2/server.py" >/dev/null 2>&1 || true
