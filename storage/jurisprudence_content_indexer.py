@@ -79,8 +79,19 @@ def _safe_metadata_title(value: str) -> str:
     title = re.sub(r"\s+", " ", str(value or "")).strip(' “"”.,;:-')
     if not 8 <= len(title) <= 220:
         return ""
-    if not re.search(r"\b(c/|contra|s/)\b", title, re.I):
+
+    # No usar \b alrededor de "c/" o "s/": la barra y el espacio son ambos
+    # caracteres no alfanuméricos y, por lo tanto, no existe word-boundary.
+    # Exigimos separadores reales de carátula en posiciones tokenizadas.
+    has_adversarial_marker = bool(
+        re.search(r"(?:^|\s)(?:c/|contra)(?=\s)", title, re.I)
+    )
+    has_proceeding_marker = bool(
+        re.search(r"(?:^|\s)s/(?=\s|[A-ZÁÉÍÓÚÑ])", title, re.I)
+    )
+    if not (has_adversarial_marker or has_proceeding_marker):
         return ""
+
     bad = (
         "recurso de apelación", "interpone la actora", "deduce demanda",
         "iniciaron una demanda", "considerando", "resuelve",
@@ -179,76 +190,97 @@ def update_content_index(database_path: str | Path) -> dict[str, int]:
         for row in rows:
             stats["scanned"] += 1
             text = str(row["text_content"] or "")
-            metadata = _load_metadata(row["metadata_json"])
-            result = {"confidence": {}}
-            if len(text.strip()) >= 500:
-                stats["with_text"] += 1
-                context = {
-                    "scope": row["scope"],
-                    "province": row["province"],
-                    "hierarchy_group": row["hierarchy_group"],
-                }
-                result = extract(text, context=context)
+            if len(text.strip()) < 500:
+                continue
+            stats["with_text"] += 1
 
+            context = {
+                "scope": row["scope"],
+                "province": row["province"],
+                "hierarchy_group": row["hierarchy_group"],
+            }
+            result = extract(text, context=context)
+            metadata = _load_metadata(row["metadata_json"])
             confidence = _remove_content_confidence(
                 _load_confidence(row["confidence_json"])
             )
-            extracted_conf = result.get("confidence", {}) or {}
 
-            def accepted(name: str, threshold_key: str) -> tuple[str, float]:
-                value = str(result.get(name) or "").strip()
-                score = float(extracted_conf.get(name, 0.0) or 0.0)
-                if value and score >= MIN_CONFIDENCE[threshold_key]:
-                    return value, score
-                return "", 0.0
-
-            court, court_conf = accepted("court", "court")
-            chamber, chamber_conf = accepted("chamber", "chamber")
-            decision_date, date_conf = accepted("date", "date")
-            case_number, number_conf = accepted("case_number", "case_number")
-            case_title, title_conf = accepted("case_title", "case_title")
-
-            if not case_title:
-                case_title = _safe_metadata_title(metadata.get("title", ""))
-                title_conf = 0.90 if case_title else 0.0
-
-            plaintiff, defendant = _parse_parties(case_title)
-            laws = _split_values(metadata.get("laws"))[:100]
-            articles = _split_values(metadata.get("articles"))[:150]
-            legal_topics = _topics_from_metadata(metadata)
-
-            if court:
+            court = str(result.get("court") or "").strip()
+            court_conf = float(result.get("confidence", {}).get("court", 0.0) or 0.0)
+            if not (court and court_conf >= MIN_CONFIDENCE["court"]):
+                court = ""
+                court_conf = 0.0
+            else:
                 confidence["decision_court_name"] = court_conf
                 stats["court"] += 1
-            if chamber:
+
+            chamber = str(result.get("chamber") or "").strip()
+            chamber_conf = float(result.get("confidence", {}).get("chamber", 0.0) or 0.0)
+            if not (chamber and chamber_conf >= MIN_CONFIDENCE["chamber"]):
+                chamber = ""
+                chamber_conf = 0.0
+            else:
                 confidence["decision_chamber"] = chamber_conf
                 stats["chamber"] += 1
-            if decision_date:
+
+            decision_date = str(result.get("date") or "").strip()
+            date_conf = float(result.get("confidence", {}).get("date", 0.0) or 0.0)
+            if not (decision_date and date_conf >= MIN_CONFIDENCE["date"]):
+                decision_date = ""
+                date_conf = 0.0
+            else:
                 confidence["decision_date"] = date_conf
                 stats["date"] += 1
-            if case_number:
+
+            case_number = str(result.get("case_number") or "").strip()
+            number_conf = float(result.get("confidence", {}).get("case_number", 0.0) or 0.0)
+            if not (case_number and number_conf >= MIN_CONFIDENCE["case_number"]):
+                case_number = ""
+                number_conf = 0.0
+            else:
                 confidence["case_number"] = number_conf
                 stats["case_number"] += 1
+
+            extracted_title = str(result.get("case_title") or "").strip()
+            title_conf = float(result.get("confidence", {}).get("case_title", 0.0) or 0.0)
+            metadata_title = _safe_metadata_title(
+                metadata.get("title")
+                or metadata.get("case_title")
+                or metadata.get("caratula")
+                or ""
+            )
+            case_title = ""
+            if extracted_title and title_conf >= MIN_CONFIDENCE["case_title"]:
+                case_title = _safe_metadata_title(extracted_title)
+            if not case_title and metadata_title:
+                case_title = metadata_title
+                title_conf = 0.99
             if case_title:
-                confidence["case_title"] = title_conf
+                confidence["case_title"] = title_conf or 0.95
                 stats["case_title"] += 1
+
+            plaintiff, defendant = _parse_parties(case_title)
             if plaintiff and defendant:
-                confidence["plaintiff"] = title_conf
-                confidence["defendant"] = title_conf
+                confidence["plaintiff"] = confidence.get("case_title", 0.95)
+                confidence["defendant"] = confidence.get("case_title", 0.95)
                 stats["parties"] += 1
+
+            laws = _split_values(metadata.get("laws") or metadata.get("normas"))[:50]
+            articles = _split_values(metadata.get("articles") or metadata.get("articulos"))[:80]
+            topics = _topics_from_metadata(metadata)
             if laws:
-                confidence["laws"] = 0.90
+                confidence["laws"] = 1.0
                 stats["laws"] += 1
             if articles:
-                confidence["articles"] = 0.90
+                confidence["articles"] = 1.0
                 stats["articles"] += 1
-            if legal_topics:
-                confidence["legal_topics"] = 0.90
+            if topics:
+                confidence["legal_topics"] = 1.0
                 stats["legal_topics"] += 1
 
             laws_json = json.dumps(laws, ensure_ascii=False, separators=(",", ":"))
             articles_json = json.dumps(articles, ensure_ascii=False, separators=(",", ":"))
-            topics_json = json.dumps(legal_topics, ensure_ascii=False, separators=(",", ":"))
+            topics_json = json.dumps(topics, ensure_ascii=False, separators=(",", ":"))
 
             old_values = (
                 str(row["old_court"] or ""),
@@ -263,18 +295,22 @@ def update_content_index(database_path: str | Path) -> dict[str, int]:
                 str(row["old_topics_json"] or "[]"),
             )
             new_values = (
-                court, chamber, decision_date, case_number, case_title,
-                plaintiff, defendant, laws_json, articles_json, topics_json,
+                court,
+                chamber,
+                decision_date,
+                case_number,
+                case_title,
+                plaintiff,
+                defendant,
+                laws_json,
+                articles_json,
+                topics_json,
             )
             stats["cleared_auto_values"] += sum(
-                1 for old, new in zip(old_values, new_values)
-                if old not in ("", "[]") and new in ("", "[]")
+                1 for old, new in zip(old_values[:7], new_values[:7]) if old and not new
             )
 
-            has_content = any((
-                court, chamber, decision_date, case_number, case_title,
-                plaintiff, defendant, laws, articles, legal_topics,
-            ))
+            has_content = any(new_values[:7]) or bool(laws or articles or topics)
             source = "path-organizational+content" if has_content else "path-organizational"
             court_source = "content-header" if court else ""
 
