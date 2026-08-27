@@ -25,6 +25,9 @@ def project_root() -> Path:
         candidate = Path(sys.executable).resolve().parent
         if (candidate / "run_lexia_services.py").exists():
             return candidate
+        parent = candidate.parent.parent
+        if (parent / "run_lexia_services.py").exists():
+            return parent
     cwd = Path.cwd().resolve()
     if (cwd / "run_lexia_services.py").exists():
         return cwd
@@ -43,6 +46,20 @@ def local_appdata() -> Path:
     if base:
         return Path(base)
     return Path.home() / "AppData" / "Local"
+
+
+def logs_dir() -> Path:
+    path = local_appdata() / "LexIA" / "logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def log_startup(message: str) -> None:
+    try:
+        with (logs_dir() / "lexia_windows_startup.log").open("a", encoding="utf-8") as fh:
+            fh.write(time.strftime("%Y-%m-%d %H:%M:%S") + "  " + message + "\n")
+    except OSError:
+        pass
 
 
 def wait_tcp(port: int, timeout: float) -> bool:
@@ -92,15 +109,7 @@ exit 1
 """
     try:
         result = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-WindowStyle",
-                "Hidden",
-                "-Command",
-                script,
-            ],
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
@@ -125,21 +134,14 @@ def docker_desktop() -> Path | None:
         base = os.environ.get(key)
         if base:
             root = Path(base)
-            candidates.extend(
-                [
-                    root / "Docker" / "Docker" / "Docker Desktop.exe",
-                    root / "Docker" / "Docker Desktop.exe",
-                ]
-            )
+            candidates.extend([root / "Docker" / "Docker" / "Docker Desktop.exe", root / "Docker" / "Docker Desktop.exe"])
 
     lad = local_appdata()
-    candidates.extend(
-        [
-            lad / "Docker" / "Docker Desktop.exe",
-            lad / "Programs" / "Docker" / "Docker" / "Docker Desktop.exe",
-            lad / "Programs" / "Docker" / "Docker Desktop.exe",
-        ]
-    )
+    candidates.extend([
+        lad / "Docker" / "Docker Desktop.exe",
+        lad / "Programs" / "Docker" / "Docker" / "Docker Desktop.exe",
+        lad / "Programs" / "Docker" / "Docker Desktop.exe",
+    ])
 
     cli = docker_cli()
     if cli is not None:
@@ -171,7 +173,7 @@ def docker_ready() -> bool:
             [str(binary), "info"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=4,
+            timeout=5,
             check=False,
             creationflags=CREATE_NO_WINDOW,
         ).returncode == 0
@@ -208,6 +210,7 @@ def start_existing_qdrant_container() -> bool:
             break
 
     if not container_id:
+        log_startup("Qdrant: no se encontró contenedor existente")
         return False
 
     try:
@@ -215,48 +218,67 @@ def start_existing_qdrant_container() -> bool:
             [str(binary), "start", container_id],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=15,
+            timeout=20,
             check=False,
             creationflags=CREATE_NO_WINDOW,
         )
+        log_startup(f"Qdrant: docker start {container_id} -> {result.returncode}")
         return result.returncode == 0
-    except Exception:
+    except Exception as exc:
+        log_startup(f"Qdrant: error al iniciar contenedor: {exc}")
         return False
 
 
+def launch_docker_desktop() -> None:
+    desktop = docker_desktop()
+    if desktop is None:
+        binary = docker_cli()
+        hint = f" docker.exe={binary}" if binary else " docker.exe=no encontrado"
+        raise RuntimeError("No se encontró Docker Desktop en Windows." + hint)
+
+    log_startup(f"Docker Desktop: iniciando {desktop}")
+    try:
+        os.startfile(str(desktop))
+        return
+    except Exception as exc:
+        log_startup(f"Docker Desktop: os.startfile falló: {exc}")
+
+    subprocess.Popen([str(desktop)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW)
+
+
 def ensure_docker() -> None:
-    # Fast path: si Qdrant ya está escuchando, no ejecutar docker info ni abrir Docker Desktop.
-    if wait_tcp(QDRANT_PORT, 0.15):
+    start = time.monotonic()
+
+    # Ruta rápida: si Qdrant ya está vivo, no consultar Docker ni abrir Docker Desktop.
+    if wait_tcp(QDRANT_PORT, 0.7):
+        log_startup("Qdrant ya estaba disponible; se omite Docker Desktop")
         return
 
     if not docker_ready():
-        desktop = docker_desktop()
-        if desktop is None:
-            raise RuntimeError(
-                "No se encontró Docker Desktop en Windows. LexIA buscó las rutas estándar, la instalación por usuario y el registro de Windows."
-            )
-        subprocess.Popen(
-            [str(desktop)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=CREATE_NO_WINDOW,
-        )
+        launch_docker_desktop()
 
-    deadline = time.monotonic() + 120
+    deadline = time.monotonic() + 420
+    last_qdrant_start = 0.0
     while time.monotonic() < deadline:
+        if wait_tcp(QDRANT_PORT, 0.7):
+            log_startup(f"Qdrant disponible tras {time.monotonic() - start:.1f}s")
+            return
+
         if docker_ready():
-            break
-        time.sleep(0.75)
-    else:
-        raise RuntimeError("Docker Desktop no quedó disponible dentro del tiempo esperado.")
+            if time.monotonic() - last_qdrant_start > 8:
+                start_existing_qdrant_container()
+                last_qdrant_start = time.monotonic()
+            if wait_tcp(QDRANT_PORT, 1.5):
+                log_startup(f"Qdrant disponible tras iniciar contenedor: {time.monotonic() - start:.1f}s")
+                return
 
-    if not wait_tcp(QDRANT_PORT, 1.0):
-        start_existing_qdrant_container()
+        time.sleep(1)
 
-    if not wait_tcp(QDRANT_PORT, 60):
-        raise RuntimeError(
-            "Qdrant no quedó disponible en el puerto 6333. Docker inició, pero no se encontró o no pudo arrancarse el contenedor Qdrant existente."
-        )
+    raise RuntimeError(
+        "Docker Desktop no quedó disponible dentro del tiempo esperado. "
+        "Abrí Docker Desktop manualmente una vez y verificá que termine de iniciar; "
+        "luego cerrá LexIA y probá nuevamente. Ver log: " + str(logs_dir() / "lexia_windows_startup.log")
+    )
 
 
 def kill_stale(root: Path) -> None:
@@ -278,7 +300,7 @@ def kill_stale(root: Path) -> None:
         check=False,
         creationflags=CREATE_NO_WINDOW,
     )
-    time.sleep(0.35)
+    time.sleep(0.5)
 
 
 def ensure_ui_assets(root: Path) -> str | None:
@@ -346,8 +368,8 @@ def main() -> int:
     if not py.exists():
         raise RuntimeError(f"No se encontró el entorno virtual de LexIA: {py}")
 
-    logs = local_appdata() / "LexIA" / "logs"
-    logs.mkdir(parents=True, exist_ok=True)
+    logs = logs_dir()
+    log_startup("===== inicio LexIA Windows =====")
 
     ensure_docker()
     kill_stale(root)
@@ -391,14 +413,7 @@ def main() -> int:
 
         import webview
 
-        webview.create_window(
-            "LexIA",
-            URL,
-            width=1440,
-            height=900,
-            min_size=(1000, 700),
-            resizable=True,
-        )
+        webview.create_window("LexIA", URL, width=1440, height=900, min_size=(1000, 700), resizable=True)
         webview.start()
         return 0
     finally:
@@ -412,7 +427,6 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        logs = local_appdata() / "LexIA" / "logs"
-        logs.mkdir(parents=True, exist_ok=True)
+        logs = logs_dir()
         (logs / "lexia_app_error.log").write_text(str(exc) + "\n", encoding="utf-8")
         raise
