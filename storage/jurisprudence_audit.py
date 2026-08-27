@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections import Counter
 from datetime import datetime
@@ -17,6 +18,25 @@ def _json_list(raw: str) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _suspicious_case_number(value: str) -> bool:
+    """Flag only structurally implausible case identifiers.
+
+    Argentine judicial files can legitimately be short (e.g. 799, 425, 2953,
+    3/10), so raw string length is not a useful quality criterion.
+    """
+    number = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not number:
+        return False
+    if not re.search(r"\d", number):
+        return True
+    compact = re.sub(r"[^0-9A-Za-z]", "", number)
+    if len(compact) < 2:
+        return True
+    if len(number) > 45:
+        return True
+    return False
 
 
 def build_jurisprudence_audit(database_path: str | Path | None = None) -> dict:
@@ -103,8 +123,8 @@ def build_jurisprudence_audit(database_path: str | Path | None = None) -> dict:
             "santa fe" in court_cf or "provincia" in court_cf
         ):
             reasons.append("csjn_con_corte_provincial")
-        if item["case_number"] and len(item["case_number"].strip()) < 5:
-            reasons.append("expediente_demasiado_corto")
+        if _suspicious_case_number(item["case_number"]):
+            reasons.append("expediente_formato_sospechoso")
         if bool(item["plaintiff"]) != bool(item["defendant"]):
             reasons.append("partes_incompletas")
         if reasons:
