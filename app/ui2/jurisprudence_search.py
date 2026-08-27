@@ -11,7 +11,7 @@ from config.settings import SETTINGS
 _MARKER_RE = re.compile(r"\s*\[\[LEXIA_JURIS:([A-Za-z0-9_-]+)\]\]\s*", re.I)
 _ALLOWED = {
     "court", "chamber", "scope", "province", "date_from", "date_to",
-    "case_number", "party", "law",
+    "case_number", "party", "law", "text_query",
 }
 
 
@@ -32,9 +32,10 @@ def parse_filter_envelope(query: str) -> tuple[str, dict[str, str]]:
         for key in _ALLOWED:
             item = str(value.get(key, "") or "").strip()
             if item:
-                filters[key] = item[:240]
-    clean = _MARKER_RE.sub(" ", raw)
-    return re.sub(r"\s+", " ", clean).strip(), filters
+                filters[key] = item[:500 if key == "text_query" else 240]
+    visible = re.sub(r"\s+", " ", _MARKER_RE.sub(" ", raw)).strip()
+    clean = visible or filters.pop("text_query", "")
+    return clean, filters
 
 
 def _like(value: str) -> str:
@@ -93,6 +94,7 @@ def load_filtered_metadata(
         FROM jurisprudence_index j
         JOIN documents d ON d.path=j.document_path
         WHERE {' AND '.join(where)}
+        ORDER BY COALESCE(j.decision_date,'') DESC, d.name COLLATE NOCASE
     """
     con = sqlite3.connect(str(db), timeout=15)
     con.row_factory = sqlite3.Row
