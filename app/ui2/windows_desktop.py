@@ -46,33 +46,120 @@ def local_appdata() -> Path:
 
 
 def wait_tcp(port: int, timeout: float) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    deadline = time.monotonic() + max(timeout, 0.0)
+    while True:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.4):
+            with socket.create_connection(("127.0.0.1", port), timeout=0.35):
                 return True
         except OSError:
-            time.sleep(0.25)
-    return False
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.20)
 
 
 def docker_cli() -> Path | None:
     found = shutil.which("docker.exe") or shutil.which("docker")
     if found:
         return Path(found)
-    candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Docker" / "Docker" / "resources" / "bin" / "docker.exe",
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Docker" / "Docker" / "resources" / "docker.exe",
-    ]
+    candidates: list[Path] = []
+    for key in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
+        base = os.environ.get(key)
+        if base:
+            root = Path(base)
+            candidates.extend(
+                [
+                    root / "Docker" / "Docker" / "resources" / "bin" / "docker.exe",
+                    root / "Docker" / "Docker" / "resources" / "docker.exe",
+                ]
+            )
     return next((p for p in candidates if p.exists()), None)
+
+
+def _docker_desktop_from_registry() -> Path | None:
+    script = r"""
+$keys = @(
+ 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Docker Desktop.exe',
+ 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Docker Desktop.exe'
+)
+foreach ($k in $keys) {
+  try {
+    $v = (Get-ItemProperty -Path $k -ErrorAction Stop).'(default)'
+    if ($v -and (Test-Path $v)) { Write-Output $v; exit 0 }
+  } catch {}
+}
+exit 1
+"""
+    try:
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                script,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=6,
+            check=False,
+            creationflags=CREATE_NO_WINDOW,
+        )
+    except Exception:
+        return None
+    for line in (result.stdout or "").splitlines():
+        value = line.strip().strip('"')
+        if value:
+            candidate = Path(value)
+            if candidate.exists():
+                return candidate
+    return None
 
 
 def docker_desktop() -> Path | None:
-    candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Docker" / "Docker" / "Docker Desktop.exe",
-        local_appdata() / "Docker" / "Docker Desktop.exe",
-    ]
-    return next((p for p in candidates if p.exists()), None)
+    candidates: list[Path] = []
+    for key in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
+        base = os.environ.get(key)
+        if base:
+            root = Path(base)
+            candidates.extend(
+                [
+                    root / "Docker" / "Docker" / "Docker Desktop.exe",
+                    root / "Docker" / "Docker Desktop.exe",
+                ]
+            )
+
+    lad = local_appdata()
+    candidates.extend(
+        [
+            lad / "Docker" / "Docker Desktop.exe",
+            lad / "Programs" / "Docker" / "Docker" / "Docker Desktop.exe",
+            lad / "Programs" / "Docker" / "Docker Desktop.exe",
+        ]
+    )
+
+    cli = docker_cli()
+    if cli is not None:
+        current = cli.parent
+        for _ in range(5):
+            candidates.append(current / "Docker Desktop.exe")
+            if current.parent == current:
+                break
+            current = current.parent
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.exists():
+            return candidate
+
+    return _docker_desktop_from_registry()
 
 
 def docker_ready() -> bool:
@@ -84,7 +171,7 @@ def docker_ready() -> bool:
             [str(binary), "info"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=5,
+            timeout=4,
             check=False,
             creationflags=CREATE_NO_WINDOW,
         ).returncode == 0
@@ -138,10 +225,16 @@ def start_existing_qdrant_container() -> bool:
 
 
 def ensure_docker() -> None:
+    # Fast path: si Qdrant ya está escuchando, no ejecutar docker info ni abrir Docker Desktop.
+    if wait_tcp(QDRANT_PORT, 0.15):
+        return
+
     if not docker_ready():
         desktop = docker_desktop()
         if desktop is None:
-            raise RuntimeError("No se encontró Docker Desktop en Windows.")
+            raise RuntimeError(
+                "No se encontró Docker Desktop en Windows. LexIA buscó las rutas estándar, la instalación por usuario y el registro de Windows."
+            )
         subprocess.Popen(
             [str(desktop)],
             stdout=subprocess.DEVNULL,
@@ -153,11 +246,11 @@ def ensure_docker() -> None:
     while time.monotonic() < deadline:
         if docker_ready():
             break
-        time.sleep(1)
+        time.sleep(0.75)
     else:
         raise RuntimeError("Docker Desktop no quedó disponible dentro del tiempo esperado.")
 
-    if not wait_tcp(QDRANT_PORT, 2):
+    if not wait_tcp(QDRANT_PORT, 1.0):
         start_existing_qdrant_container()
 
     if not wait_tcp(QDRANT_PORT, 60):
@@ -167,8 +260,6 @@ def ensure_docker() -> None:
 
 
 def kill_stale(root: Path) -> None:
-    # Incluir también el launcher clásico: una instancia antigua de run_lexia.py
-    # puede seguir ocupando el bridge 8513 aunque UI2 ya no esté visible.
     targets = [
         str(root / "run_lexia.py"),
         str(root / "run_lexia_services.py"),
@@ -187,7 +278,7 @@ def kill_stale(root: Path) -> None:
         check=False,
         creationflags=CREATE_NO_WINDOW,
     )
-    time.sleep(1.0)
+    time.sleep(0.35)
 
 
 def ensure_ui_assets(root: Path) -> str | None:
@@ -226,7 +317,7 @@ def wait_http(process: subprocess.Popen, timeout: float = 30.0) -> None:
                     return
         except Exception:
             pass
-        time.sleep(0.25)
+        time.sleep(0.20)
     raise RuntimeError("UI2 no respondió dentro del tiempo esperado.")
 
 
@@ -275,8 +366,6 @@ def main() -> int:
     server: subprocess.Popen | None = None
     original_index: str | None = None
     try:
-        # Windows puede tardar bastante más que macOS en inicializar catálogo,
-        # migraciones y servicios. Evitar declarar fallo mientras el proceso siga vivo.
         if not wait_tcp(BRIDGE_PORT, 150):
             tail = _tail_text(services_log_path)
             if services.poll() is not None:
