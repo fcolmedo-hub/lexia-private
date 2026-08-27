@@ -43,6 +43,7 @@
     const style=document.createElement('style');
     style.id='lexiaJurisprudenceStyles';
     style.textContent=`
+      .search-grid>.filters{max-height:calc(100vh - 210px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:10px}
       .lexia-juris-panel{margin-top:16px;padding-top:14px;border-top:1px solid #e4e7f0;display:grid;gap:7px}
       .lexia-juris-title{font-size:12px;font-weight:800;color:#273052;margin-bottom:2px}
       .lexia-juris-label{font-size:10px;font-weight:700;color:#66708f;margin-top:3px}
