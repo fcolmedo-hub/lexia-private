@@ -37,24 +37,40 @@ def _looks_like_sentence(s):
         "dispuso ", "rechazar ", "interpuesto ", "transferir ", "se transfiera",
         "contra la resolución", "instancia anterior", "se agravia", "considerando",
         "resulta que", "por la cual", "a favor de", "recurso de apelación",
+        "deduce demanda", "mantener la vigencia", "impuso las costas",
+        "inició demanda", "inicio demanda", "respecto de la sentencia",
     )
     return any(token in low for token in bad)
 
 
+def _header_lines(ls, limit=70):
+    """Return the early block where court metadata usually lives."""
+    return ls[:limit]
+
+
 def find_court(ls):
+    # Strong labelled metadata lines first, e.g. "Juzgado: Cámara ...".
+    for s in _header_lines(ls, 100):
+        m = re.search(
+            r"\b(?:JUZGADO|TRIBUNAL|ÓRGANO|ORGANO)\s*:\s*(.{8,150})",
+            s,
+            re.I,
+        )
+        if m:
+            value = clean(m.group(1)).rstrip("),.;:")
+            if 8 <= len(value) <= 150 and not _looks_like_sentence(value):
+                return value.upper(), s
+
     exact = (
         r"^(CORTE SUPREMA DE JUSTICIA DE LA NACI[ÓO]N)$",
         r"^(CORTE SUPREMA DE JUSTICIA DE [A-ZÁÉÍÓÚÑ ]{3,80})$",
-        r"^(C[ÁA]MARA(?: NACIONAL| FEDERAL| DE APELACI[ÓO]N)? [A-ZÁÉÍÓÚÑ0-9 .°º()-]{3,100})$",
+        r"^(C[ÁA]MARA(?: NACIONAL| FEDERAL| DE APELACI[ÓO]N)? [A-ZÁÉÍÓÚÑ0-9 .°º()/-]{3,100})$",
         r"^(TRIBUNAL ORAL(?: EN LO [A-ZÁÉÍÓÚÑ ]+)?(?: FEDERAL)?(?: N[°º.]? ?\d+)?)$",
         r"^(JUZGADO(?: NACIONAL)?(?: FEDERAL)?(?: DE 1RA INSTANCIA)?(?: EN LO [A-ZÁÉÍÓÚÑ ]+)?(?: DE [A-ZÁÉÍÓÚÑ ]+)?(?: N[°º.]? ?\d+| ?\d+)?)$",
     )
-    prefixed = re.compile(
-        r"^(?:JUZGADO|TRIBUNAL|C[ÁA]MARA|CORTE)\b",
-        re.I,
-    )
+    prefixed = re.compile(r"^(?:JUZGADO|TRIBUNAL|C[ÁA]MARA|CORTE)\b", re.I)
 
-    for s in ls[:120]:
+    for s in _header_lines(ls, 100):
         u = clean(s.upper())
         if not prefixed.match(u) or _looks_like_sentence(s):
             continue
@@ -68,69 +84,68 @@ def find_court(ls):
 
 
 def find_chamber(ls):
-    # Prefer lines that look like a heading/header, not citations inside prose.
-    for s in ls[:140]:
-        if _looks_like_sentence(s):
-            continue
-        m = re.search(r"\bSALA\s+(?:N[°º.]?\s*)?([IVXLC]+|\d+)\b", s, re.I)
-        if m:
-            return f"Sala {m.group(1)}", s
-
-    # Second pass: accept explicit tribunal metadata lines even if longer.
-    for s in ls[:160]:
+    # Strong metadata/header forms only. We do not accept Sala mentions buried
+    # in prose because they are often citations to another court.
+    for s in _header_lines(ls, 100):
         low = s.casefold()
-        if "juzgado:" not in low and "tribunal:" not in low and "cámara" not in low and "camara" not in low:
+        strong = (
+            len(s) <= 100
+            or "juzgado:" in low
+            or "tribunal:" in low
+            or "cámara" in low
+            or "camara" in low
+        )
+        if not strong or _looks_like_sentence(s):
             continue
-        m = re.search(r"\bSALA\s+(?:N[°º.]?\s*)?([IVXLC]+|\d+)\b", s, re.I)
+        m = re.search(r"\bSALA\s+(?:N[°º.]?\s*)?([IVXLC]+|\d+|[A-Z])\b", s, re.I)
         if m:
             return f"Sala {m.group(1)}", s
     return "", ""
 
 
 def find_date(ls):
-    # Only accept dates from explicit judgment/signature/date metadata or from
-    # very short dateline-like lines. This avoids picking cited historical dates.
-    priority = []
-    fallback = []
+    # Dates are accepted only from explicit metadata/signature markers or
+    # dateline-like header lines. Generic references to prior decisions are ignored.
+    candidates = []
     for s in ls[:180]:
         low = s.casefold()
         explicit = any(token in low for token in (
             "fecha de firma", "fecha del fallo", "fecha de sentencia",
-            "sentencia de fecha", "dictada el", "firmado el",
+            "firmado el", "sentencia n°", "sentencia nº",
         ))
         dateline = len(s) <= 90 and bool(re.match(
             r"^[A-ZÁÉÍÓÚÑa-záéíóúñ ]{2,35},\s*\d{1,2}\s+de\s+",
             s,
         ))
-        (priority if explicit or dateline else fallback).append(s)
+        if explicit or dateline:
+            candidates.append(s)
 
-    for pool in (priority,):
-        for s in pool:
-            m = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", s)
-            if m:
-                d, mo, y = m.groups()
-                y = int(y)
-                y = y + 2000 if y < 50 else y + 1900 if y < 100 else y
-                if 1 <= int(d) <= 31 and 1 <= int(mo) <= 12 and 1900 <= y <= 2100:
-                    return f"{y:04d}-{int(mo):02d}-{int(d):02d}", s
+    for s in candidates:
+        m = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", s)
+        if m:
+            d, mo, y = m.groups()
+            y = int(y)
+            y = y + 2000 if y < 50 else y + 1900 if y < 100 else y
+            if 1 <= int(d) <= 31 and 1 <= int(mo) <= 12 and 1900 <= y <= 2100:
+                return f"{y:04d}-{int(mo):02d}-{int(d):02d}", s
 
-            m = re.search(
-                r"\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+de\s+(\d{4})\b",
+        m = re.search(
+            r"\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+de\s+(\d{4})\b",
+            s,
+            re.I,
+        )
+        if m:
+            return (
+                f"{int(m.group(3)):04d}-{int(MONTHS[m.group(2).casefold()]):02d}-{int(m.group(1)):02d}",
                 s,
-                re.I,
             )
-            if m:
-                return (
-                    f"{int(m.group(3)):04d}-{int(MONTHS[m.group(2).casefold()]):02d}-{int(m.group(1)):02d}",
-                    s,
-                )
     return "", ""
 
 
 def find_case_number(ls):
     patterns = (
-        r"\b(?:EXPTE\.?|EXPEDIENTE)\s*(?:N[°º.]?\s*)?[:.-]?\s*([A-Z]{0,8}\s*\d[0-9A-Z_./-]{1,35})",
-        r"\bCAUSA\s*(?:N[°º.]?\s*)?[:.-]?\s*([A-Z]{0,8}\s*\d[0-9A-Z_./-]{1,35})",
+        r"\b(?:EXPTE\.?|EXPEDIENTE)\s*(?:N[°º.]?\s*)?[:.-]?\s*([A-Z]{0,12}\s*\d[0-9A-Z_./-]{1,35})",
+        r"\bCAUSA\s*(?:N[°º.]?\s*)?[:.-]?\s*([A-Z]{0,12}\s*\d[0-9A-Z_./-]{1,35})",
     )
     for s in ls[:180]:
         for pat in patterns:
@@ -138,7 +153,6 @@ def find_case_number(ls):
             if not m:
                 continue
             value = clean(m.group(1)).rstrip(".,;:)")
-            # Reject truncated alphabetic noise such as 'Compa', 'ERO', 'Los'.
             if not re.search(r"\d", value):
                 continue
             if 2 <= len(value) <= 45:
@@ -148,7 +162,6 @@ def find_case_number(ls):
 
 def _trim_title(value):
     value = clean(value)
-    # Remove common material appended after the carátula.
     value = re.split(
         r"\s+(?:expediente|expte\.?|causa)\s*(?:n[°º.]?)?\b",
         value,
@@ -158,31 +171,47 @@ def _trim_title(value):
     return value.strip(' “"”.,;:-')
 
 
+def _valid_title(value):
+    value = clean(value)
+    if not (8 <= len(value) <= 220):
+        return False
+    if _looks_like_sentence(value):
+        return False
+    return bool(re.search(r"\b(c/|contra|s/)\b", value, re.I))
+
+
 def find_title(ls):
-    # Strong labels first.
-    for s in ls[:180]:
+    # 1) Explicit carátula/autos header in the first block.
+    for s in _header_lines(ls, 100):
         m = re.search(r"\b(?:CAR[ÁA]TULA|AUTOS)\s*[:.-]\s*(.{8,220})", s, re.I)
         if m:
             value = _trim_title(m.group(1))
-            if 8 <= len(value) <= 200 and re.search(r"\b(c/|contra|s/)\b", value, re.I):
+            if _valid_title(value):
                 return value, s
 
-    # Quoted case name in CSJN / appellate headers.
-    for s in ls[:140]:
+    # 2) Common judgment formula "VISTO: Estos caratulados ...".
+    for s in _header_lines(ls, 120):
+        m = re.search(r"\bVISTO\s*:\s*(?:ESTOS\s+CARATULADOS\s+)?[“\"]?(.{8,220})", s, re.I)
+        if m:
+            value = _trim_title(m.group(1))
+            if _valid_title(value):
+                return value, s
+
+    # 3) Quoted case name near the beginning.
+    for s in _header_lines(ls, 100):
         quoted = re.findall(r"[“\"]([^”\"]{8,220})[”\"]", s)
         for candidate in quoted:
             value = _trim_title(candidate)
-            if re.search(r"\b(c/|contra|s/)\b", value, re.I):
+            if _valid_title(value):
                 return value, s
 
-    # Conservative generic fallback: short header-like line with adversarial marker.
-    for s in ls[:120]:
-        if len(s) > 180 or _looks_like_sentence(s):
+    # 4) Short header-like line, but only very early and never narrative prose.
+    for s in _header_lines(ls, 55):
+        if len(s) > 160 or _looks_like_sentence(s):
             continue
-        if re.search(r"\b(c/|contra|s/)\b", s, re.I):
-            value = _trim_title(s)
-            if len(value) >= 8:
-                return value, s
+        value = _trim_title(s)
+        if _valid_title(value):
+            return value, s
     return "", ""
 
 
@@ -196,10 +225,10 @@ def extract(text):
 
     confidence = {
         "court": 1.0 if court else 0.0,
-        "chamber": 0.9 if chamber else 0.0,
-        "date": 0.95 if date else 0.0,
-        "case_title": 0.9 if title else 0.0,
-        "case_number": 0.95 if number else 0.0,
+        "chamber": 0.95 if chamber else 0.0,
+        "date": 0.98 if date else 0.0,
+        "case_title": 0.95 if title else 0.0,
+        "case_number": 0.98 if number else 0.0,
     }
 
     return {
