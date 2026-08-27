@@ -17,10 +17,25 @@ New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 Remove-Item -Recurse -Force $Dist,$Work -ErrorAction SilentlyContinue
 Remove-Item -Force $Spec -ErrorAction SilentlyContinue
 
-& $Py -m PyInstaller --version *> $null
-if ($LASTEXITCODE -ne 0) {
+# No usamos una llamada fallida bajo ErrorActionPreference=Stop porque PowerShell
+# convierte el stderr de python.exe en NativeCommandError antes de poder revisar
+# $LASTEXITCODE. Comprobamos el módulo de forma silenciosa y, si falta, lo instalamos.
+$PyInstallerPresent = $false
+$OldErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    & $Py -c "import PyInstaller" *> $null
+    $PyInstallerPresent = ($LASTEXITCODE -eq 0)
+} finally {
+    $ErrorActionPreference = $OldErrorActionPreference
+}
+
+if (-not $PyInstallerPresent) {
     Write-Host 'Instalando PyInstaller en el entorno virtual de LexIA...'
     & $Py -m pip install --quiet pyinstaller
+    if ($LASTEXITCODE -ne 0) {
+        throw 'No se pudo instalar PyInstaller en el entorno virtual de LexIA.'
+    }
 }
 
 $IconArgs = @()
