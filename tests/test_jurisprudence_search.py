@@ -1,4 +1,3 @@
-import base64
 import json
 
 from app.ui2.jurisprudence_search import metadata_bonus, parse_filter_envelope
@@ -6,8 +5,7 @@ from app.ui2.jurisprudence_search import metadata_bonus, parse_filter_envelope
 
 def _envelope(payload):
     raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    token = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
-    return f"[[LEXIA_JURIS:{token}]]"
+    return "LEXIAJURISX" + raw.hex()
 
 
 def test_filter_envelope_transports_query_and_filters():
@@ -30,7 +28,7 @@ def test_filter_envelope_keeps_visible_query_when_present():
         "plazo razonable " + _envelope({"text_query": "ignorar", "chamber": "Sala B"})
     )
     assert query == "plazo razonable"
-    assert filters == {"chamber": "Sala B", "text_query": "ignorar"}
+    assert filters == {"chamber": "Sala B"}
 
 
 def test_metadata_bonus_is_capped_and_requires_matches():
