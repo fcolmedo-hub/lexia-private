@@ -53,6 +53,28 @@ def fetch_sample(limit: int) -> list[dict]:
         return [dict(row) for row in connection.execute(sql, (int(limit),)).fetchall()]
 
 
+def search_points(client: QdrantClient, collection: str, query_vector: list[float], limit: int):
+    """Compatibilidad entre versiones de qdrant-client.
+
+    Algunas versiones exponen search(); otras, como la instalada en LexIA,
+    usan query_points(). La prueba no debe fallar por esa diferencia de API.
+    """
+    if hasattr(client, "search"):
+        return client.search(
+            collection_name=collection,
+            query_vector=query_vector,
+            limit=limit,
+        )
+
+    result = client.query_points(
+        collection_name=collection,
+        query=query_vector,
+        limit=limit,
+        with_payload=True,
+    )
+    return getattr(result, "points", result)
+
+
 def build_probe(limit: int, query: str) -> dict:
     started = time.perf_counter()
     sample = fetch_sample(limit)
@@ -108,8 +130,9 @@ def build_probe(limit: int, query: str) -> dict:
     points_count = int(getattr(info, "points_count", 0) or 0)
 
     query_vector = next(iter(embedding.embed_passages([query]))).tolist()
-    hits = client.search(
-        collection_name=collection,
+    hits = search_points(
+        client=client,
+        collection=collection,
         query_vector=query_vector,
         limit=min(5, points_count),
     )
