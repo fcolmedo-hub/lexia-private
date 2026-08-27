@@ -11,6 +11,15 @@ MONTHS = {
     "noviembre": "11", "diciembre": "12",
 }
 
+COURT_NARRATIVE_WORDS = (
+    " señaló", " senalo", " sostuvo", " consideró", " considero", " entendió",
+    " entendio", " dispuso", " resolvió", " resolvio", " declaró", " declaro",
+    " rechazó", " rechazo", " admitió", " admitio", " confirmó", " confirmo",
+    " revocó", " revoco", " estableció", " establecio", " indicó", " indico",
+    " expresó", " expreso", " recordó", " recordo", " concluyó", " concluyo",
+    " en los casos", " para estos autos", " a favor de", " contra la",
+)
+
 
 def clean(s):
     return re.sub(r"\s+", " ", str(s or "")).strip(" -–—\t\r\n")
@@ -60,10 +69,48 @@ def _looks_like_header(s):
     return any(token in low for token in strong) or s.isupper()
 
 
-def find_court(ls):
+def _court_is_narrative(value):
+    low = f" {clean(value).casefold()}"
+    return any(token in low for token in COURT_NARRATIVE_WORDS)
+
+
+def _normalize_context(context):
+    context = context or {}
+    return {
+        "scope": clean(context.get("scope", "")),
+        "province": clean(context.get("province", "")),
+        "hierarchy_group": clean(context.get("hierarchy_group", "")),
+    }
+
+
+def _court_coherent_with_context(court, context):
+    """Use the folder tree as a veto, never as proof of the deciding court."""
+    court_low = clean(court).casefold()
+    ctx = _normalize_context(context)
+    group = ctx["hierarchy_group"].casefold()
+
+    # Documents stored under CSJN may quote provincial/lower courts extensively.
+    # Only the national Supreme Court is a safe deciding-court extraction there.
+    if group == "csjn":
+        return (
+            "corte suprema" in court_low
+            and ("nación" in court_low or "nacion" in court_low or "just. nac" in court_low)
+            and "santa fe" not in court_low
+        )
+
+    # In the Santa Fe Supreme Court branch, reject an accidental national court.
+    if group == "corte suprema" and ctx["province"].casefold() == "santa fe":
+        if "corte suprema" in court_low and ("nación" in court_low or "nacion" in court_low):
+            return False
+
+    return True
+
+
+def find_court(ls, context=None):
     exact = (
         r"^(CORTE SUPREMA DE JUSTICIA DE LA NACI[ÓO]N)$",
-        r"^(CORTE SUPREMA DE JUSTICIA DE [A-ZÁÉÍÓÚÑ ]{3,80})$",
+        r"^(CORTE SUP(?:REMA)?\.?(?: DE)? JUST(?:ICIA)?\.?(?: DE LA)? NAC(?:I[ÓO]N)?\.?)$",
+        r"^(CORTE SUPREMA DE JUSTICIA(?: DE [A-ZÁÉÍÓÚÑ ]{3,80}| \([A-ZÁÉÍÓÚÑ ]{3,80}\)(?: - [A-ZÁÉÍÓÚÑ ]{3,80})?)?)$",
         r"^(C[ÁA]MARA(?: NACIONAL| FEDERAL| DE APELACI[ÓO]N)? [A-ZÁÉÍÓÚÑ0-9 .°º()-]{3,100})$",
         r"^(TRIBUNAL ORAL(?: EN LO [A-ZÁÉÍÓÚÑ ]+)?(?: FEDERAL)?(?: N[°º.]? ?\d+)?)$",
         r"^(JUZGADO(?: NACIONAL)?(?: FEDERAL)?(?: DE 1RA INSTANCIA)?(?: EN LO [A-ZÁÉÍÓÚÑ ]+)?(?: DE [A-ZÁÉÍÓÚÑ ]+)?(?: N[°º.]? ?\d+| ?\d+)?)$",
@@ -72,13 +119,13 @@ def find_court(ls):
 
     for s in ls[:120]:
         u = clean(s.upper())
-        if not prefixed.match(u) or _looks_like_sentence(s):
+        if not prefixed.match(u) or _looks_like_sentence(s) or _court_is_narrative(s):
             continue
         for pat in exact:
             m = re.match(pat, u, re.I)
             if m:
                 value = clean(m.group(1)).rstrip("),.;:")
-                if 8 <= len(value) <= 140:
+                if 8 <= len(value) <= 140 and _court_coherent_with_context(value, context):
                     return value, s
 
     # Structured metadata lines exported by legal databases.
@@ -87,15 +134,21 @@ def find_court(ls):
         if not m:
             continue
         value = clean(m.group(1)).rstrip(".;:")
+        if _court_is_narrative(value):
+            continue
         if re.search(r"\b(?:juzgado|tribunal|c[áa]mara|corte)\b", value, re.I):
-            return value.upper(), s
+            value = value.upper()
+            if _court_coherent_with_context(value, context):
+                return value, s
     return "", ""
 
 
-def find_chamber(ls):
-    # A Sala is reliable only when it belongs to a header/metadata line.
-    # This intentionally rejects citations such as "4º) La Sala B..." or
-    # "CNAT Sala X" embedded in the reasoning of another court.
+def find_chamber(ls, context=None):
+    ctx = _normalize_context(context)
+    # CSJN has no salas. Any Sala in a CSJN document belongs to a lower court.
+    if ctx["hierarchy_group"].casefold() == "csjn":
+        return "", ""
+
     for s in ls[:160]:
         if not _looks_like_header(s):
             continue
@@ -142,6 +195,20 @@ def find_date(ls):
     return "", ""
 
 
+def _valid_case_number(value):
+    value = clean(value)
+    if not re.search(r"\d", value):
+        return False
+    if not 2 <= len(value) <= 45:
+        return False
+    # Reject weak captures such as "s 620". Judicial alphabetic prefixes in the
+    # corpus (CPE, FRO, FMZ, etc.) have at least two letters.
+    m = re.match(r"^([A-Za-z]+)\s+\d", value)
+    if m and len(m.group(1)) < 2:
+        return False
+    return True
+
+
 def find_case_number(ls):
     patterns = (
         r"\b(?:EXPTE\.?|EXPEDIENTE)\s*(?:N[°º.]?\s*)?[:.-]?\s*([A-Z]{0,8}\s*\d[0-9A-Z_./-]{1,35})",
@@ -153,9 +220,7 @@ def find_case_number(ls):
             if not m:
                 continue
             value = clean(m.group(1)).rstrip(".,;:)")
-            if not re.search(r"\d", value):
-                continue
-            if 2 <= len(value) <= 45:
+            if _valid_case_number(value):
                 return value, s
     return "", ""
 
@@ -177,12 +242,10 @@ def _valid_title(value):
         return False
     if _looks_like_sentence(value):
         return False
-    # A real carátula normally contains an adversarial/proceeding marker.
     return bool(re.search(r"\b(c/|contra|s/)\b", value, re.I))
 
 
 def find_title(ls):
-    # Explicit metadata is strongest.
     for s in ls[:180]:
         m = re.search(r"\b(?:CAR[ÁA]TULA|AUTOS)\s*[:.-]\s*(.{8,220})", s, re.I)
         if m:
@@ -190,7 +253,6 @@ def find_title(ls):
             if _valid_title(value):
                 return value, s
 
-    # Formula commonly used by provincial judgments.
     for s in ls[:160]:
         m = re.search(r"\bVISTO\s*:\s*Estos caratulados\s*[“\"]?(.{8,220})", s, re.I)
         if m:
@@ -198,7 +260,6 @@ def find_title(ls):
             if _valid_title(value):
                 return value, s
 
-    # Quoted case names. Do not accept unquoted narrative prose as a fallback.
     for s in ls[:150]:
         quoted = re.findall(r"[“\"]([^”\"]{8,220})[”\"]", s)
         for candidate in quoted:
@@ -209,10 +270,10 @@ def find_title(ls):
     return "", ""
 
 
-def extract(text):
+def extract(text, context=None):
     ls = lines(text)
-    court, ce = find_court(ls)
-    chamber, se = find_chamber(ls)
+    court, ce = find_court(ls, context=context)
+    chamber, se = find_chamber(ls, context=context)
     date, de = find_date(ls)
     number, ne = find_case_number(ls)
     title, te = find_title(ls)
@@ -282,6 +343,11 @@ def sample_from_catalog(database_path, limit=10):
 
         out = []
         for r in selected:
+            context = {
+                "hierarchy_group": r["hierarchy_group"],
+                "scope": r["scope"],
+                "province": r["province"],
+            }
             item = {
                 "document_name": r["name"],
                 "document_path": r["path"],
@@ -290,7 +356,7 @@ def sample_from_catalog(database_path, limit=10):
                 "province": r["province"],
                 "text_length": len(r["text_content"] or ""),
             }
-            item.update(extract(r["text_content"] or ""))
+            item.update(extract(r["text_content"] or "", context=context))
             out.append(item)
         return out
     finally:
