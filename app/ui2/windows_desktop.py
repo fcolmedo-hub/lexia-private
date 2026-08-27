@@ -93,7 +93,6 @@ def docker_ready() -> bool:
 
 
 def start_existing_qdrant_container() -> bool:
-    """Start the existing Qdrant container if Docker is ready but port 6333 is down."""
     binary = docker_cli()
     if not binary:
         return False
@@ -158,8 +157,6 @@ def ensure_docker() -> None:
     else:
         raise RuntimeError("Docker Desktop no quedó disponible dentro del tiempo esperado.")
 
-    # Docker Desktop puede estar operativo sin que el contenedor persistente de
-    # Qdrant haya arrancado. Intentar levantarlo explícitamente antes de fallar.
     if not wait_tcp(QDRANT_PORT, 2):
         start_existing_qdrant_container()
 
@@ -170,7 +167,10 @@ def ensure_docker() -> None:
 
 
 def kill_stale(root: Path) -> None:
+    # Incluir también el launcher clásico: una instancia antigua de run_lexia.py
+    # puede seguir ocupando el bridge 8513 aunque UI2 ya no esté visible.
     targets = [
+        str(root / "run_lexia.py"),
         str(root / "run_lexia_services.py"),
         str(root / "app" / "ui2" / "server.py"),
         str(root / "app" / "ui2" / "launch_ui2.py"),
@@ -187,7 +187,7 @@ def kill_stale(root: Path) -> None:
         check=False,
         creationflags=CREATE_NO_WINDOW,
     )
-    time.sleep(0.5)
+    time.sleep(1.0)
 
 
 def ensure_ui_assets(root: Path) -> str | None:
@@ -241,6 +241,14 @@ def stop_process(process: subprocess.Popen | None) -> None:
         process.wait(timeout=3)
 
 
+def _tail_text(path: Path, lines: int = 30) -> str:
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(content[-lines:])
+
+
 def main() -> int:
     root = project_root()
     py = venv_python(root)
@@ -253,7 +261,8 @@ def main() -> int:
     ensure_docker()
     kill_stale(root)
 
-    services_log = open(logs / "services_ui2.log", "ab", buffering=0)
+    services_log_path = logs / "services_ui2.log"
+    services_log = open(services_log_path, "ab", buffering=0)
     flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     services = subprocess.Popen(
         [str(py), str(root / "run_lexia_services.py")],
@@ -266,10 +275,17 @@ def main() -> int:
     server: subprocess.Popen | None = None
     original_index: str | None = None
     try:
-        if not wait_tcp(BRIDGE_PORT, 40):
+        # Windows puede tardar bastante más que macOS en inicializar catálogo,
+        # migraciones y servicios. Evitar declarar fallo mientras el proceso siga vivo.
+        if not wait_tcp(BRIDGE_PORT, 150):
+            tail = _tail_text(services_log_path)
             if services.poll() is not None:
-                raise RuntimeError("Los servicios internos de LexIA finalizaron durante el arranque.")
-            raise RuntimeError("LexIA no pudo iniciar su puente local de servicios (puerto 8513).")
+                detail = "Los servicios internos de LexIA finalizaron durante el arranque."
+            else:
+                detail = "LexIA no pudo iniciar su puente local de servicios (puerto 8513)."
+            if tail:
+                detail += "\n\nÚltimas líneas de services_ui2.log:\n" + tail
+            raise RuntimeError(detail)
 
         original_index = ensure_ui_assets(root)
         env = os.environ.copy()
