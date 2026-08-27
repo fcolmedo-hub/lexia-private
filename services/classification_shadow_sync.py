@@ -19,6 +19,17 @@ class ClassificationShadowSync:
     No toca category legacy, fragments, FTS, Qdrant ni Knowledge.
     """
 
+    _SHADOW_COLUMNS = {
+        "relative_path": "TEXT",
+        "folder_category": "TEXT",
+        "classification_1": "TEXT",
+        "classification_2": "TEXT",
+        "classification_3": "TEXT",
+        "classification_4": "TEXT",
+        "classification_depth": "INTEGER NOT NULL DEFAULT 0",
+        "classification_levels_json": "TEXT NOT NULL DEFAULT '[]'",
+    }
+
     def __init__(self, project_root: str | Path):
         self.project_root = Path(project_root).resolve()
         self.catalog_path = _resolve_under_root(
@@ -40,6 +51,20 @@ class ClassificationShadowSync:
             aliases,
         )
 
+    @classmethod
+    def _ensure_shadow_columns(cls, con: sqlite3.Connection) -> None:
+        """Completa catálogos antiguos antes de escribir metadatos shadow."""
+        existing = {
+            str(row[1])
+            for row in con.execute("PRAGMA table_info(documents)").fetchall()
+        }
+        for column, definition in cls._SHADOW_COLUMNS.items():
+            if column in existing:
+                continue
+            con.execute(
+                f"ALTER TABLE documents ADD COLUMN {column} {definition}"
+            )
+
     def update_paths(self, paths) -> dict:
         normalized = []
         seen = set()
@@ -60,6 +85,7 @@ class ClassificationShadowSync:
         missing = 0
         invalid = 0
         try:
+            self._ensure_shadow_columns(con)
             con.execute("BEGIN")
             for path in normalized:
                 row = con.execute(
