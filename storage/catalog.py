@@ -9,6 +9,25 @@ from models.document import Document
 from models.fragment import Fragment
 
 
+def _relocated_metadata_json(raw_metadata, category):
+    """Keep embedded metadata consistent with the catalog category."""
+    try:
+        metadata = json.loads(raw_metadata or "{}")
+    except Exception:
+        metadata = {}
+
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    metadata["category"] = str(category or "")
+
+    return json.dumps(
+        metadata,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 class DocumentCatalog:
     def __init__(self, database_path: str | Path):
         self.database_path = Path(database_path)
@@ -785,7 +804,10 @@ class DocumentCatalog:
                             old_rows[old_resolved]["vector_indexed_hash"],
                             old_rows[old_resolved]["text_content"],
                             old_rows[old_resolved]["extraction_error"],
-                            old_rows[old_resolved]["metadata_json"],
+                            _relocated_metadata_json(
+                                old_rows[old_resolved]["metadata_json"],
+                                document.category,
+                            ),
                             old_rows[old_resolved]["extraction_method"],
                             old_rows[old_resolved]["ocr_pages"],
                             old_rows[old_resolved]["total_pages"],

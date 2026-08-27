@@ -639,15 +639,60 @@ def _handler_class(application, token):
             raise FileNotFoundError("La carpeta o archivo ya no existe.")
         return candidate
 
+    def navigator_category_from_path(path, fallback=""):
+        """Derive the canonical LexIA category from the physical library tree."""
+        import unicodedata
+
+        root = Path(SETTINGS.library_path).expanduser().resolve()
+        resolved = Path(path).expanduser().resolve()
+
+        try:
+            relative = resolved.relative_to(root)
+        except ValueError:
+            return str(fallback or "Sin categoría")
+
+        if not relative.parts:
+            return str(fallback or "Sin categoría")
+
+        top = relative.parts[0]
+        normalized = unicodedata.normalize("NFKD", top)
+        normalized = "".join(
+            ch for ch in normalized
+            if not unicodedata.combining(ch)
+        ).casefold().strip()
+
+        categories = {
+            "escritos": "Escritos",
+            "doctrina": "Doctrina",
+            "jurisprudencia": "Jurisprudencia",
+            "legislacion": "Legislacion",
+        }
+
+        return categories.get(
+            normalized,
+            str(fallback or "Sin categoría"),
+        )
+
+
     def navigator_document(old_path, new_path, category):
         state = application.catalog.get_file_state(str(old_path))
         if state is None:
-            raise FileNotFoundError("El documento ya no está activo en el catálogo: " + old_path.name)
+            raise FileNotFoundError(
+                "El documento ya no está activo en el catálogo: "
+                + old_path.name
+            )
+
         stat = new_path.stat()
+
+        canonical_category = navigator_category_from_path(
+            new_path,
+            category or state.get("category"),
+        )
+
         return SimpleNamespace(
             name=new_path.name,
             path=new_path,
-            category=str(category or state.get("category") or "Sin categoría"),
+            category=canonical_category,
             extension=new_path.suffix.lower(),
             size=int(stat.st_size),
             modified_ns=int(stat.st_mtime_ns),
