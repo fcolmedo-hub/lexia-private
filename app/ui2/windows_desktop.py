@@ -92,6 +92,52 @@ def docker_ready() -> bool:
         return False
 
 
+def start_existing_qdrant_container() -> bool:
+    """Start the existing Qdrant container if Docker is ready but port 6333 is down."""
+    binary = docker_cli()
+    if not binary:
+        return False
+
+    commands = [
+        [str(binary), "ps", "-a", "--filter", "ancestor=qdrant/qdrant", "--format", "{{.ID}}"],
+        [str(binary), "ps", "-a", "--filter", "name=qdrant", "--format", "{{.ID}}"],
+    ]
+    container_id = ""
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=8,
+                check=False,
+                creationflags=CREATE_NO_WINDOW,
+            )
+        except Exception:
+            continue
+        ids = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
+        if ids:
+            container_id = ids[0]
+            break
+
+    if not container_id:
+        return False
+
+    try:
+        result = subprocess.run(
+            [str(binary), "start", container_id],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            check=False,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def ensure_docker() -> None:
     if not docker_ready():
         desktop = docker_desktop()
@@ -112,8 +158,15 @@ def ensure_docker() -> None:
     else:
         raise RuntimeError("Docker Desktop no quedó disponible dentro del tiempo esperado.")
 
-    if not wait_tcp(QDRANT_PORT, 120):
-        raise RuntimeError("Qdrant no quedó disponible en el puerto 6333.")
+    # Docker Desktop puede estar operativo sin que el contenedor persistente de
+    # Qdrant haya arrancado. Intentar levantarlo explícitamente antes de fallar.
+    if not wait_tcp(QDRANT_PORT, 2):
+        start_existing_qdrant_container()
+
+    if not wait_tcp(QDRANT_PORT, 60):
+        raise RuntimeError(
+            "Qdrant no quedó disponible en el puerto 6333. Docker inició, pero no se encontró o no pudo arrancarse el contenedor Qdrant existente."
+        )
 
 
 def kill_stale(root: Path) -> None:
