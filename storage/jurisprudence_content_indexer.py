@@ -87,10 +87,8 @@ def update_content_index(database_path: str | Path) -> dict[str, int]:
             chamber = str(result.get("chamber") or "").strip()
             chamber_conf = float(result.get("confidence", {}).get("chamber", 0.0) or 0.0)
             if chamber and chamber_conf >= MIN_CONFIDENCE["chamber"]:
-                # Chamber remains represented in confidence/evidence for now;
-                # hierarchy_detail is organizational and must not be overwritten.
+                updates["decision_chamber"] = chamber
                 confidence["decision_chamber"] = chamber_conf
-                confidence["decision_chamber_value"] = chamber
                 stats["chamber"] += 1
 
             decision_date = str(result.get("date") or "").strip()
@@ -107,7 +105,7 @@ def update_content_index(database_path: str | Path) -> dict[str, int]:
                 confidence["case_number"] = number_conf
                 stats["case_number"] += 1
 
-            if not updates and "decision_chamber" not in confidence:
+            if not updates:
                 continue
 
             assignments = []
