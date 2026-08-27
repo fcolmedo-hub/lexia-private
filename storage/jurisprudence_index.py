@@ -11,10 +11,13 @@ JURISPRUDENCE_ROOT = "Jurisprudencia"
 
 @dataclass(frozen=True)
 class JurisprudencePathMetadata:
-    jurisdiction: str = ""
-    court_type: str = ""
-    court_city: str = ""
-    chamber: str = ""
+    # Datos organizativos derivados de la ruta. No equivalen necesariamente
+    # al tribunal que dictó la sentencia.
+    scope: str = ""
+    province: str = ""
+    hierarchy_group: str = ""
+    hierarchy_location: str = ""
+    hierarchy_detail: str = ""
     folder_path: str = ""
 
 
@@ -22,11 +25,18 @@ def _clean(value: str) -> str:
     return " ".join(str(value or "").strip().split())
 
 
-def metadata_from_path(document_path: str | Path) -> JurisprudencePathMetadata | None:
-    """Derive reliable structural metadata from the Jurisprudencia folder tree.
+def _contains_federal(parts: list[str]) -> bool:
+    folded = " / ".join(parts).casefold()
+    return "federal" in folded
 
-    No court or jurisdiction is inferred from the judgment text here.  The
-    physical folder tree remains the source of truth for structural metadata.
+
+def metadata_from_path(document_path: str | Path) -> JurisprudencePathMetadata | None:
+    """Derive only organizational metadata from the Jurisprudencia tree.
+
+    Important: a folder may group decisions by hierarchical dependence rather
+    than by the court that actually issued them.  Therefore the path never
+    determines the exact deciding court.  That value must later be extracted
+    from the document itself.
     """
     path = Path(document_path)
     parts = list(path.parts)
@@ -41,24 +51,90 @@ def metadata_from_path(document_path: str | Path) -> JurisprudencePathMetadata |
 
     folders = [_clean(p) for p in parts[root_index + 1 : -1] if _clean(p)]
     if not folders:
-        return JurisprudencePathMetadata(folder_path="")
+        return JurisprudencePathMetadata()
 
-    jurisdiction = folders[0] if len(folders) >= 1 else ""
-    court_type = folders[1] if len(folders) >= 2 else ""
+    first = folders[0]
+    folded_first = first.casefold()
 
-    # Remaining levels are preserved.  For the current LexIA tree the first
-    # extra level normally represents city/seat and the next one chamber/sala.
-    # We deliberately do not guess when the tree does not provide them.
-    court_city = folders[2] if len(folders) >= 3 else ""
-    chamber = folders[3] if len(folders) >= 4 else ""
+    scope = ""
+    province = ""
+    hierarchy_group = ""
+    hierarchy_location = ""
+    hierarchy_detail = ""
+
+    if folded_first == "csjn":
+        scope = "Nacional"
+        hierarchy_group = "CSJN"
+
+    elif folded_first == "camaras nacionales":
+        scope = "Nacional"
+        hierarchy_group = "/".join(folders[:2]) if len(folders) >= 2 else first
+        hierarchy_location = folders[2] if len(folders) >= 3 else ""
+        hierarchy_detail = "/".join(folders[3:]) if len(folders) >= 4 else ""
+
+    elif folded_first == "otras jurisdicciones":
+        # Carpeta puramente organizativa. No se infiere jurisdicción ni tribunal.
+        hierarchy_group = first
+        hierarchy_detail = "/".join(folders[1:]) if len(folders) >= 2 else ""
+
+    else:
+        # En el árbol actual el primer nivel suele ser una provincia o región
+        # geográfica. Puede contener tanto justicia provincial como federal.
+        province = first
+
+        if _contains_federal(folders[1:]):
+            scope = "Federal"
+        elif any("camara federal" in part.casefold() for part in folders[1:]):
+            scope = "Federal"
+        else:
+            scope = "Provincial"
+
+        hierarchy_group = folders[1] if len(folders) >= 2 else ""
+
+        # Casos conocidos del árbol actual: se preserva la semántica física
+        # sin afirmar que esos niveles describan el tribunal decisor.
+        if hierarchy_group.casefold() == "1 instancia":
+            # Ej.: Santa Fe/1 Instancia/Federal/Santa Fe/1
+            hierarchy_location = folders[3] if len(folders) >= 4 else ""
+            hierarchy_detail = "/".join(folders[4:]) if len(folders) >= 5 else ""
+        elif hierarchy_group.casefold().startswith("camara federal"):
+            # Ej.: Santa Fe/Camara Federal de Rosario
+            if "rosario" in hierarchy_group.casefold():
+                hierarchy_location = "Rosario"
+            hierarchy_detail = "/".join(folders[2:]) if len(folders) >= 3 else ""
+        else:
+            hierarchy_location = folders[2] if len(folders) >= 3 else ""
+            hierarchy_detail = "/".join(folders[3:]) if len(folders) >= 4 else ""
 
     return JurisprudencePathMetadata(
-        jurisdiction=jurisdiction,
-        court_type=court_type,
-        court_city=court_city,
-        chamber=chamber,
+        scope=scope,
+        province=province,
+        hierarchy_group=hierarchy_group,
+        hierarchy_location=hierarchy_location,
+        hierarchy_detail=hierarchy_detail,
         folder_path="/".join(folders),
     )
+
+
+def _ensure_columns(connection: sqlite3.Connection) -> None:
+    existing = {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(jurisprudence_index)").fetchall()
+    }
+    additions = {
+        "scope": "TEXT NOT NULL DEFAULT ''",
+        "province": "TEXT NOT NULL DEFAULT ''",
+        "hierarchy_group": "TEXT NOT NULL DEFAULT ''",
+        "hierarchy_location": "TEXT NOT NULL DEFAULT ''",
+        "hierarchy_detail": "TEXT NOT NULL DEFAULT ''",
+        "decision_court_name": "TEXT NOT NULL DEFAULT ''",
+        "decision_court_source": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column, definition in additions.items():
+        if column not in existing:
+            connection.execute(
+                f"ALTER TABLE jurisprudence_index ADD COLUMN {column} {definition}"
+            )
 
 
 def ensure_jurisprudence_index(connection: sqlite3.Connection) -> None:
@@ -66,11 +142,16 @@ def ensure_jurisprudence_index(connection: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS jurisprudence_index (
             document_path TEXT PRIMARY KEY,
-            jurisdiction TEXT NOT NULL DEFAULT '',
-            court_type TEXT NOT NULL DEFAULT '',
-            court_city TEXT NOT NULL DEFAULT '',
-            chamber TEXT NOT NULL DEFAULT '',
+            scope TEXT NOT NULL DEFAULT '',
+            province TEXT NOT NULL DEFAULT '',
+            hierarchy_group TEXT NOT NULL DEFAULT '',
+            hierarchy_location TEXT NOT NULL DEFAULT '',
+            hierarchy_detail TEXT NOT NULL DEFAULT '',
             folder_path TEXT NOT NULL DEFAULT '',
+
+            decision_court_name TEXT NOT NULL DEFAULT '',
+            decision_court_source TEXT NOT NULL DEFAULT '',
+
             case_title TEXT NOT NULL DEFAULT '',
             case_number TEXT NOT NULL DEFAULT '',
             decision_date TEXT NOT NULL DEFAULT '',
@@ -87,23 +168,27 @@ def ensure_jurisprudence_index(connection: sqlite3.Connection) -> None:
                 REFERENCES documents(path)
                 ON DELETE CASCADE
         );
+        """
+    )
+    _ensure_columns(connection)
+    connection.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_jurisprudence_index_scope
+            ON jurisprudence_index(scope COLLATE NOCASE);
 
-        CREATE INDEX IF NOT EXISTS idx_jurisprudence_index_jurisdiction
-            ON jurisprudence_index(jurisdiction COLLATE NOCASE);
-
-        CREATE INDEX IF NOT EXISTS idx_jurisprudence_index_court
+        CREATE INDEX IF NOT EXISTS idx_jurisprudence_index_hierarchy
             ON jurisprudence_index(
-                jurisdiction COLLATE NOCASE,
-                court_type COLLATE NOCASE,
-                court_city COLLATE NOCASE,
-                chamber COLLATE NOCASE
+                scope COLLATE NOCASE,
+                province COLLATE NOCASE,
+                hierarchy_group COLLATE NOCASE,
+                hierarchy_location COLLATE NOCASE
             );
         """
     )
 
 
 def rebuild_structural_index(database_path: str | Path) -> dict[str, int]:
-    """Populate/update structural jurisprudence metadata for active documents."""
+    """Populate/update organizational jurisprudence metadata."""
     database_path = Path(database_path)
     connection = sqlite3.connect(database_path, timeout=30)
     connection.row_factory = sqlite3.Row
@@ -136,41 +221,46 @@ def rebuild_structural_index(database_path: str | Path) -> dict[str, int]:
 
             active_paths.add(document_path)
             confidence = {
-                "jurisdiction": 1.0 if metadata.jurisdiction else 0.0,
-                "court_type": 1.0 if metadata.court_type else 0.0,
-                "court_city": 1.0 if metadata.court_city else 0.0,
-                "chamber": 1.0 if metadata.chamber else 0.0,
+                "scope": 1.0 if metadata.scope else 0.0,
+                "province": 1.0 if metadata.province else 0.0,
+                "hierarchy_group": 1.0 if metadata.hierarchy_group else 0.0,
+                "hierarchy_location": 1.0 if metadata.hierarchy_location else 0.0,
+                "hierarchy_detail": 1.0 if metadata.hierarchy_detail else 0.0,
+                "decision_court_name": 0.0,
             }
 
             connection.execute(
                 """
                 INSERT INTO jurisprudence_index (
                     document_path,
-                    jurisdiction,
-                    court_type,
-                    court_city,
-                    chamber,
+                    scope,
+                    province,
+                    hierarchy_group,
+                    hierarchy_location,
+                    hierarchy_detail,
                     folder_path,
                     metadata_source,
                     confidence_json,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'path', ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'path-organizational', ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(document_path) DO UPDATE SET
-                    jurisdiction = excluded.jurisdiction,
-                    court_type = excluded.court_type,
-                    court_city = excluded.court_city,
-                    chamber = excluded.chamber,
+                    scope = excluded.scope,
+                    province = excluded.province,
+                    hierarchy_group = excluded.hierarchy_group,
+                    hierarchy_location = excluded.hierarchy_location,
+                    hierarchy_detail = excluded.hierarchy_detail,
                     folder_path = excluded.folder_path,
-                    metadata_source = 'path',
+                    metadata_source = 'path-organizational',
                     confidence_json = excluded.confidence_json,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
                     document_path,
-                    metadata.jurisdiction,
-                    metadata.court_type,
-                    metadata.court_city,
-                    metadata.chamber,
+                    metadata.scope,
+                    metadata.province,
+                    metadata.hierarchy_group,
+                    metadata.hierarchy_location,
+                    metadata.hierarchy_detail,
                     metadata.folder_path,
                     json.dumps(confidence, ensure_ascii=False, separators=(",", ":")),
                 ),
