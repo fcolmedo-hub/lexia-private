@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import re
 import sqlite3
@@ -8,7 +7,10 @@ from pathlib import Path
 
 from config.settings import SETTINGS
 
-_MARKER_RE = re.compile(r"\s*\[\[LEXIA_JURIS:([A-Za-z0-9_-]+)\]\]\s*", re.I)
+# El marcador es un único término alfanumérico para que FTS/Boolean lo trate
+# como texto normal e inexistente. Así el flujo pasa de forma segura al
+# fallback profesional, donde se decodifica el filtro estructurado.
+_MARKER_RE = re.compile(r"\s*LEXIAJURISX([0-9A-Fa-f]+)\s*", re.I)
 _ALLOWED = {
     "court", "chamber", "scope", "province", "date_from", "date_to",
     "case_number", "party", "law", "text_query",
@@ -20,10 +22,8 @@ def parse_filter_envelope(query: str) -> tuple[str, dict[str, str]]:
     match = _MARKER_RE.search(raw)
     if not match:
         return raw.strip(), {}
-    token = match.group(1)
-    padding = "=" * (-len(token) % 4)
     try:
-        decoded = base64.urlsafe_b64decode((token + padding).encode("ascii")).decode("utf-8")
+        decoded = bytes.fromhex(match.group(1)).decode("utf-8")
         value = json.loads(decoded)
     except Exception:
         value = {}
@@ -34,7 +34,8 @@ def parse_filter_envelope(query: str) -> tuple[str, dict[str, str]]:
             if item:
                 filters[key] = item[:500 if key == "text_query" else 240]
     visible = re.sub(r"\s+", " ", _MARKER_RE.sub(" ", raw)).strip()
-    clean = visible or filters.pop("text_query", "")
+    transported_query = filters.pop("text_query", "")
+    clean = visible or transported_query
     return clean, filters
 
 
