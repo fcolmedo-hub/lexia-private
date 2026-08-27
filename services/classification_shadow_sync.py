@@ -7,6 +7,7 @@ from pathlib import Path
 
 from config.settings import SETTINGS
 from services.library_classification_tree import LibraryClassificationTree
+from storage.jurisprudence_audit import write_jurisprudence_audit
 from storage.jurisprudence_content_indexer import update_content_index
 from storage.jurisprudence_index import rebuild_structural_index
 
@@ -19,9 +20,9 @@ def _resolve_under_root(root: Path, value) -> Path:
 class ClassificationShadowSync:
     """Synchronize path-derived classification metadata after AutoSync.
 
-    The shadow columns remain independent from FTS/Qdrant/Knowledge.  Once the
+    The shadow columns remain independent from FTS/Qdrant/Knowledge. Once the
     catalog transaction is closed, the jurisprudence side-index is refreshed
-    as a separate best-effort layer.  A failure there never rolls back normal
+    as a separate best-effort layer. A failure there never rolls back normal
     library synchronization.
     """
 
@@ -73,18 +74,21 @@ class ClassificationShadowSync:
             )
 
     def _refresh_jurisprudence_index(self) -> dict:
-        """Best-effort refresh after add/move/delete/reclassification cycles."""
+        """Best-effort refresh and audit after library synchronization cycles."""
         try:
             structural = rebuild_structural_index(self.catalog_path)
             legal = update_content_index(self.catalog_path)
+            audit_path = write_jurisprudence_audit(self.catalog_path)
             result = {
                 "structural": structural,
                 "legal": legal,
+                "audit_path": str(audit_path),
             }
             self.logger.info(
-                "Jurisprudence AutoIndex | structural=%s | legal=%s",
+                "Jurisprudence AutoIndex | structural=%s | legal=%s | audit=%s",
                 structural,
                 legal,
+                audit_path,
             )
             return result
         except Exception:
