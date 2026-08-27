@@ -79,17 +79,48 @@
     return Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
   }
 
+  function normalizeVisibleRanks(payload){
+    if(!payload||!Array.isArray(payload.results))return payload;
+    payload.results=payload.results.map((item,index)=>{
+      if(!item||typeof item!=='object')return item;
+      const displayRank=index+1;
+      return {
+        ...item,
+        diagnostic_lexical_rank:item.lexical_rank ?? null,
+        diagnostic_semantic_rank:item.semantic_rank ?? null,
+        rank:displayRank,
+        lexical_rank:displayRank,
+        semantic_rank:displayRank
+      };
+    });
+    return payload;
+  }
+
+  function responseFromJson(originalResponse,payload){
+    const headers=new Headers(originalResponse.headers);
+    headers.set('Content-Type','application/json; charset=utf-8');
+    return new Response(JSON.stringify(payload),{
+      status:originalResponse.status,
+      statusText:originalResponse.statusText,
+      headers
+    });
+  }
+
   function installFetchBridge(){
     if(window.__lexiaJurisFetchBridge)return;
     window.__lexiaJurisFetchBridge=true;
     const original=window.fetch.bind(window);
     window.fetch=async function(input,init){
+      let jurisprudenceSearch=false;
+      let searchUrl='';
       try{
         const url=typeof input==='string'?input:String(input?.url||'');
+        searchUrl=url;
         const method=String(init?.method||input?.method||'GET').toUpperCase();
         if(method==='POST'&&url.includes('/api/search')&&init?.body){
           const body=JSON.parse(String(init.body));
-          if(isJuris(body.category)){
+          jurisprudenceSearch=isJuris(body.category);
+          if(jurisprudenceSearch){
             const filters=values();
             if(Object.keys(filters).length){
               const payload={...filters,text_query:String(body.query||'').trim()};
@@ -100,7 +131,21 @@
           }
         }
       }catch(_){/* La búsqueda normal nunca debe romperse por los filtros. */}
-      return original(input,init);
+
+      const response=await original(input,init);
+
+      // La API conserva lexical_rank/semantic_rank como datos diagnósticos.
+      // La interfaz histórica podía elegir uno de esos campos para la insignia
+      // del resultado, mostrando números como 26, 29, 4 aunque la lista visible
+      // estuviera correctamente ordenada. En Jurisprudencia normalizamos sólo
+      // la respuesta del navegador: el backend mantiene intactos sus rankings.
+      if(jurisprudenceSearch&&searchUrl.includes('/api/search')){
+        try{
+          const payload=await response.clone().json();
+          return responseFromJson(response,normalizeVisibleRanks(payload));
+        }catch(_){/* Si no es JSON válido, devolver la respuesta original. */}
+      }
+      return response;
     };
   }
 
