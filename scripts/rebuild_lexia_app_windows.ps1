@@ -17,25 +17,38 @@ New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 Remove-Item -Recurse -Force $Dist,$Work -ErrorAction SilentlyContinue
 Remove-Item -Force $Spec -ErrorAction SilentlyContinue
 
-# No usamos una llamada fallida bajo ErrorActionPreference=Stop porque PowerShell
-# convierte el stderr de python.exe en NativeCommandError antes de poder revisar
-# $LASTEXITCODE. Comprobamos el módulo de forma silenciosa y, si falta, lo instalamos.
-$PyInstallerPresent = $false
-$OldErrorActionPreference = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-try {
-    & $Py -c "import PyInstaller" *> $null
-    $PyInstallerPresent = ($LASTEXITCODE -eq 0)
-} finally {
-    $ErrorActionPreference = $OldErrorActionPreference
+function Test-PythonModule([string]$ModuleName) {
+    $present = $false
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Py -c "import $ModuleName" *> $null
+        $present = ($LASTEXITCODE -eq 0)
+    } finally {
+        $ErrorActionPreference = $old
+    }
+    return $present
 }
 
-if (-not $PyInstallerPresent) {
+if (-not (Test-PythonModule 'PyInstaller')) {
     Write-Host 'Instalando PyInstaller en el entorno virtual de LexIA...'
     & $Py -m pip install --quiet pyinstaller
     if ($LASTEXITCODE -ne 0) {
         throw 'No se pudo instalar PyInstaller en el entorno virtual de LexIA.'
     }
+}
+
+if (-not (Test-PythonModule 'webview')) {
+    Write-Host 'Instalando pywebview en el entorno virtual de LexIA...'
+    & $Py -m pip install --quiet pywebview
+    if ($LASTEXITCODE -ne 0) {
+        throw 'No se pudo instalar pywebview en el entorno virtual de LexIA.'
+    }
+}
+
+# Verificación explícita: no generar un ejecutable si la GUI no está realmente disponible.
+if (-not (Test-PythonModule 'webview')) {
+    throw 'pywebview sigue sin estar disponible después de la instalación.'
 }
 
 $IconArgs = @()
@@ -54,8 +67,7 @@ $Args = @(
     '--onefile',
     '--windowed',
     '--name','LexIA',
-    '--hidden-import','webview',
-    '--hidden-import','webview.platforms.edgechromium',
+    '--collect-all','webview',
     '--distpath',$Dist,
     '--workpath',$Work,
     '--specpath',$BuildRoot
