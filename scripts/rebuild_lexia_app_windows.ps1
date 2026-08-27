@@ -7,8 +7,10 @@ $BuildRoot = Join-Path $Root '.build_lexia_windows'
 $Dist = Join-Path $BuildRoot 'dist'
 $Work = Join-Path $BuildRoot 'build'
 $Spec = Join-Path $BuildRoot 'LexIA.spec'
-$ExeOut = Join-Path $Dist 'LexIA.exe'
-$ExeTarget = Join-Path $Root 'LexIA.exe'
+$ExeOut = Join-Path $Dist 'LexIA\LexIA.exe'
+$InstallRoot = Join-Path $Root '.lexia_windows_app'
+$InstallDir = Join-Path $InstallRoot 'LexIA'
+$ExeTarget = Join-Path $InstallDir 'LexIA.exe'
 
 if (-not (Test-Path $Py)) { throw "No se encontró $Py" }
 if (-not (Test-Path $Entry)) { throw "No se encontró $Entry" }
@@ -46,7 +48,6 @@ if (-not (Test-PythonModule 'webview')) {
     }
 }
 
-# Verificación explícita: no generar un ejecutable si la GUI no está realmente disponible.
 if (-not (Test-PythonModule 'webview')) {
     throw 'pywebview sigue sin estar disponible después de la instalación.'
 }
@@ -60,11 +61,14 @@ $IconCandidates = @(
 $Icon = $IconCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($Icon) { $IconArgs = @('--icon', $Icon) }
 
+# ONEDIR es deliberado. El antiguo --onefile debía descomprimir pywebview y sus
+# dependencias en cada arranque, añadiendo varios segundos antes de ejecutar LexIA.
+# ONEDIR deja esos archivos ya desplegados y acelera sensiblemente el inicio.
 $Args = @(
     '-m','PyInstaller',
     '--noconfirm',
     '--clean',
-    '--onefile',
+    '--onedir',
     '--windowed',
     '--name','LexIA',
     '--collect-all','webview',
@@ -78,7 +82,14 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ExeOut)) {
     throw 'PyInstaller no pudo generar LexIA.exe'
 }
 
-Copy-Item -Force $ExeOut $ExeTarget
+Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
+Copy-Item -Recurse -Force (Join-Path $Dist 'LexIA') $InstallDir
+
+# Eliminar el antiguo ejecutable onefile para evitar que un acceso viejo siga
+# lanzando la versión lenta.
+$LegacyExe = Join-Path $Root 'LexIA.exe'
+Remove-Item -Force $LegacyExe -ErrorAction SilentlyContinue
 
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $Shortcut = Join-Path $Desktop 'LexIA.lnk'
@@ -95,8 +106,9 @@ $Link.Description = 'LexIA'
 $Link.Save()
 
 Write-Host ''
-Write-Host "LexIA.exe instalada en: $ExeTarget"
+Write-Host "LexIA instalada en: $ExeTarget"
 Write-Host "Acceso directo creado en: $Shortcut"
+Write-Host 'Modo de arranque: ONEDIR (sin extracción temporal por cada inicio).'
 if (-not $Icon) {
     Write-Host 'No se encontró LexIA.ico; se usó el icono del ejecutable. Podremos reemplazarlo luego por la pluma azul.'
 }
