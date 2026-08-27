@@ -24,26 +24,37 @@ if not py.exists():
     )
 
 
-def _ensure_ui_assets() -> None:
-    """Register small optional UI2 assets without rewriting the large prototype."""
+def _ensure_ui_assets() -> str | None:
+    """Temporarily register optional UI2 assets and return the original HTML."""
     index = HERE / "index.html"
     script = HERE / "assets" / "jurisprudence_search.js"
     if not (index.exists() and script.exists()):
-        return
+        return None
     marker = 'assets/jurisprudence_search.js'
     try:
-        html = index.read_text(encoding="utf-8")
+        original = index.read_text(encoding="utf-8")
     except OSError:
-        return
-    if marker in html:
-        return
+        return None
+    if marker in original:
+        return None
     tag = '<script src="assets/jurisprudence_search.js?v=juris1"></script>\n'
-    if "</body>" in html:
-        html = html.replace("</body>", tag + "</body>", 1)
-    else:
-        html += "\n" + tag
+    patched = (
+        original.replace("</body>", tag + "</body>", 1)
+        if "</body>" in original
+        else original + "\n" + tag
+    )
     try:
-        index.write_text(html, encoding="utf-8")
+        index.write_text(patched, encoding="utf-8")
+    except OSError:
+        return None
+    return original
+
+
+def _restore_ui_assets(original_html: str | None) -> None:
+    if original_html is None:
+        return
+    try:
+        (HERE / "index.html").write_text(original_html, encoding="utf-8")
     except OSError:
         pass
 
@@ -81,7 +92,7 @@ def main() -> int:
     print("Proyecto:", ROOT)
     print("UI2:", URL)
 
-    _ensure_ui_assets()
+    original_index = _ensure_ui_assets()
 
     env = os.environ.copy()
     env["LEXIA_UI2_PORT"] = PORT
@@ -119,6 +130,7 @@ def main() -> int:
         return 0
     finally:
         _stop_process(server)
+        _restore_ui_assets(original_index)
 
 
 if __name__ == "__main__":
