@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from pathlib import Path
 
 from config.settings import SETTINGS
 from services.library_classification_tree import LibraryClassificationTree
+from storage.jurisprudence_content_indexer import update_content_index
+from storage.jurisprudence_index import rebuild_structural_index
 
 
 def _resolve_under_root(root: Path, value) -> Path:
@@ -14,9 +17,12 @@ def _resolve_under_root(root: Path, value) -> Path:
 
 
 class ClassificationShadowSync:
-    """
-    Mantiene exclusivamente los metadatos shadow derivados de la ruta.
-    No toca category legacy, fragments, FTS, Qdrant ni Knowledge.
+    """Synchronize path-derived classification metadata after AutoSync.
+
+    The shadow columns remain independent from FTS/Qdrant/Knowledge.  Once the
+    catalog transaction is closed, the jurisprudence side-index is refreshed
+    as a separate best-effort layer.  A failure there never rolls back normal
+    library synchronization.
     """
 
     _SHADOW_COLUMNS = {
@@ -38,6 +44,7 @@ class ClassificationShadowSync:
         self.library_root = _resolve_under_root(
             self.project_root, SETTINGS.library_path
         )
+        self.logger = logging.getLogger("lexia.jurisprudence_autosync")
 
         aliases = None
         config_path = self.project_root / "config" / "library_tree.json"
@@ -65,6 +72,25 @@ class ClassificationShadowSync:
                 f"ALTER TABLE documents ADD COLUMN {column} {definition}"
             )
 
+    def _refresh_jurisprudence_index(self) -> dict:
+        """Best-effort refresh after add/move/delete/reclassification cycles."""
+        try:
+            structural = rebuild_structural_index(self.catalog_path)
+            legal = update_content_index(self.catalog_path)
+            result = {
+                "structural": structural,
+                "legal": legal,
+            }
+            self.logger.info(
+                "Jurisprudence AutoIndex | structural=%s | legal=%s",
+                structural,
+                legal,
+            )
+            return result
+        except Exception:
+            self.logger.exception("Jurisprudence AutoIndex falló")
+            return {"error": True}
+
     def update_paths(self, paths) -> dict:
         normalized = []
         seen = set()
@@ -76,8 +102,17 @@ class ClassificationShadowSync:
                 seen.add(resolved)
                 normalized.append(resolved)
 
+        # Even an empty path list can represent a deletion-only AutoSync cycle.
+        # Rebuilding the small side-index also removes stale jurisprudence rows.
         if not normalized:
-            return {"requested": 0, "updated": 0, "missing": 0, "invalid": 0}
+            jurisprudence = self._refresh_jurisprudence_index()
+            return {
+                "requested": 0,
+                "updated": 0,
+                "missing": 0,
+                "invalid": 0,
+                "jurisprudence": jurisprudence,
+            }
 
         con = sqlite3.connect(self.catalog_path)
         con.row_factory = sqlite3.Row
@@ -152,9 +187,11 @@ class ClassificationShadowSync:
         finally:
             con.close()
 
+        jurisprudence = self._refresh_jurisprudence_index()
         return {
             "requested": len(normalized),
             "updated": updated,
             "missing": missing,
             "invalid": invalid,
+            "jurisprudence": jurisprudence,
         }
