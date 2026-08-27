@@ -24,6 +24,30 @@ if not py.exists():
     )
 
 
+def _ensure_ui_assets() -> None:
+    """Register small optional UI2 assets without rewriting the large prototype."""
+    index = HERE / "index.html"
+    script = HERE / "assets" / "jurisprudence_search.js"
+    if not (index.exists() and script.exists()):
+        return
+    marker = 'assets/jurisprudence_search.js'
+    try:
+        html = index.read_text(encoding="utf-8")
+    except OSError:
+        return
+    if marker in html:
+        return
+    tag = '<script src="assets/jurisprudence_search.js?v=juris1"></script>\n'
+    if "</body>" in html:
+        html = html.replace("</body>", tag + "</body>", 1)
+    else:
+        html += "\n" + tag
+    try:
+        index.write_text(html, encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _wait_for_ui(url: str, process: subprocess.Popen, timeout: float = 20.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -56,6 +80,8 @@ def main() -> int:
     print("LexIA UI2 Desktop")
     print("Proyecto:", ROOT)
     print("UI2:", URL)
+
+    _ensure_ui_assets()
 
     env = os.environ.copy()
     env["LEXIA_UI2_PORT"] = PORT
