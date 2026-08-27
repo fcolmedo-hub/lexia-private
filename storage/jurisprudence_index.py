@@ -122,6 +122,7 @@ def _ensure_columns(connection: sqlite3.Connection) -> None:
         "hierarchy_detail": "TEXT NOT NULL DEFAULT ''",
         "decision_court_name": "TEXT NOT NULL DEFAULT ''",
         "decision_court_source": "TEXT NOT NULL DEFAULT ''",
+        "decision_chamber": "TEXT NOT NULL DEFAULT ''",
     }
     for column, definition in additions.items():
         if column not in existing:
@@ -144,6 +145,7 @@ def ensure_jurisprudence_index(connection: sqlite3.Connection) -> None:
 
             decision_court_name TEXT NOT NULL DEFAULT '',
             decision_court_source TEXT NOT NULL DEFAULT '',
+            decision_chamber TEXT NOT NULL DEFAULT '',
 
             case_title TEXT NOT NULL DEFAULT '',
             case_number TEXT NOT NULL DEFAULT '',
