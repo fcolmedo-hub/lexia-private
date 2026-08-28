@@ -2778,7 +2778,7 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 if __name__ == "__main__":
-    host = "127.0.0.1"
+    host = os.environ.get("LEXIA_UI2_HOST", "0.0.0.0")
     port = int(os.environ.get("LEXIA_UI2_PORT", "8512"))
     print(f"LexIA UI2 3.3.0i: http://{host}:{port}")
     print("Eliminar usa el servicio vivo de la interfaz clásica. Sin AutoSync secundario.")
