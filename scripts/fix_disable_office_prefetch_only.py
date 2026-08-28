@@ -20,10 +20,33 @@ OLD_FUNC = '''  async function lexiaResolveOfficeResultPage(path,snippet){
 NEW_FUNC = '''  async function lexiaResolveOfficeResultPage(path,snippet){
     // LEXIA_OFFICE_NO_PREFETCH_20260828
     // No convertir documentos Office durante busquedas/listados.
-    // La vista previa real conserva su flujo propio: al hacer click usa
-    // /api/office-preview-page y /api/office-preview-pdf para convertir y localizar.
+    // La pagina se calcula solamente al abrir la vista previa real.
     return 0;
   }
+'''
+
+VIEWER_META_OLD = '''          const metaUrl=
+            '/api/office-preview-page?path='+encodeURIComponent(path)+
+            '&fallback='+encodeURIComponent(requestedPage)+
+            '&snippet='+encodeURIComponent(String(snippet||''));
+'''
+
+VIEWER_META_NEW = '''          const metaUrl=
+            '/api/office-preview-page?path='+encodeURIComponent(path)+
+            '&fallback='+encodeURIComponent(requestedPage)+
+            '&snippet='+encodeURIComponent(String(snippet||''))+
+            '&convert=1';
+'''
+
+CLICK_META_OLD = '''            const u=
+              '/api/office-preview-page?path='+encodeURIComponent(path)+
+              '&snippet='+encodeURIComponent(String(snippet||''));
+'''
+
+CLICK_META_NEW = '''            const u=
+              '/api/office-preview-page?path='+encodeURIComponent(path)+
+              '&snippet='+encodeURIComponent(String(snippet||''))+
+              '&convert=1';
 '''
 
 BAD_MARKERS = [
@@ -154,13 +177,27 @@ def patch_index_disable_prefetch() -> bool:
             raise SystemExit("No encontré la función exacta lexiaResolveOfficeResultPage. No modifiqué index.html.")
         text = text.replace(OLD_FUNC, NEW_FUNC, 1)
 
+    if VIEWER_META_OLD in text:
+        text = text.replace(VIEWER_META_OLD, VIEWER_META_NEW, 1)
+    elif VIEWER_META_NEW in text:
+        pass
+    else:
+        print("AVISO: no encontré el metaUrl del visor Office; no lo modifiqué.")
+
+    if CLICK_META_OLD in text:
+        text = text.replace(CLICK_META_OLD, CLICK_META_NEW, 1)
+    elif CLICK_META_NEW in text:
+        pass
+    else:
+        print("AVISO: no encontré el metaUrl del click Office; no lo modifiqué.")
+
     if text == original:
-        print("OK: index.html ya tenía desactivado el precálculo Office de búsqueda.")
+        print("OK: index.html ya tenía desactivado el precálculo Office y convert=1 en vista previa.")
         return False
 
     backup = backup_once(INDEX, ".bak-office-prefetch-only", original)
     INDEX.write_text(text, encoding="utf-8")
-    print("OK: index.html ahora no convierte Office durante búsquedas/listados.")
+    print("OK: index.html no convierte Office durante búsquedas y fuerza cálculo sólo en vista previa.")
     print(f"Backup index.html: {backup}")
     return True
 
@@ -168,7 +205,7 @@ def patch_index_disable_prefetch() -> bool:
 def main() -> None:
     patch_server_back_to_preview_behavior()
     patch_index_disable_prefetch()
-    print("Listo. Reiniciá LexIA. Prueba: buscar no debe abrir LibreOffice; vista previa DOC debe seguir funcionando.")
+    print("Listo. Reiniciá LexIA. Prueba: buscar no debe abrir LibreOffice; vista previa DOC debe calcular página al click.")
 
 
 if __name__ == "__main__":
