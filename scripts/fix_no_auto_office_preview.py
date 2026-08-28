@@ -82,6 +82,8 @@ INDEX_NEW = "window.lexiaQuickViewerOpen(path,(previewPage&&previewPage>1?previe
 
 OLD_HASH_MARKER = "LEXIA_OFFICE_PREVIEW_PAGE_HASH_FIX_20260828"
 OFFICE_FORCE_MARKER = "LEXIA_OFFICE_PREVIEW_FORCE_PAGE_20260828B"
+OFFICE_CLICK_MARKER = "LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C"
+
 OFFICE_FORCE_SCRIPT = f'''
 <script id="{OFFICE_FORCE_MARKER}">
 (function(){{
@@ -117,7 +119,6 @@ OFFICE_FORCE_SCRIPT = f'''
     var frames=candidateFrames();
     var changed=false;
 
-    // Primero, reemplazar visores que ya estén mostrando una vista previa Office.
     frames.forEach(function(el){{
       var current=String(el.getAttribute('src')||el.getAttribute('data')||'');
       if(current.indexOf('/api/office-preview-pdf')!==-1){{
@@ -126,7 +127,6 @@ OFFICE_FORCE_SCRIPT = f'''
       }}
     }});
 
-    // Si todavía no apareció el iframe Office, usar el iframe visible más probable del visor.
     if(!changed){{
       frames.forEach(function(el){{
         if(changed)return;
@@ -155,6 +155,10 @@ OFFICE_FORCE_SCRIPT = f'''
     setTimeout(function(){{try{{observer.disconnect();}}catch(_){{}}}},3200);
   }}
 
+  window.__lexiaForceOfficePreviewPage=function(path,page){{
+    forceRepeated(path,Number(page||0));
+  }};
+
   function install(){{
     var original=window.lexiaQuickViewerOpen;
     if(typeof original!=='function'||original.__lexiaOfficeForcePageWrapped)return false;
@@ -178,6 +182,67 @@ OFFICE_FORCE_SCRIPT = f'''
 </script>
 '''
 
+OFFICE_CLICK_SCRIPT = f'''
+<script id="{OFFICE_CLICK_MARKER}">
+(function(){{
+  'use strict';
+  if(window.__LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C)return;
+  window.__LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C=true;
+
+  function isOffice(path){{
+    return /\.(doc|docx|rtf|odt)$/i.test(String(path||'').split('?')[0].split('#')[0]);
+  }}
+
+  function decode(value){{
+    try{{return decodeURIComponent(String(value||''));}}catch(_){{return String(value||'');}}
+  }}
+
+  async function locateOfficePage(path,snippet){{
+    var url='/api/office-preview-page?path='+encodeURIComponent(path)+
+      '&snippet='+encodeURIComponent(snippet||'')+'&convert=1';
+    var response=await fetch(url,{{cache:'no-store'}});
+    var data=await response.json().catch(function(){{return {{}};}});
+    if(response.ok&&data&&data.ok&&Number(data.page)>0)return Number(data.page);
+    return 1;
+  }}
+
+  document.addEventListener('click',async function(event){{
+    var btn=event.target&&event.target.closest?event.target.closest('.search-preview-file'):null;
+    if(!btn)return;
+    var path=decode(btn.dataset.path||'');
+    if(!isOffice(path))return;
+
+    var already=Number(btn.dataset.page||0);
+    if(already>1)return; // lo maneja el flujo normal y el force-page wrapper
+
+    var snippet=decode(btn.dataset.snippet||'');
+    if(!snippet)snippet=String(btn.closest('.result-card')?.innerText||'').slice(0,900);
+
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.stopImmediatePropagation)event.stopImmediatePropagation();
+
+    var oldText=btn.textContent;
+    try{{btn.textContent='Localizando página…';}}catch(_){{}}
+    try{{
+      var page=await locateOfficePage(path,snippet);
+      if(window.lexiaQuickViewerOpen){{
+        window.lexiaQuickViewerOpen(path,page,snippet);
+        if(window.__lexiaForceOfficePreviewPage)window.__lexiaForceOfficePreviewPage(path,page);
+      }}else{{
+        window.open('/api/office-preview-pdf?path='+encodeURIComponent(path)+(page>1?'#page='+page:''),'_blank','noopener');
+      }}
+    }}catch(error){{
+      if(window.lexiaQuickViewerOpen)window.lexiaQuickViewerOpen(path,1,snippet);
+      else window.open('/api/office-preview-pdf?path='+encodeURIComponent(path),'_blank','noopener');
+    }}finally{{
+      try{{btn.textContent=oldText;}}catch(_){{}}
+    }}
+  }},true);
+}})();
+</script>
+'''
+
 
 def backup_once(path, suffix, content):
     backup = path.with_suffix(path.suffix + suffix)
@@ -186,8 +251,8 @@ def backup_once(path, suffix, content):
     return backup
 
 
-def remove_old_hash_script(txt):
-    start = txt.find(f'<script id="{OLD_HASH_MARKER}">')
+def remove_script_by_id(txt, marker):
+    start = txt.find(f'<script id="{marker}">')
     if start == -1:
         return txt
     end = txt.find('</script>', start)
@@ -218,6 +283,12 @@ def patch_server():
     print(f"Backup server.py: {backup}")
 
 
+def insert_before_body(txt, script):
+    if "</body>" in txt:
+        return txt.replace("</body>", script + "\n</body>", 1)
+    return txt + "\n" + script + "\n"
+
+
 def patch_index_keep_source_page():
     if not INDEX.exists():
         raise SystemExit(f"No existe {INDEX}")
@@ -235,24 +306,20 @@ def patch_index_keep_source_page():
     else:
         print("OK: index.html ya conserva sourcePage cuando previewPage es 1.")
 
-    cleaned = remove_old_hash_script(txt)
-    if cleaned != txt:
-        txt = cleaned
-        changed = True
-        print("OK: removido fix Office anterior menos robusto.")
+    for marker in (OLD_HASH_MARKER, OFFICE_FORCE_MARKER, OFFICE_CLICK_MARKER):
+        cleaned = remove_script_by_id(txt, marker)
+        if cleaned != txt:
+            txt = cleaned
+            changed = True
+            print(f"OK: removido script anterior {marker}.")
 
-    if OFFICE_FORCE_MARKER not in txt:
-        if "</body>" in txt:
-            txt = txt.replace("</body>", OFFICE_FORCE_SCRIPT + "\n</body>", 1)
-        else:
-            txt = txt + "\n" + OFFICE_FORCE_SCRIPT + "\n"
-        changed = True
-        print("OK: index.html fuerza directamente #page=N en PDFs convertidos desde Office.")
-    else:
-        print("OK: index.html ya tiene fix robusto de página Office convertida.")
+    txt = insert_before_body(txt, OFFICE_FORCE_SCRIPT)
+    txt = insert_before_body(txt, OFFICE_CLICK_SCRIPT)
+    changed = True
+    print("OK: index.html calcula página Office sólo al hacer clic si el DOC no trae pág. N.")
 
     if changed:
-        backup = backup_once(INDEX, ".bak-office-page-force", original)
+        backup = backup_once(INDEX, ".bak-office-click-locator", original)
         INDEX.write_text(txt, encoding="utf-8")
         print(f"Backup index.html: {backup}")
 
