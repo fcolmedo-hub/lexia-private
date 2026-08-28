@@ -43,11 +43,21 @@ CLICK_META_OLD = '''            const u=
               '&snippet='+encodeURIComponent(String(snippet||''));
 '''
 
-CLICK_META_NEW = '''            const u=
+CLICK_META_CONVERT_ONLY = '''            const u=
               '/api/office-preview-page?path='+encodeURIComponent(path)+
               '&snippet='+encodeURIComponent(String(snippet||''))+
               '&convert=1';
 '''
+
+CLICK_META_NEW = '''            const u=
+              '/api/office-preview-page?path='+encodeURIComponent(path)+
+              '&fallback='+encodeURIComponent(String(sourcePage||''))+
+              '&snippet='+encodeURIComponent(String(snippet||''))+
+              '&convert=1';
+'''
+
+OPEN_OLD = "window.lexiaQuickViewerOpen(path,previewPage||sourcePage,snippet);"
+OPEN_NEW = "window.lexiaQuickViewerOpen(path,((previewPage&&previewPage>1)?previewPage:sourcePage)||1,snippet);"
 
 BAD_MARKERS = [
     "LEXIA_OFFICE_PREVIEW_PAGE_HASH_FIX_20260828",
@@ -163,7 +173,7 @@ def patch_server_back_to_preview_behavior() -> bool:
     return True
 
 
-def patch_index_disable_prefetch() -> bool:
+def patch_index_disable_prefetch_and_preserve_result_page() -> bool:
     if not INDEX.exists():
         raise SystemExit(f"No existe {INDEX}")
     text = INDEX.read_text(encoding="utf-8", errors="replace")
@@ -179,33 +189,38 @@ def patch_index_disable_prefetch() -> bool:
 
     if VIEWER_META_OLD in text:
         text = text.replace(VIEWER_META_OLD, VIEWER_META_NEW, 1)
-    elif VIEWER_META_NEW in text:
-        pass
-    else:
-        print("AVISO: no encontré el metaUrl del visor Office; no lo modifiqué.")
 
     if CLICK_META_OLD in text:
         text = text.replace(CLICK_META_OLD, CLICK_META_NEW, 1)
+    elif CLICK_META_CONVERT_ONLY in text:
+        text = text.replace(CLICK_META_CONVERT_ONLY, CLICK_META_NEW, 1)
     elif CLICK_META_NEW in text:
         pass
     else:
         print("AVISO: no encontré el metaUrl del click Office; no lo modifiqué.")
 
+    if OPEN_OLD in text:
+        text = text.replace(OPEN_OLD, OPEN_NEW, 1)
+    elif OPEN_NEW in text:
+        pass
+    else:
+        print("AVISO: no encontré la llamada window.lexiaQuickViewerOpen del click Office.")
+
     if text == original:
-        print("OK: index.html ya tenía desactivado el precálculo Office y convert=1 en vista previa.")
+        print("OK: index.html ya tenía el ajuste de Office aplicado.")
         return False
 
     backup = backup_once(INDEX, ".bak-office-prefetch-only", original)
     INDEX.write_text(text, encoding="utf-8")
-    print("OK: index.html no convierte Office durante búsquedas y fuerza cálculo sólo en vista previa.")
+    print("OK: index.html no convierte Office durante búsquedas y no pisa sourcePage con page=1.")
     print(f"Backup index.html: {backup}")
     return True
 
 
 def main() -> None:
     patch_server_back_to_preview_behavior()
-    patch_index_disable_prefetch()
-    print("Listo. Reiniciá LexIA. Prueba: buscar no debe abrir LibreOffice; vista previa DOC debe calcular página al click.")
+    patch_index_disable_prefetch_and_preserve_result_page()
+    print("Listo. Reiniciá LexIA. Prueba: buscar no debe abrir LibreOffice; vista previa DOC debe usar page_start si el cálculo devuelve 1.")
 
 
 if __name__ == "__main__":
