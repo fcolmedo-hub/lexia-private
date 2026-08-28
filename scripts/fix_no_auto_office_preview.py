@@ -46,7 +46,7 @@ OFFICE_PAGE_NEW = '''        if path == "/api/office-preview-page":
                     return self._json({"ok": False, "error": "Falta path"}, 400)
 
                 # Llamadas automáticas desde búsqueda/listado: NO convertir Office.
-                # Devolver 0 para que el frontend conserve la página real del resultado.
+                # Devolver 0 para que el frontend no pise la página real del resultado.
                 if convert not in {"1", "true", "yes", "si", "sí"}:
                     return self._json({
                         "ok": True,
@@ -80,130 +80,98 @@ OFFICE_PAGE_NEW = '''        if path == "/api/office-preview-page":
 INDEX_OLD = "window.lexiaQuickViewerOpen(path,previewPage||sourcePage,snippet);"
 INDEX_NEW = "window.lexiaQuickViewerOpen(path,(previewPage&&previewPage>1?previewPage:sourcePage)||1,snippet);"
 
-OLD_HASH_MARKER = "LEXIA_OFFICE_PREVIEW_PAGE_HASH_FIX_20260828"
-OFFICE_FORCE_MARKER = "LEXIA_OFFICE_PREVIEW_FORCE_PAGE_20260828B"
-OFFICE_CLICK_MARKER = "LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C"
+MARKERS = [
+    "LEXIA_OFFICE_PREVIEW_PAGE_HASH_FIX_20260828",
+    "LEXIA_OFFICE_PREVIEW_FORCE_PAGE_20260828B",
+    "LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C",
+    "LEXIA_OFFICE_PREVIEW_SINGLE_VIEWER_20260828D",
+]
 
-OFFICE_FORCE_SCRIPT = f'''
-<script id="{OFFICE_FORCE_MARKER}">
+SINGLE_VIEWER_MARKER = "LEXIA_OFFICE_PREVIEW_SINGLE_VIEWER_20260828D"
+SINGLE_VIEWER_SCRIPT = f'''
+<script id="{SINGLE_VIEWER_MARKER}">
 (function(){{
   'use strict';
-  if(window.__LEXIA_OFFICE_PREVIEW_FORCE_PAGE_20260828B)return;
-  window.__LEXIA_OFFICE_PREVIEW_FORCE_PAGE_20260828B=true;
+  if(window.__LEXIA_OFFICE_PREVIEW_SINGLE_VIEWER_20260828D)return;
+  window.__LEXIA_OFFICE_PREVIEW_SINGLE_VIEWER_20260828D=true;
 
   function isOffice(path){{
     return /\.(doc|docx|rtf|odt)$/i.test(String(path||'').split('?')[0].split('#')[0]);
   }}
-
-  function officePdfUrl(path,page){{
-    page=Number(page||0);
-    var url='/api/office-preview-pdf?path='+encodeURIComponent(String(path||''));
-    if(page>1)url+='#page='+page;
-    return url;
-  }}
-
-  function candidateFrames(){{
-    return Array.from(document.querySelectorAll('iframe,embed,object'));
-  }}
-
-  function setFrame(el,url){{
-    var tag=String(el.tagName||'').toLowerCase();
-    var attr=tag==='object'?'data':'src';
-    try{{el.setAttribute(attr,url);}}catch(_){{}}
-  }}
-
-  function forceOfficeFrame(path,page){{
-    page=Number(page||0);
-    if(!isOffice(path)||page<=1)return false;
-    var url=officePdfUrl(path,page);
-    var frames=candidateFrames();
-    var changed=false;
-
-    frames.forEach(function(el){{
-      var current=String(el.getAttribute('src')||el.getAttribute('data')||'');
-      if(current.indexOf('/api/office-preview-pdf')!==-1){{
-        setFrame(el,url);
-        changed=true;
-      }}
-    }});
-
-    if(!changed){{
-      frames.forEach(function(el){{
-        if(changed)return;
-        var box;
-        try{{box=el.getBoundingClientRect();}}catch(_){{box=null;}}
-        if(!box||box.width<250||box.height<250)return;
-        var current=String(el.getAttribute('src')||el.getAttribute('data')||'');
-        if(current.indexOf('/api/file-preview')!==-1||current.indexOf('/api/office-preview')!==-1||current.indexOf('about:blank')!==-1||!current){{
-          setFrame(el,url);
-          changed=true;
-        }}
-      }});
-    }}
-    return changed;
-  }}
-
-  function forceRepeated(path,page){{
-    var delays=[0,50,150,300,700,1200,2000];
-    delays.forEach(function(ms){{setTimeout(function(){{forceOfficeFrame(path,page);}},ms);}});
-    var stopAt=Date.now()+3000;
-    var observer=new MutationObserver(function(){{
-      forceOfficeFrame(path,page);
-      if(Date.now()>stopAt)observer.disconnect();
-    }});
-    try{{observer.observe(document.body,{{childList:true,subtree:true,attributes:true,attributeFilter:['src','data']}});}}catch(_){{}}
-    setTimeout(function(){{try{{observer.disconnect();}}catch(_){{}}}},3200);
-  }}
-
-  window.__lexiaForceOfficePreviewPage=function(path,page){{
-    forceRepeated(path,Number(page||0));
-  }};
-
-  function install(){{
-    var original=window.lexiaQuickViewerOpen;
-    if(typeof original!=='function'||original.__lexiaOfficeForcePageWrapped)return false;
-    var wrapped=function(path,page,snippet){{
-      var n=Number(page||0);
-      var office=isOffice(path);
-      var result=original.apply(this,arguments);
-      if(office&&n>1)forceRepeated(path,n);
-      return result;
-    }};
-    wrapped.__lexiaOfficeForcePageWrapped=true;
-    window.lexiaQuickViewerOpen=wrapped;
-    return true;
-  }}
-
-  if(!install()){{
-    var timer=setInterval(function(){{if(install())clearInterval(timer);}},100);
-    setTimeout(function(){{clearInterval(timer);}},8000);
-  }}
-}})();
-</script>
-'''
-
-OFFICE_CLICK_SCRIPT = f'''
-<script id="{OFFICE_CLICK_MARKER}">
-(function(){{
-  'use strict';
-  if(window.__LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C)return;
-  window.__LEXIA_OFFICE_PREVIEW_CLICK_LOCATOR_20260828C=true;
-
-  function isOffice(path){{
-    return /\.(doc|docx|rtf|odt)$/i.test(String(path||'').split('?')[0].split('#')[0]);
-  }}
-
   function decode(value){{
     try{{return decodeURIComponent(String(value||''));}}catch(_){{return String(value||'');}}
   }}
-
-  async function locateOfficePage(path,snippet){{
+  function esc(value){{
+    return String(value||'').replace(/[&<>"']/g,function(c){{return {{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c];}});
+  }}
+  function officePdfUrl(path,page){{
+    var n=Number(page||0);
+    var url='/api/office-preview-pdf?path='+encodeURIComponent(String(path||''));
+    if(n>1)url+='#page='+n;
+    return url;
+  }}
+  async function locateOfficePage(path,snippet,fallback){{
+    var fb=Number(fallback||0);
     var url='/api/office-preview-page?path='+encodeURIComponent(path)+
-      '&snippet='+encodeURIComponent(snippet||'')+'&convert=1';
+      '&snippet='+encodeURIComponent(snippet||'')+
+      (fb>0?'&fallback='+encodeURIComponent(String(fb)):'')+
+      '&convert=1';
     var response=await fetch(url,{{cache:'no-store'}});
     var data=await response.json().catch(function(){{return {{}};}});
     if(response.ok&&data&&data.ok&&Number(data.page)>0)return Number(data.page);
-    return 1;
+    return fb>0?fb:1;
+  }}
+  function ensureStyles(){{
+    if(document.getElementById('lexiaOfficeSingleViewerStyles'))return;
+    var style=document.createElement('style');
+    style.id='lexiaOfficeSingleViewerStyles';
+    style.textContent='\n'+
+      '.lexia-office-single-backdrop{{position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:22px}}\n'+
+      '.lexia-office-single-modal{{width:min(1180px,96vw);height:min(860px,94vh);background:#fff;border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.35);display:grid;grid-template-rows:auto 1fr;overflow:hidden}}\n'+
+      '.lexia-office-single-head{{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #e5e7eb;background:#f8fafc;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}\n'+
+      '.lexia-office-single-title{{flex:1;min-width:0;font-weight:700;font-size:13px;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}\n'+
+      '.lexia-office-single-page{{font-size:12px;color:#475569}}\n'+
+      '.lexia-office-single-close{{border:0;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:700;cursor:pointer}}\n'+
+      '.lexia-office-single-frame{{width:100%;height:100%;border:0;background:#fff}}\n'+
+      '.lexia-office-single-loading{{position:fixed;z-index:99999;right:22px;bottom:22px;background:#111827;color:#fff;padding:10px 14px;border-radius:12px;font:600 13px system-ui;box-shadow:0 14px 40px rgba(0,0,0,.28)}}\n';
+    document.head.appendChild(style);
+  }}
+  function loading(show){{
+    ensureStyles();
+    var id='lexiaOfficeSingleLoading';
+    var old=document.getElementById(id);
+    if(old)old.remove();
+    if(!show)return;
+    var div=document.createElement('div');
+    div.id=id;
+    div.className='lexia-office-single-loading';
+    div.textContent='Localizando página del documento…';
+    document.body.appendChild(div);
+  }}
+  function openOfficeModal(path,page,title){{
+    ensureStyles();
+    var old=document.getElementById('lexiaOfficeSingleViewer');
+    if(old)old.remove();
+    var backdrop=document.createElement('div');
+    backdrop.id='lexiaOfficeSingleViewer';
+    backdrop.className='lexia-office-single-backdrop';
+    backdrop.innerHTML='<div class="lexia-office-single-modal" role="dialog" aria-modal="true">'+
+      '<div class="lexia-office-single-head">'+
+        '<div class="lexia-office-single-title">'+esc(title||path)+'</div>'+
+        '<div class="lexia-office-single-page">Pág. '+esc(String(Number(page||1)))+'</div>'+
+        '<button type="button" class="lexia-office-single-close">Cerrar</button>'+
+      '</div>'+
+      '<iframe class="lexia-office-single-frame" src="'+esc(officePdfUrl(path,page))+'"></iframe>'+
+    '</div>';
+    backdrop.querySelector('.lexia-office-single-close').addEventListener('click',function(){{backdrop.remove();}});
+    backdrop.addEventListener('click',function(ev){{if(ev.target===backdrop)backdrop.remove();}});
+    document.addEventListener('keydown',function escHandler(ev){{
+      if(ev.key==='Escape'&&document.getElementById('lexiaOfficeSingleViewer')){{
+        document.getElementById('lexiaOfficeSingleViewer').remove();
+        document.removeEventListener('keydown',escHandler);
+      }}
+    }});
+    document.body.appendChild(backdrop);
   }}
 
   document.addEventListener('click',async function(event){{
@@ -212,30 +180,24 @@ OFFICE_CLICK_SCRIPT = f'''
     var path=decode(btn.dataset.path||'');
     if(!isOffice(path))return;
 
-    var already=Number(btn.dataset.page||0);
-    if(already>1)return; // lo maneja el flujo normal y el force-page wrapper
-
-    var snippet=decode(btn.dataset.snippet||'');
-    if(!snippet)snippet=String(btn.closest('.result-card')?.innerText||'').slice(0,900);
-
     event.preventDefault();
     event.stopPropagation();
     if(event.stopImmediatePropagation)event.stopImmediatePropagation();
 
+    var snippet=decode(btn.dataset.snippet||'');
+    if(!snippet)snippet=String(btn.closest('.result-card')?.innerText||'').slice(0,1200);
+    var page=Number(btn.dataset.page||0);
+    var title=String(btn.textContent||'Documento Office').trim();
     var oldText=btn.textContent;
     try{{btn.textContent='Localizando página…';}}catch(_){{}}
+    loading(true);
     try{{
-      var page=await locateOfficePage(path,snippet);
-      if(window.lexiaQuickViewerOpen){{
-        window.lexiaQuickViewerOpen(path,page,snippet);
-        if(window.__lexiaForceOfficePreviewPage)window.__lexiaForceOfficePreviewPage(path,page);
-      }}else{{
-        window.open('/api/office-preview-pdf?path='+encodeURIComponent(path)+(page>1?'#page='+page:''),'_blank','noopener');
-      }}
+      if(!(page>0))page=await locateOfficePage(path,snippet,0);
+      openOfficeModal(path,page||1,title);
     }}catch(error){{
-      if(window.lexiaQuickViewerOpen)window.lexiaQuickViewerOpen(path,1,snippet);
-      else window.open('/api/office-preview-pdf?path='+encodeURIComponent(path),'_blank','noopener');
+      openOfficeModal(path,1,title);
     }}finally{{
+      loading(false);
       try{{btn.textContent=oldText;}}catch(_){{}}
     }}
   }},true);
@@ -252,13 +214,20 @@ def backup_once(path, suffix, content):
 
 
 def remove_script_by_id(txt, marker):
-    start = txt.find(f'<script id="{marker}">')
-    if start == -1:
-        return txt
-    end = txt.find('</script>', start)
-    if end == -1:
-        return txt
-    return txt[:start] + txt[end + len('</script>'):]
+    while True:
+        start = txt.find(f'<script id="{marker}">')
+        if start == -1:
+            return txt
+        end = txt.find('</script>', start)
+        if end == -1:
+            return txt
+        txt = txt[:start] + txt[end + len('</script>'):]
+
+
+def insert_before_body(txt, script):
+    if "</body>" in txt:
+        return txt.replace("</body>", script + "\n</body>", 1)
+    return txt + "\n" + script + "\n"
 
 
 def patch_server():
@@ -283,47 +252,35 @@ def patch_server():
     print(f"Backup server.py: {backup}")
 
 
-def insert_before_body(txt, script):
-    if "</body>" in txt:
-        return txt.replace("</body>", script + "\n</body>", 1)
-    return txt + "\n" + script + "\n"
-
-
-def patch_index_keep_source_page():
+def patch_index():
     if not INDEX.exists():
         raise SystemExit(f"No existe {INDEX}")
     txt = INDEX.read_text(encoding="utf-8", errors="replace")
     original = txt
     changed = False
 
-    if INDEX_NEW not in txt:
-        if INDEX_OLD in txt:
-            txt = txt.replace(INDEX_OLD, INDEX_NEW, 1)
-            changed = True
-            print("OK: index.html conserva sourcePage cuando previewPage es 1.")
-        else:
-            print("AVISO: no encontré la línea exacta previewPage||sourcePage; no la modifiqué.")
-    else:
-        print("OK: index.html ya conserva sourcePage cuando previewPage es 1.")
+    if INDEX_NEW not in txt and INDEX_OLD in txt:
+        txt = txt.replace(INDEX_OLD, INDEX_NEW, 1)
+        changed = True
+        print("OK: index.html conserva sourcePage cuando previewPage es 1.")
 
-    for marker in (OLD_HASH_MARKER, OFFICE_FORCE_MARKER, OFFICE_CLICK_MARKER):
+    for marker in MARKERS:
         cleaned = remove_script_by_id(txt, marker)
         if cleaned != txt:
             txt = cleaned
             changed = True
             print(f"OK: removido script anterior {marker}.")
 
-    txt = insert_before_body(txt, OFFICE_FORCE_SCRIPT)
-    txt = insert_before_body(txt, OFFICE_CLICK_SCRIPT)
+    txt = insert_before_body(txt, SINGLE_VIEWER_SCRIPT)
     changed = True
-    print("OK: index.html calcula página Office sólo al hacer clic si el DOC no trae pág. N.")
+    print("OK: DOC/RTF/DOCX/ODT usan visor único luego de calcular la página.")
 
     if changed:
-        backup = backup_once(INDEX, ".bak-office-click-locator", original)
+        backup = backup_once(INDEX, ".bak-office-single-viewer", original)
         INDEX.write_text(txt, encoding="utf-8")
         print(f"Backup index.html: {backup}")
 
 
 patch_server()
-patch_index_keep_source_page()
+patch_index()
 print("Listo. Reiniciá LexIA para cargar los cambios.")
