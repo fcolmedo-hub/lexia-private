@@ -20,29 +20,29 @@ EOL = "\r\n" if "\r\n" in text else "\n"
 def nl(value: str) -> str:
     return value.replace("\n", EOL)
 
-# Idempotencia: si las tres marcas ya estan presentes, no volver a modificar.
 MARK_HYDRATE = "LEXIA_SEARCH_OFFICE_NO_PREFETCH"
 MARK_CLICK = "LEXIA_SEARCH_OFFICE_TEXT_PREVIEW"
 MARK_CAPTURE = "LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE"
-if all(mark in text for mark in (MARK_HYDRATE, MARK_CLICK, MARK_CAPTURE)):
-    print("OK: el Buscador de contenido ya usa la vista previa Office de Investigacion.")
-    raise SystemExit(0)
 
-# 1) No convertir/precalcular paginas Office al mostrar resultados.
+# 1) No convertir/precalcular páginas Office al mostrar resultados.
 hydrate_old = nl("""  function lexiaHydrateOfficeResultPages(box,which){
     if(which!=='professional'||!box)return;""")
 hydrate_new = nl("""  function lexiaHydrateOfficeResultPages(box,which){
     // LEXIA_SEARCH_OFFICE_NO_PREFETCH: Investigacion no precalcula paginas Office.
     return;
     if(which!=='professional'||!box)return;""")
+
 if MARK_HYDRATE not in text:
     count = text.count(hydrate_old)
     if count < 1:
         raise SystemExit("ERROR: no se encontro lexiaHydrateOfficeResultPages; no se modifico el archivo.")
     text = text.replace(hydrate_old, hydrate_new)
     print(f"OK: desactivado prefetch Office ({count} bloque/s).")
+else:
+    print("OK: prefetch Office ya estaba desactivado.")
 
-# 2) El handler capturador de paginas no debe interceptar DOC/DOCX/RTF/ODT.
+# 2) Algunas variantes de UI2 tienen un handler capturador de páginas y otras no.
+#    Si existe, Office debe quedar fuera para que continúe hacia el visor común.
 capture_old = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
     if(!btn)return;
     const sourcePage=parseInt(btn.dataset.page||'0',10);""")
@@ -53,16 +53,19 @@ capture_new = nl("""    const btn=ev.target.closest?.('.search-preview-file[data
     const officeExt=(officePath.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
     if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;
     const sourcePage=parseInt(btn.dataset.page||'0',10);""")
-if MARK_CAPTURE not in text:
-    count = text.count(capture_old)
-    if count < 1:
-        raise SystemExit("ERROR: no se encontro FINAL PAGE PREVIEW; no se modifico el archivo.")
-    text = text.replace(capture_old, capture_new)
-    print(f"OK: Office excluido del capturador de paginas ({count} bloque/s).")
 
-# 3) Al hacer clic en un resultado Office, abrir ruta + snippet SIN pagina.
-#    El visor comun usa entonces texto extraido, marca el snippet con <mark>
-#    (amarillo) y hace scroll hasta la coincidencia, igual que Investigacion.
+if MARK_CAPTURE in text:
+    print("OK: Office ya estaba excluido del capturador de paginas.")
+else:
+    count = text.count(capture_old)
+    if count:
+        text = text.replace(capture_old, capture_new)
+        print(f"OK: Office excluido del capturador de paginas ({count} bloque/s).")
+    else:
+        print("OK: esta version de UI2 no tiene FINAL PAGE PREVIEW; no requiere ese ajuste.")
+
+# 3) Al hacer clic en un resultado Office, abrir ruta + snippet SIN página.
+#    Es el mismo contrato que usa Investigación con lexiaQuickViewerOpen.
 click_old = nl("""          const effectivePath=path||requestedPath;
 
           if(
@@ -81,20 +84,23 @@ click_new = nl("""          const effectivePath=path||requestedPath;
           if(
             resultSnippet &&
             lexiaIsOfficeResult(effectivePath) &&""")
+
 if MARK_CLICK not in text:
     count = text.count(click_old)
     if count < 1:
         raise SystemExit("ERROR: no se encontro el click del Buscador de contenido; no se modifico el archivo.")
     text = text.replace(click_old, click_new)
     print(f"OK: click Office conectado a texto+snippet ({count} bloque/s).")
+else:
+    print("OK: click Office ya estaba conectado a texto+snippet.")
 
-# Verificacion final antes de escribir.
-missing = [mark for mark in (MARK_HYDRATE, MARK_CLICK, MARK_CAPTURE) if mark not in text]
+# Verificación mínima necesaria para esta corrección.
+missing = [mark for mark in (MARK_HYDRATE, MARK_CLICK) if mark not in text]
 if missing:
     raise SystemExit("ERROR: verificacion incompleta; no se modifico el archivo: " + ", ".join(missing))
 
 if text == original:
-    print("OK: no habia cambios pendientes.")
+    print("OK: el Buscador de contenido ya estaba reparado; no habia cambios pendientes.")
     raise SystemExit(0)
 
 if not BACKUP.exists():
