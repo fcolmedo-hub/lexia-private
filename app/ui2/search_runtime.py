@@ -27,6 +27,18 @@ except Exception:
     SearchHotfixEngine = None
 
 
+class _SearchHistoryNoop:
+    """Disable internal engine history writes.
+
+    UI2 records search history centrally from SearchRuntime after a successful
+    search response is assembled. This avoids missing cache hits and avoids
+    double-counting non-cached searches.
+    """
+
+    def add(self, query: str, category: str | None, result_count: int) -> None:
+        return None
+
+
 class SearchRuntime:
     """LexIA's professional search stack, with optional jurisprudence metadata filters."""
 
@@ -44,7 +56,7 @@ class SearchRuntime:
             self.vector_store,
             self.catalog,
             self.feedback,
-            self.history,
+            _SearchHistoryNoop(),
         )
         self.raw_search = (
             SearchHotfixEngine(professional, self.catalog)
@@ -59,12 +71,7 @@ class SearchRuntime:
         category: str | None,
         result_count: int,
     ) -> None:
-        """Best-effort history write used by UI counters.
-
-        ProfessionalLegalSearchEngine already records non-cached text searches.
-        SearchRuntime records only paths that bypass that engine, such as cache hits
-        and structured-filter-only searches. Failures here must not break search.
-        """
+        """Best-effort single history write for each successful UI2 search."""
         query = str(query or "").strip() or "[filtros]"
         try:
             self.history.add(query, category, int(result_count or 0))
@@ -210,7 +217,6 @@ class SearchRuntime:
         started = time.perf_counter()
         raw = self._call_search(self.search_engine, clean_query, engine_limit, category)
         elapsed = time.perf_counter() - started
-        cache_hit = bool(getattr(self.search_engine, "last_cache_hit", False))
 
         if isinstance(raw, dict):
             rows = raw.get("results") or raw.get("items") or []
@@ -248,8 +254,7 @@ class SearchRuntime:
         for idx, item in enumerate(results, start=1):
             item["rank"] = idx
 
-        if cache_hit:
-            self._record_search_history(clean_query, category, len(results))
+        self._record_search_history(clean_query, category, len(results))
 
         return {
             "ok": True,
