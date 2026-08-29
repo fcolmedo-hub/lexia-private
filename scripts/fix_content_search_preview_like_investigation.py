@@ -5,7 +5,7 @@ import shutil
 
 ROOT = Path.cwd()
 TARGET = ROOT / "app" / "ui2" / "index.html"
-BACKUP = ROOT / "app" / "ui2" / "index.html.bak-content-search-preview-like-investigation"
+BACKUP = ROOT / "app" / "ui2" / "index.html.bak-before-restore-office-page-preview"
 
 if not TARGET.exists():
     raise SystemExit(f"ERROR: no existe {TARGET}")
@@ -24,54 +24,29 @@ MARK_HYDRATE = "LEXIA_SEARCH_OFFICE_NO_PREFETCH"
 MARK_CLICK = "LEXIA_SEARCH_OFFICE_TEXT_PREVIEW"
 MARK_CAPTURE = "LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE"
 
-# 1) No convertir/precalcular páginas Office al mostrar resultados.
-hydrate_old = nl("""  function lexiaHydrateOfficeResultPages(box,which){
-    if(which!=='professional'||!box)return;""")
-hydrate_new = nl("""  function lexiaHydrateOfficeResultPages(box,which){
+# OPCION A — comportamiento original del Buscador de contenido para Office:
+# LibreOffice trabaja durante la busqueda, se resuelve la pagina correcta y
+# el click abre inmediatamente esa pagina.
+
+# 1) Reactivar el prefetch/resolucion de pagina Office durante la busqueda.
+hydrate_modified = nl("""  function lexiaHydrateOfficeResultPages(box,which){
     // LEXIA_SEARCH_OFFICE_NO_PREFETCH: Investigacion no precalcula paginas Office.
     return;
     if(which!=='professional'||!box)return;""")
+hydrate_original = nl("""  function lexiaHydrateOfficeResultPages(box,which){
+    if(which!=='professional'||!box)return;""")
 
-if MARK_HYDRATE not in text:
-    count = text.count(hydrate_old)
-    if count < 1:
-        raise SystemExit("ERROR: no se encontro lexiaHydrateOfficeResultPages; no se modifico el archivo.")
-    text = text.replace(hydrate_old, hydrate_new)
-    print(f"OK: desactivado prefetch Office ({count} bloque/s).")
+if hydrate_modified in text:
+    text = text.replace(hydrate_modified, hydrate_original)
+    print("OK: reactivado LibreOffice durante la busqueda para resultados Office.")
+elif hydrate_original in text:
+    print("OK: el prefetch Office ya estaba activo.")
 else:
-    print("OK: prefetch Office ya estaba desactivado.")
+    raise SystemExit("ERROR: no se encontro lexiaHydrateOfficeResultPages; no se modifico el archivo.")
 
-# 2) Algunas variantes de UI2 tienen un handler capturador de páginas y otras no.
-#    Si existe, Office debe quedar fuera para que continúe hacia el visor común.
-capture_old = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
-    if(!btn)return;
-    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
-capture_new = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
-    if(!btn)return;
-    // LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE: dejar Office al mismo visor de Investigacion.
-    const officePath=decodeURIComponent(btn.dataset.path||'');
-    const officeExt=(officePath.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
-    if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;
-    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
-
-if MARK_CAPTURE in text:
-    print("OK: Office ya estaba excluido del capturador de paginas.")
-else:
-    count = text.count(capture_old)
-    if count:
-        text = text.replace(capture_old, capture_new)
-        print(f"OK: Office excluido del capturador de paginas ({count} bloque/s).")
-    else:
-        print("OK: esta version de UI2 no tiene FINAL PAGE PREVIEW; no requiere ese ajuste.")
-
-# 3) Al hacer clic en un resultado Office, abrir ruta + snippet SIN página.
-#    Es el mismo contrato que usa Investigación con lexiaQuickViewerOpen.
-click_old = nl("""          const effectivePath=path||requestedPath;
-
-          if(
-            resultSnippet &&
-            lexiaIsOfficeResult(effectivePath) &&""")
-click_new = nl("""          const effectivePath=path||requestedPath;
+# 2) Restaurar el click original: usa la pagina ya resuelta/cacheada y no
+#    fuerza apertura sin pagina (que terminaba mostrando pagina 1).
+click_modified = nl("""          const effectivePath=path||requestedPath;
 
           // LEXIA_SEARCH_OFFICE_TEXT_PREVIEW: copiar el comportamiento de Investigacion.
           if(lexiaIsOfficeResult(effectivePath)){
@@ -84,28 +59,53 @@ click_new = nl("""          const effectivePath=path||requestedPath;
           if(
             resultSnippet &&
             lexiaIsOfficeResult(effectivePath) &&""")
+click_original = nl("""          const effectivePath=path||requestedPath;
 
-if MARK_CLICK not in text:
-    count = text.count(click_old)
-    if count < 1:
-        raise SystemExit("ERROR: no se encontro el click del Buscador de contenido; no se modifico el archivo.")
-    text = text.replace(click_old, click_new)
-    print(f"OK: click Office conectado a texto+snippet ({count} bloque/s).")
+          if(
+            resultSnippet &&
+            lexiaIsOfficeResult(effectivePath) &&""")
+
+if click_modified in text:
+    text = text.replace(click_modified, click_original)
+    print("OK: restaurado click Office con pagina correcta.")
+elif click_original in text:
+    print("OK: el click Office ya usa la logica original de pagina.")
 else:
-    print("OK: click Office ya estaba conectado a texto+snippet.")
+    raise SystemExit("ERROR: no se encontro el handler Office del Buscador; no se modifico el archivo.")
 
-# Verificación mínima necesaria para esta corrección.
-missing = [mark for mark in (MARK_HYDRATE, MARK_CLICK) if mark not in text]
-if missing:
-    raise SystemExit("ERROR: verificacion incompleta; no se modifico el archivo: " + ", ".join(missing))
+# 3) Si alguna variante llego a instalar la exclusion del capturador de pagina,
+#    restaurarla tambien. En esta rama normalmente ese bloque no existe.
+capture_modified = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    // LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE: dejar Office al mismo visor de Investigacion.
+    const officePath=decodeURIComponent(btn.dataset.path||'');
+    const officeExt=(officePath.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
+    if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
+capture_original = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
+
+if capture_modified in text:
+    text = text.replace(capture_modified, capture_original)
+    print("OK: restaurado capturador de pagina Office.")
+elif capture_original in text:
+    print("OK: capturador de pagina ya estaba en su forma original.")
+else:
+    print("OK: esta version no usa FINAL PAGE PREVIEW; no hay nada que restaurar ahi.")
+
+# Verificar que no queden las dos modificaciones que causaban la apertura en pagina 1.
+remaining = [mark for mark in (MARK_HYDRATE, MARK_CLICK) if mark in text]
+if remaining:
+    raise SystemExit("ERROR: quedaron marcas del parche anterior; no se escribio el archivo: " + ", ".join(remaining))
 
 if text == original:
-    print("OK: el Buscador de contenido ya estaba reparado; no habia cambios pendientes.")
+    print("OK: la Opcion A ya estaba restaurada; no habia cambios pendientes.")
     raise SystemExit(0)
 
 if not BACKUP.exists():
     shutil.copy2(TARGET, BACKUP)
-    print(f"Backup: {BACKUP}")
+    print(f"Backup del estado anterior: {BACKUP}")
 else:
     print(f"Backup existente conservado: {BACKUP}")
 
@@ -114,6 +114,7 @@ if has_bom:
     out = b"\xef\xbb\xbf" + out
 TARGET.write_bytes(out)
 
-print("OK: Buscador de contenido reparado.")
-print("DOC/DOCX/RTF/ODT ahora abren como texto extraido + snippet resaltado en amarillo, igual que Investigacion.")
+print("OK: OPCION A RESTAURADA.")
+print("LibreOffice vuelve a resolver las paginas Office durante la busqueda.")
+print("El click usa la pagina precalculada para abrir rapido en la pagina correcta.")
 print("Investigacion no fue modificada.")
