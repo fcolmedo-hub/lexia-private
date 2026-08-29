@@ -7,7 +7,7 @@
     date_from:'jurisDateFrom',date_to:'jurisDateTo',case_number:'jurisCaseNumber',
     party:'jurisParty',law:'jurisLaw'
   };
-  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const isJuris=value=>String(value||'').trim().toLocaleLowerCase('es-AR')==='jurisprudencia';
 
   function categoryElement(){return document.getElementById('filterCategory');}
@@ -15,26 +15,26 @@
   function panel(){return document.getElementById(PANEL_ID);}
 
   function field(label,id,type='text',placeholder=''){
-    return '<label class="lexia-juris-label" for="'+id+'">'+esc(label)+'</label>'+
+    return '<label class="lexia-juris-label" for="'+id+'">'+esc(label)+'</label>'+ 
       '<input class="field lexia-juris-field" id="'+id+'" type="'+type+'" placeholder="'+esc(placeholder)+'" autocomplete="off">';
   }
 
   function markup(){
     return '<section id="'+PANEL_ID+'" class="lexia-juris-panel" aria-label="Filtros de jurisprudencia">'+
-      '<div class="lexia-juris-title">Datos del fallo</div>'+
+      '<div class="lexia-juris-title">Datos del fallo</div>'+ 
       field('Tribunal',ids.court,'text','Ej. Corte Suprema')+
       field('Sala',ids.chamber,'text','Ej. Sala B')+
-      '<label class="lexia-juris-label" for="'+ids.scope+'">Ámbito</label>'+
-      '<select class="field lexia-juris-field" id="'+ids.scope+'"><option value="">Todos</option><option>Nacional</option><option>Federal</option><option>Provincial</option></select>'+
+      '<label class="lexia-juris-label" for="'+ids.scope+'">Ámbito</label>'+ 
+      '<select class="field lexia-juris-field" id="'+ids.scope+'"><option value="">Todos</option><option>Nacional</option><option>Federal</option><option>Provincial</option></select>'+ 
       field('Provincia',ids.province,'text','Ej. Santa Fe')+
       '<div class="lexia-juris-dates">'+
-        '<div>'+field('Desde',ids.date_from,'date','')+'</div>'+
-        '<div>'+field('Hasta',ids.date_to,'date','')+'</div>'+
-      '</div>'+
+        '<div>'+field('Desde',ids.date_from,'date','')+'</div>'+ 
+        '<div>'+field('Hasta',ids.date_to,'date','')+'</div>'+ 
+      '</div>'+ 
       field('Expediente',ids.case_number,'text','Número o prefijo')+
       field('Parte',ids.party,'text','Actor o demandado')+
       field('Norma',ids.law,'text','Ej. Ley 11.683')+
-      '<div class="lexia-juris-note">Los filtros se aplican sobre el índice jurídico y luego LexIA ordena por relevancia de contenido + metadatos.</div>'+
+      '<div class="lexia-juris-note">Los filtros se aplican sobre el índice jurídico y luego LexIA ordena por relevancia de contenido + metadatos.</div>'+ 
       '</section>';
   }
 
@@ -149,9 +149,91 @@
     };
   }
 
+  // Buscador de contenido: para Office usamos exactamente la rama del visor
+  // compartido que usa Investigación cuando no existe una página numérica.
+  // Esa rama presenta el texto extraído, localiza el snippet, lo marca en
+  // amarillo y desplaza el visor hasta la coincidencia. PDF conserva data-page.
+  const OFFICE_PREVIEW_RE=/\.(doc|docx|rtf|odt)$/i;
+
+  function decodeData(value){
+    try{return decodeURIComponent(String(value||''));}
+    catch(_){return String(value||'');}
+  }
+
+  function isOfficeSearchPreview(button){
+    if(!button||!button.matches?.('#realSearchResults .search-preview-file'))return false;
+    const path=decodeData(button.dataset.path||'').split(/[?#]/,1)[0];
+    return OFFICE_PREVIEW_RE.test(path);
+  }
+
+  function stripOfficePageState(root=document){
+    const buttons=[];
+    if(root?.matches?.('#realSearchResults .search-preview-file'))buttons.push(root);
+    root?.querySelectorAll?.('#realSearchResults .search-preview-file').forEach(button=>buttons.push(button));
+    buttons.forEach(button=>{
+      if(!isOfficeSearchPreview(button))return;
+      button.removeAttribute('data-page');
+      button.removeAttribute('data-preview-page');
+    });
+  }
+
+  function installOfficeSearchInvestigationPreview(){
+    if(window.__lexiaOfficeSearchInvestigationPreview)return;
+    window.__lexiaOfficeSearchInvestigationPreview=true;
+
+    stripOfficePageState(document);
+
+    const results=document.getElementById('realSearchResults');
+    if(results){
+      const observer=new MutationObserver(records=>{
+        records.forEach(record=>{
+          if(record.type==='attributes'){
+            stripOfficePageState(record.target);
+            return;
+          }
+          record.addedNodes.forEach(node=>{
+            if(node?.nodeType===1)stripOfficePageState(node);
+          });
+        });
+      });
+      observer.observe(results,{
+        childList:true,
+        subtree:true,
+        attributes:true,
+        attributeFilter:['data-page','data-preview-page']
+      });
+    }
+
+    // El listener histórico FINAL PAGE PREVIEW corre antes en window/capture.
+    // Como Office ya no lleva data-page, ese listener no lo captura. Este
+    // listener abre entonces el mismo visor compartido con page=0, igual que
+    // Investigación cuando sourcePage(source) devuelve 0.
+    window.addEventListener('click',event=>{
+      const button=event.target?.closest?.('#realSearchResults .search-preview-file');
+      if(!isOfficeSearchPreview(button))return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+
+      const path=decodeData(button.dataset.path||'');
+      let snippet=decodeData(button.dataset.snippet||'');
+      if(!snippet){
+        snippet=String(button.closest('.result-card')?.querySelector('p')?.textContent||'')
+          .replace(/\s+/g,' ')
+          .trim();
+      }
+
+      if(typeof window.lexiaQuickViewerOpen==='function'){
+        window.lexiaQuickViewerOpen(path,0,snippet);
+      }
+    },true);
+  }
+
   function initialize(){
     render();
     installFetchBridge();
+    installOfficeSearchInvestigationPreview();
     const category=categoryElement();
     category?.addEventListener('change',()=>setTimeout(render,0));
     document.getElementById('clearFilters')?.addEventListener('click',()=>setTimeout(clear,0),true);
