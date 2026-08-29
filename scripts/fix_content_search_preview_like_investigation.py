@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
-import sys
 
 ROOT = Path.cwd()
 TARGET = ROOT / "app" / "ui2" / "index.html"
@@ -11,8 +10,15 @@ BACKUP = ROOT / "app" / "ui2" / "index.html.bak-content-search-preview-like-inve
 if not TARGET.exists():
     raise SystemExit(f"ERROR: no existe {TARGET}")
 
-text = TARGET.read_text(encoding="utf-8")
+raw = TARGET.read_bytes()
+has_bom = raw.startswith(b"\xef\xbb\xbf")
+payload = raw[3:] if has_bom else raw
+text = payload.decode("utf-8")
 original = text
+EOL = "\r\n" if "\r\n" in text else "\n"
+
+def nl(value: str) -> str:
+    return value.replace("\n", EOL)
 
 # Idempotencia: si las tres marcas ya estan presentes, no volver a modificar.
 MARK_HYDRATE = "LEXIA_SEARCH_OFFICE_NO_PREFETCH"
@@ -23,8 +29,12 @@ if all(mark in text for mark in (MARK_HYDRATE, MARK_CLICK, MARK_CAPTURE)):
     raise SystemExit(0)
 
 # 1) No convertir/precalcular paginas Office al mostrar resultados.
-hydrate_old = """  function lexiaHydrateOfficeResultPages(box,which){\n    if(which!=='professional'||!box)return;"""
-hydrate_new = """  function lexiaHydrateOfficeResultPages(box,which){\n    // LEXIA_SEARCH_OFFICE_NO_PREFETCH: Investigacion no precalcula paginas Office.\n    return;\n    if(which!=='professional'||!box)return;"""
+hydrate_old = nl("""  function lexiaHydrateOfficeResultPages(box,which){
+    if(which!=='professional'||!box)return;""")
+hydrate_new = nl("""  function lexiaHydrateOfficeResultPages(box,which){
+    // LEXIA_SEARCH_OFFICE_NO_PREFETCH: Investigacion no precalcula paginas Office.
+    return;
+    if(which!=='professional'||!box)return;""")
 if MARK_HYDRATE not in text:
     count = text.count(hydrate_old)
     if count < 1:
@@ -33,8 +43,16 @@ if MARK_HYDRATE not in text:
     print(f"OK: desactivado prefetch Office ({count} bloque/s).")
 
 # 2) El handler capturador de paginas no debe interceptar DOC/DOCX/RTF/ODT.
-capture_old = """    const btn=ev.target.closest?.('.search-preview-file[data-page]');\n    if(!btn)return;\n    const sourcePage=parseInt(btn.dataset.page||'0',10);"""
-capture_new = """    const btn=ev.target.closest?.('.search-preview-file[data-page]');\n    if(!btn)return;\n    // LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE: dejar Office al mismo visor de Investigacion.\n    const officePath=decodeURIComponent(btn.dataset.path||'');\n    const officeExt=(officePath.toLowerCase().match(/(\\.[^.\\\\/]+)$/)||[])[1]||'';\n    if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;\n    const sourcePage=parseInt(btn.dataset.page||'0',10);"""
+capture_old = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
+capture_new = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    // LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE: dejar Office al mismo visor de Investigacion.
+    const officePath=decodeURIComponent(btn.dataset.path||'');
+    const officeExt=(officePath.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
+    if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
 if MARK_CAPTURE not in text:
     count = text.count(capture_old)
     if count < 1:
@@ -43,10 +61,26 @@ if MARK_CAPTURE not in text:
     print(f"OK: Office excluido del capturador de paginas ({count} bloque/s).")
 
 # 3) Al hacer clic en un resultado Office, abrir ruta + snippet SIN pagina.
-#    Esto fuerza la vista de texto extraido del visor comun, que marca el snippet
-#    con <mark> (amarillo) y hace scroll hasta la coincidencia, igual que Investigacion.
-click_old = """          const effectivePath=path||requestedPath;\n\n          if(\n            resultSnippet &&\n            lexiaIsOfficeResult(effectivePath) &&"""
-click_new = """          const effectivePath=path||requestedPath;\n\n          // LEXIA_SEARCH_OFFICE_TEXT_PREVIEW: copiar el comportamiento de Investigacion.\n          if(lexiaIsOfficeResult(effectivePath)){\n            if(window.lexiaQuickViewerOpen){\n              window.lexiaQuickViewerOpen(effectivePath,undefined,resultSnippet);\n            }\n            return;\n          }\n\n          if(\n            resultSnippet &&\n            lexiaIsOfficeResult(effectivePath) &&"""
+#    El visor comun usa entonces texto extraido, marca el snippet con <mark>
+#    (amarillo) y hace scroll hasta la coincidencia, igual que Investigacion.
+click_old = nl("""          const effectivePath=path||requestedPath;
+
+          if(
+            resultSnippet &&
+            lexiaIsOfficeResult(effectivePath) &&""")
+click_new = nl("""          const effectivePath=path||requestedPath;
+
+          // LEXIA_SEARCH_OFFICE_TEXT_PREVIEW: copiar el comportamiento de Investigacion.
+          if(lexiaIsOfficeResult(effectivePath)){
+            if(window.lexiaQuickViewerOpen){
+              window.lexiaQuickViewerOpen(effectivePath,undefined,resultSnippet);
+            }
+            return;
+          }
+
+          if(
+            resultSnippet &&
+            lexiaIsOfficeResult(effectivePath) &&""")
 if MARK_CLICK not in text:
     count = text.count(click_old)
     if count < 1:
@@ -69,7 +103,11 @@ if not BACKUP.exists():
 else:
     print(f"Backup existente conservado: {BACKUP}")
 
-TARGET.write_text(text, encoding="utf-8", newline="")
+out = text.encode("utf-8")
+if has_bom:
+    out = b"\xef\xbb\xbf" + out
+TARGET.write_bytes(out)
+
 print("OK: Buscador de contenido reparado.")
 print("DOC/DOCX/RTF/ODT ahora abren como texto extraido + snippet resaltado en amarillo, igual que Investigacion.")
 print("Investigacion no fue modificada.")
