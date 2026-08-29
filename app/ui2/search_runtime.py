@@ -53,6 +53,24 @@ class SearchRuntime:
         )
         self.search_engine = CachedSearchEngine(self.raw_search, self.cache)
 
+    def _record_search_history(
+        self,
+        query: str,
+        category: str | None,
+        result_count: int,
+    ) -> None:
+        """Best-effort history write used by UI counters.
+
+        ProfessionalLegalSearchEngine already records non-cached text searches.
+        SearchRuntime records only paths that bypass that engine, such as cache hits
+        and structured-filter-only searches. Failures here must not break search.
+        """
+        query = str(query or "").strip() or "[filtros]"
+        try:
+            self.history.add(query, category, int(result_count or 0))
+        except Exception:
+            pass
+
     @staticmethod
     def _call_search(engine, query: str, limit: int, category: str | None):
         fn = engine.search
@@ -177,6 +195,7 @@ class SearchRuntime:
             if not (is_juris and juris_filters):
                 raise ValueError("La consulta está vacía.")
             results = self._metadata_only_rows(metadata_map, requested_limit)
+            self._record_search_history(original_query, category, len(results))
             return {
                 "ok": True,
                 "query": "",
@@ -191,6 +210,7 @@ class SearchRuntime:
         started = time.perf_counter()
         raw = self._call_search(self.search_engine, clean_query, engine_limit, category)
         elapsed = time.perf_counter() - started
+        cache_hit = bool(getattr(self.search_engine, "last_cache_hit", False))
 
         if isinstance(raw, dict):
             rows = raw.get("results") or raw.get("items") or []
@@ -227,6 +247,9 @@ class SearchRuntime:
         results = enriched[:requested_limit]
         for idx, item in enumerate(results, start=1):
             item["rank"] = idx
+
+        if cache_hit:
+            self._record_search_history(clean_query, category, len(results))
 
         return {
             "ok": True,
