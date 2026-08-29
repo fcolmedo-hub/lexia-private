@@ -24,15 +24,8 @@ if not py.exists():
     )
 
 
-def _ensure_ui_assets() -> tuple[str, str] | None:
-    """Temporarily register optional UI2 assets.
-
-    Return both the original and the exact temporary HTML written by this
-    launcher. Keeping both lets shutdown restore the original only when the
-    file is still exactly the temporary launcher version. If another process
-    (a patch, git checkout, editor, etc.) changed index.html while LexIA was
-    open, shutdown must never overwrite that newer content.
-    """
+def _ensure_ui_assets() -> str | None:
+    """Temporarily register optional UI2 assets and return the original HTML."""
     index = HERE / "index.html"
     script = HERE / "assets" / "jurisprudence_search.js"
     if not (index.exists() and script.exists()):
@@ -54,33 +47,14 @@ def _ensure_ui_assets() -> tuple[str, str] | None:
         index.write_text(patched, encoding="utf-8")
     except OSError:
         return None
-    return original, patched
+    return original
 
 
-def _restore_ui_assets(state: tuple[str, str] | None) -> None:
-    """Undo only the temporary asset injection made by this launcher.
-
-    Never restore over a file that changed while LexIA was running. This is
-    important for maintenance scripts that intentionally patch index.html.
-    """
-    if state is None:
+def _restore_ui_assets(original_html: str | None) -> None:
+    if original_html is None:
         return
-    original_html, launcher_html = state
-    index = HERE / "index.html"
     try:
-        current_html = index.read_text(encoding="utf-8")
-    except OSError:
-        return
-
-    if current_html != launcher_html:
-        print(
-            "UI2: index.html cambió mientras LexIA estaba abierta; "
-            "se conserva la versión más reciente."
-        )
-        return
-
-    try:
-        index.write_text(original_html, encoding="utf-8")
+        (HERE / "index.html").write_text(original_html, encoding="utf-8")
     except OSError:
         pass
 
