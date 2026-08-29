@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "app" / "ui2" / "index.html"
-BACKUP = ROOT / "app" / "ui2" / "index.html.bak-before-exact-investigation-office-preview"
+BACKUP = ROOT / "app" / "ui2" / "index.html.bak-before-office-preview-investigation-v2"
 
 if not TARGET.exists():
     raise SystemExit(f"ERROR: no existe {TARGET}")
@@ -23,151 +23,218 @@ def nl(value: str) -> str:
     return value.replace("\n", EOL)
 
 
-MARK_HYDRATE = "LEXIA_SEARCH_EXACT_INVESTIGATION_NO_PREFETCH"
-MARK_MAIN = "LEXIA_SEARCH_EXACT_INVESTIGATION_MAIN"
-MARK_CAPTURE = "LEXIA_SEARCH_EXACT_INVESTIGATION_CAPTURE"
+MARK_HYDRATE = "LEXIA_SEARCH_INVESTIGATION_V2_NO_PREFETCH"
+MARK_MAIN = "LEXIA_SEARCH_INVESTIGATION_V2_OFFICE_TEXT"
+MARK_CAPTURE = "LEXIA_SEARCH_INVESTIGATION_V2_CAPTURE_BYPASS"
 
-# INVESTIGAR abre una fuente con este contrato:
-#   lexiaQuickViewerOpen(path, page, snippet)
-# El propio visor compartido se ocupa de Office: convierte/cachea con LibreOffice
-# y llama /api/office-preview-page con page como fallback + snippet para localizar
-# la pagina real. El Buscador no debe volver a resolver otra previewPage antes.
+# OBJETIVO
+# -------
+# Para DOC/DOCX/RTF/ODT del Buscador de contenido debemos entrar por la MISMA
+# rama visual que usa Investigar cuando no fuerza pagina: texto extraido del
+# documento + resaltado amarillo del snippet. Eso implica:
+#   1) no precalcular data-preview-page;
+#   2) no dejar que el handler capturador de [data-page] intercepte Office;
+#   3) abrir Office con lexiaQuickViewerOpen(path, undefined, snippet).
+# PDF y los demas formatos conservan su comportamiento paginado existente.
 
 # ---------------------------------------------------------------------------
-# 1) Desactivar el prefetch Office exclusivo del Buscador.
-#    Investigar no genera data-preview-page durante la busqueda.
+# 1) Desactivar el prefetch Office del Buscador.
 # ---------------------------------------------------------------------------
-hydrate_active = nl("""  function lexiaHydrateOfficeResultPages(box,which){
-    if(which!=='professional'||!box)return;""")
-hydrate_previous = nl("""  function lexiaHydrateOfficeResultPages(box,which){
+hydrate_variants = [
+    nl("""  function lexiaHydrateOfficeResultPages(box,which){
+    if(which!=='professional'||!box)return;"""),
+    nl("""  function lexiaHydrateOfficeResultPages(box,which){
     // LEXIA_SEARCH_OFFICE_NO_PREFETCH: Investigacion no precalcula paginas Office.
     return;
-    if(which!=='professional'||!box)return;""")
-hydrate_exact = nl(f"""  function lexiaHydrateOfficeResultPages(box,which){{
-    // {MARK_HYDRATE}: Investigar no precalcula previewPage.
+    if(which!=='professional'||!box)return;"""),
+    nl("""  function lexiaHydrateOfficeResultPages(box,which){
+    // LEXIA_SEARCH_EXACT_INVESTIGATION_NO_PREFETCH: Investigar no precalcula previewPage.
+    return;
+    if(which!=='professional'||!box)return;"""),
+]
+hydrate_v2 = nl(f"""  function lexiaHydrateOfficeResultPages(box,which){{
+    // {MARK_HYDRATE}: Office no genera data-preview-page.
     return;
     if(which!=='professional'||!box)return;""")
 
-if hydrate_exact in text:
-    print("OK: prefetch Office del Buscador ya estaba desactivado como en Investigar.")
-elif hydrate_previous in text:
-    text = text.replace(hydrate_previous, hydrate_exact, 1)
-    print("OK: prefetch Office del Buscador normalizado al flujo de Investigar.")
-elif hydrate_active in text:
-    text = text.replace(hydrate_active, hydrate_exact, 1)
-    print("OK: prefetch Office del Buscador desactivado.")
+if hydrate_v2 not in text:
+    replaced = False
+    for candidate in hydrate_variants:
+        if candidate in text:
+            text = text.replace(candidate, hydrate_v2, 1)
+            replaced = True
+            break
+    if not replaced:
+        raise SystemExit("ERROR: no se encontro lexiaHydrateOfficeResultPages; no se escribio index.html.")
+    print("OK: prefetch Office desactivado.")
 else:
-    raise SystemExit("ERROR: no se encontro lexiaHydrateOfficeResultPages; no se modifico index.html.")
+    print("OK: prefetch Office ya estaba desactivado.")
 
 # ---------------------------------------------------------------------------
-# 2) Handler principal de .search-preview-file.
-#    Quitar la resolucion anticipada de previewPage y pasar exactamente
-#    effectivePath + page_start(data-page) + resultSnippet al visor compartido.
+# 2) Handler principal: Office SIEMPRE abre SIN pagina.
+#    Si el parche anterior ya estaba aplicado, lo normalizamos.
 # ---------------------------------------------------------------------------
-if MARK_MAIN not in text:
-    main_re = re.compile(
-        r"(?P<indent>[ \t]*)const effectivePath=path\|\|requestedPath;\s*"
-        r"if\(\s*resultSnippet\s*&&\s*lexiaIsOfficeResult\(effectivePath\)\s*&&\s*!prev\.dataset\.previewPage\s*\)\{\s*"
-        r"try\{[\s\S]*?lexiaResolveOfficeResultPage\([\s\S]*?effectivePath,[\s\S]*?resultSnippet[\s\S]*?\);[\s\S]*?return;\s*\}catch\(_\)\{\}\s*\}\s*"
-        r"if\(window\.lexiaQuickViewerOpen\)\{\s*"
-        r"const isOffice=lexiaIsOfficeResult\(effectivePath\);\s*"
-        r"const viewerPage=isOffice[\s\S]*?"
-        r"window\.lexiaQuickViewerOpen\(\s*effectivePath,\s*viewerPage,\s*resultSnippet\s*\);\s*\}",
-        re.MULTILINE,
-    )
-    match = main_re.search(text)
-    if not match:
-        raise SystemExit(
-            "ERROR: no se encontro el handler principal Office del Buscador; "
-            "no se modifico index.html."
-        )
-    indent = match.group("indent")
-    replacement = nl(
-        f"""{indent}const effectivePath=path||requestedPath;
+old_main_patched = nl("""          const effectivePath=path||requestedPath;
 
-{indent}// {MARK_MAIN}
-{indent}// Mismo contrato que Investigar: path + page_start + snippet -> visor compartido.
-{indent}if(window.lexiaQuickViewerOpen){{
-{indent}  window.lexiaQuickViewerOpen(
-{indent}    effectivePath,
-{indent}    parseInt(prev.dataset.page||'0',10)||undefined,
-{indent}    resultSnippet||''
-{indent}  );
-{indent}}}"""
-    )
-    text = text[: match.start()] + replacement + text[match.end() :]
-    print("OK: handler principal del Buscador = path + page_start + snippet, igual que Investigar.")
-else:
-    print("OK: handler principal ya usa el flujo exacto de Investigar.")
+          // LEXIA_SEARCH_EXACT_INVESTIGATION_MAIN
+          // Mismo contrato que Investigar: path + page_start + snippet -> visor compartido.
+          if(window.lexiaQuickViewerOpen){
+            window.lexiaQuickViewerOpen(
+              effectivePath,
+              parseInt(prev.dataset.page||'0',10)||undefined,
+              resultSnippet||''
+            );
+          }""")
 
-# ---------------------------------------------------------------------------
-# 3) Handler capturador posterior.
-#    Este era otro camino Office que volvia a leer data-preview-page o llamaba
-#    /api/office-preview-page antes del visor. Se reemplaza por el mismo contrato
-#    de Investigar para que no pueda sobrescribir la pagina.
-# ---------------------------------------------------------------------------
-if MARK_CAPTURE not in text:
-    capture_re = re.compile(
-        r"(?P<indent>[ \t]*)if\(isOffice\)\{\s*"
-        r"let previewPage=parseInt\(btn\.dataset\.previewPage\|\|'0',10\)\|\|0;"
-        r"[\s\S]*?"
-        r"window\.lexiaQuickViewerOpen\(path,previewPage\|\|sourcePage,snippet\);"
-        r"[\s\S]*?"
-        r"return;\s*"
-        r"\}",
-        re.MULTILINE,
-    )
-    match = capture_re.search(text)
-    if match:
-        indent = match.group("indent")
-        replacement = nl(
-            f"""{indent}if(isOffice){{
-{indent}  // {MARK_CAPTURE}
-{indent}  // Copia literal del contrato de apertura de Investigar.
-{indent}  if(window.lexiaQuickViewerOpen){{
-{indent}    window.lexiaQuickViewerOpen(
-{indent}      path,
-{indent}      sourcePage>0 ? sourcePage : undefined,
-{indent}      snippet||''
-{indent}    );
-{indent}  }}else{{
-{indent}    window.open(
-{indent}      '/api/file-preview?path='+encodeURIComponent(path),
-{indent}      '_blank',
-{indent}      'noopener'
-{indent}    );
-{indent}  }}
-{indent}  return;
-{indent}}}"""
-        )
-        text = text[: match.start()] + replacement + text[match.end() :]
-        print("OK: segundo handler Office del Buscador copiado del flujo de Investigar.")
+main_v2 = nl(f"""          const effectivePath=path||requestedPath;
+
+          // {MARK_MAIN}
+          // Office entra por la misma vista textual de Investigar: SIN pagina.
+          if(lexiaIsOfficeResult(effectivePath)){{
+            delete prev.dataset.previewPage;
+            if(window.lexiaQuickViewerOpen){{
+              window.lexiaQuickViewerOpen(
+                effectivePath,
+                undefined,
+                resultSnippet||''
+              );
+            }}else{{
+              window.open(
+                '/api/file-preview?path='+encodeURIComponent(effectivePath),
+                '_blank',
+                'noopener'
+              );
+            }}
+            return;
+          }}
+
+          // Los PDF y demas formatos conservan la pagina del resultado.
+          if(window.lexiaQuickViewerOpen){{
+            window.lexiaQuickViewerOpen(
+              effectivePath,
+              parseInt(prev.dataset.page||'0',10)||undefined,
+              resultSnippet||''
+            );
+          }}""")
+
+if main_v2 not in text:
+    if old_main_patched in text:
+        text = text.replace(old_main_patched, main_v2, 1)
+        print("OK: parche anterior corregido: Office ya no recibe page_start.")
     else:
-        # Algunas variantes no traen este capturador. Eso ya equivale a no
-        # interferir con el visor compartido.
-        print("OK: esta variante no tiene segundo handler Office que interfiera.")
+        # Estado original/restaurado: quitar la rama que resuelve previewPage antes del visor.
+        main_re = re.compile(
+            r"(?P<indent>[ \t]*)const effectivePath=path\|\|requestedPath;\s*"
+            r"if\(\s*resultSnippet\s*&&\s*lexiaIsOfficeResult\(effectivePath\)\s*&&\s*!prev\.dataset\.previewPage\s*\)\{\s*"
+            r"try\{[\s\S]*?lexiaResolveOfficeResultPage\([\s\S]*?effectivePath,[\s\S]*?resultSnippet[\s\S]*?\);[\s\S]*?"
+            r"lexiaSetOfficePreviewPage\(prev,page\);[\s\S]*?return;\s*\}catch\(_\)\{\}\s*\}\s*"
+            r"if\(window\.lexiaQuickViewerOpen\)\{\s*"
+            r"const isOffice=lexiaIsOfficeResult\(effectivePath\);\s*"
+            r"const viewerPage=isOffice[\s\S]*?"
+            r"window\.lexiaQuickViewerOpen\(\s*effectivePath,\s*viewerPage,\s*resultSnippet\s*\);\s*\}",
+            re.MULTILINE,
+        )
+        match = main_re.search(text)
+        if not match:
+            raise SystemExit(
+                "ERROR: no se encontro el handler principal del Buscador ni el parche anterior; "
+                "no se escribio index.html."
+            )
+        indent = match.group("indent")
+        replacement = main_v2.replace("          ", indent, 1)
+        text = text[:match.start()] + replacement + text[match.end():]
+        print("OK: handler principal Office cambiado a vista textual de Investigar.")
 else:
-    print("OK: segundo handler Office ya usa el flujo exacto de Investigar.")
+    print("OK: handler principal Office ya usa vista textual de Investigar.")
 
 # ---------------------------------------------------------------------------
-# Verificaciones antes de escribir.
+# 3) Handler de captura [data-page]: Office debe PASAR DE LARGO.
+#    Este listener corre antes que el handler principal; si no lo excluimos,
+#    fuerza el flujo paginado y termina mostrando pagina 1.
 # ---------------------------------------------------------------------------
-required = [MARK_HYDRATE, MARK_MAIN]
-missing = [mark for mark in required if mark not in text]
-if missing:
-    raise SystemExit(
-        "ERROR: verificacion incompleta; no se escribio index.html: "
-        + ", ".join(missing)
-    )
+capture_original = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
 
-# No puede quedar la rama principal que usa previewPage para elegir viewerPage.
-if "const viewerPage=isOffice" in text:
-    raise SystemExit(
-        "ERROR: todavia existe viewerPage basado en previewPage; no se escribio index.html."
-    )
+capture_old = nl("""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    // LEXIA_SEARCH_OFFICE_SKIP_PAGE_CAPTURE: dejar Office al mismo visor de Investigacion.
+    const officePath=decodeURIComponent(btn.dataset.path||'');
+    const officeExt=(officePath.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
+    if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
+
+capture_v2 = nl(f"""    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    if(!btn)return;
+    // {MARK_CAPTURE}: Office no entra al capturador paginado.
+    const officePath=decodeURIComponent(btn.dataset.path||'');
+    const officeExt=(officePath.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
+    if(['.doc','.docx','.rtf','.odt'].includes(officeExt))return;
+    const sourcePage=parseInt(btn.dataset.page||'0',10);""")
+
+if capture_v2 not in text:
+    if capture_old in text:
+        text = text.replace(capture_old, capture_v2, 1)
+        print("OK: bypass Office del handler capturador normalizado.")
+    elif capture_original in text:
+        text = text.replace(capture_original, capture_v2, 1)
+        print("OK: Office excluido del handler capturador paginado.")
+    else:
+        raise SystemExit(
+            "ERROR: no se encontro el handler capturador [data-page]; no se escribio index.html."
+        )
+else:
+    print("OK: Office ya esta excluido del handler capturador paginado.")
+
+# ---------------------------------------------------------------------------
+# 4) Neutralizar una posible rama Office antigua DENTRO del capturador.
+#    Deberia quedar inalcanzable por el bypass anterior, pero la dejamos tambien
+#    sin capacidad de abrir una pagina si alguna variante cambia el orden.
+# ---------------------------------------------------------------------------
+old_capture_office_re = re.compile(
+    r"(?P<indent>[ \t]*)if\(isOffice\)\{\s*"
+    r"(?:\/\/[^\n]*\n\s*)?"
+    r"(?:let previewPage=parseInt\(btn\.dataset\.previewPage\|\|'0',10\)\|\|0;[\s\S]*?)?"
+    r"if\(window\.lexiaQuickViewerOpen\)\{[\s\S]*?"
+    r"window\.lexiaQuickViewerOpen\([\s\S]*?\);[\s\S]*?\}\s*"
+    r"(?:else\{[\s\S]*?\}\s*)?return;\s*\}",
+    re.MULTILINE,
+)
+
+for match in list(old_capture_office_re.finditer(text))[::-1]:
+    block = match.group(0)
+    if MARK_MAIN in block or MARK_CAPTURE in block:
+        continue
+    if "isOffice" not in block or "lexiaQuickViewerOpen" not in block:
+        continue
+    indent = match.group("indent")
+    replacement = nl(f"""{indent}if(isOffice){{
+{indent}  // Office no debe abrirse desde el capturador paginado.
+{indent}  return;
+{indent}}}""")
+    text = text[:match.start()] + replacement + text[match.end():]
+
+# ---------------------------------------------------------------------------
+# Verificacion fuerte antes de escribir.
+# ---------------------------------------------------------------------------
+for marker in (MARK_HYDRATE, MARK_MAIN, MARK_CAPTURE):
+    if marker not in text:
+        raise SystemExit(f"ERROR: falta {marker}; no se escribio index.html.")
+
+if "LEXIA_SEARCH_EXACT_INVESTIGATION_MAIN" in text:
+    # El parche v1 no puede quedar activo porque enviaba page_start a Office.
+    raise SystemExit("ERROR: quedo activo el parche v1 que enviaba page_start; no se escribio index.html.")
+
+required_call = nl("""              window.lexiaQuickViewerOpen(
+                effectivePath,
+                undefined,
+                resultSnippet||''
+              );""")
+if required_call not in text:
+    raise SystemExit("ERROR: Office no quedo configurado con pagina undefined; no se escribio index.html.")
 
 if text == original:
-    print("OK: VISTA PREVIA DEL BUSCADOR = INVESTIGAR; no habia cambios pendientes.")
+    print("OK: no habia cambios pendientes.")
     raise SystemExit(0)
 
 if not BACKUP.exists():
@@ -181,7 +248,8 @@ if has_bom:
     out = b"\xef\xbb\xbf" + out
 TARGET.write_bytes(out)
 
-print("OK: VISTA PREVIA DEL BUSCADOR = INVESTIGAR.")
-print("Office recibe path + page_start + snippet en lexiaQuickViewerOpen().")
-print("La localizacion real de pagina queda exclusivamente en el visor compartido con LibreOffice.")
-print("Investigacion no fue modificada.")
+print("OK: CORRECCION V2 APLICADA.")
+print("DOC/DOCX/RTF/ODT del Buscador ya no reciben ninguna pagina.")
+print("El handler capturador [data-page] ignora Office.")
+print("El visor entra por texto extraido + snippet, igual que Investigar, con resaltado amarillo.")
+print("PDF conserva su apertura paginada normal.")
