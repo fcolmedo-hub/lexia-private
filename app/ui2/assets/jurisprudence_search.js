@@ -16,7 +16,7 @@
     const link=document.createElement('link');
     link.id=id;
     link.rel='stylesheet';
-    link.href='assets/responsive_shell.css?v=ui2-3.4.4-search-width';
+    link.href='assets/responsive_shell.css?v=ui2-3.4.5-mobile-viewer';
     document.head.appendChild(link);
   }
 
@@ -87,10 +87,10 @@
     });
   }
 
-  function mobileOpenResponse(path){
+  function mobileOpenResponse(path,page,snippet){
     const openInViewer=()=>{
       if(typeof window.lexiaQuickViewerOpen==='function'){
-        window.lexiaQuickViewerOpen(path,0,'');
+        window.lexiaQuickViewerOpen(path,Number(page)||0,String(snippet||''));
         return true;
       }
       return false;
@@ -214,7 +214,7 @@
         if(isRemoteClient()&&method==='POST'&&url.includes('/api/open-file')&&init?.body){
           const body=JSON.parse(String(init.body));
           const path=String(body?.path||'').trim();
-          if(path)return mobileOpenResponse(path);
+          if(path)return mobileOpenResponse(path,body?.page,body?.snippet);
         }
 
         if(method==='POST'&&url.includes('/api/search')&&init?.body){

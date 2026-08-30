@@ -349,6 +349,39 @@ def _office_preview_pdf(requested_path):
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
 
+
+def _preview_page_png(requested_path, page=1, office=False):
+    """Render one catalogued PDF/office preview page for mobile clients."""
+    if office:
+        pdf_path = _office_preview_pdf(requested_path)
+    else:
+        source = Path(
+            _resolve_catalog_document(requested_path=requested_path)
+        ).expanduser().resolve()
+        if source.suffix.lower() != ".pdf":
+            raise ValueError("El documento no es PDF.")
+        pdf_path = source
+
+    import fitz
+
+    document = fitz.open(str(pdf_path))
+    try:
+        total = int(document.page_count or 0)
+        if total < 1:
+            raise ValueError("El documento no contiene páginas.")
+        try:
+            selected = int(page or 1)
+        except (TypeError, ValueError):
+            selected = 1
+        selected = max(1, min(total, selected))
+        pixmap = document.load_page(selected - 1).get_pixmap(
+            matrix=fitz.Matrix(1.55, 1.55),
+            alpha=False,
+        )
+        return pixmap.tobytes("png"), selected, total
+    finally:
+        document.close()
+
 def _lexia321_norm(value):
     import re as _re
     import unicodedata as _ud
@@ -2664,6 +2697,39 @@ class Handler(SimpleHTTPRequestHandler):
                 })
             except FileNotFoundError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 503)
+            except (ValueError, PermissionError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+
+        if path == "/api/preview-page-image":
+            try:
+                query = parse_qs(urlparse(self.path).query)
+                requested = str((query.get("path") or [""])[0] or "").strip()
+                page_number = str((query.get("page") or ["1"])[0] or "1").strip()
+                office = str((query.get("office") or ["0"])[0] or "0").lower() in {
+                    "1", "true", "yes"
+                }
+                if not requested:
+                    return self._json({"ok": False, "error": "Falta path"}, 400)
+
+                data, actual_page, page_count = _preview_page_png(
+                    requested,
+                    page=page_number,
+                    office=office,
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("X-LexIA-Page", str(actual_page))
+                self.send_header("X-LexIA-Page-Count", str(page_count))
+                self.send_header("Cache-Control", "private, max-age=300")
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            except FileNotFoundError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
             except (ValueError, PermissionError) as exc:
                 return self._json({"ok": False, "error": str(exc)}, 400)
             except Exception as exc:

@@ -21,7 +21,7 @@ def test_responsive_assets_share_the_same_breakpoint_and_cache_version():
     loader = (ASSETS / "jurisprudence_search.js").read_text(encoding="utf-8")
 
     assert "window.innerWidth<=1199" in runtime
-    assert "responsive_shell.css?v=ui2-3.4.4-search-width" in loader
+    assert "responsive_shell.css?v=ui2-3.4.5-mobile-viewer" in loader
 
 
 def test_desktop_search_uses_exact_viewport_remainder():
@@ -31,3 +31,11 @@ def test_desktop_search_uses_exact_viewport_remainder():
     assert "html body #searchpage" in css
     assert "width:calc(100vw - var(--global-side))!important" in css
     assert "html body #searchpage .results-wrap" in css
+
+
+def test_mobile_search_does_not_trigger_browser_focus_zoom():
+    css = (ASSETS / "responsive_shell.css").read_text(encoding="utf-8")
+
+    assert "html body #searchpage #legalQuery" in css
+    assert "font-size:16px!important" in css
+    assert ".lexia-qv-mobile-pager" in css

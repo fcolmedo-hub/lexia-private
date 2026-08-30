@@ -3394,6 +3394,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 /* >>> LEXIA UI2 HOME QUICK VIEWER 3.1.5 */
 (function(){
   let currentPath='';
+  let currentPreviewObjectUrl='';
   const backdrop=()=>document.getElementById('lexiaQuickViewer');
   const body=()=>document.getElementById('lexiaQvBody');
   const nameEl=()=>document.getElementById('lexiaQvName');
@@ -3402,12 +3403,67 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
   const basename=path=>String(path||'').split(/[\/]/).pop()||'Documento';
   const ext=path=>{const n=basename(path),i=n.lastIndexOf('.');return i>=0?n.slice(i).toLowerCase():''};
   const previewUrl=path=>'/api/file-preview?path='+encodeURIComponent(path)+'&t='+Date.now();
+  const isMobileViewer=()=>window.matchMedia?.('(max-width: 900px)').matches||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+
+  function releasePreviewObjectUrl(){
+    if(!currentPreviewObjectUrl)return;
+    URL.revokeObjectURL(currentPreviewObjectUrl);
+    currentPreviewObjectUrl='';
+  }
+
+  async function showMobilePagedPreview(path,initialPage,office){
+    const pane=body();
+    if(!pane)return;
+    let current=Math.max(1,Number(initialPage)||1),total=0,loading=false;
+    pane.innerHTML=
+      '<div class="lexia-qv-mobile-pager">'+
+      '<button type="button" data-qv-page="previous">Anterior</button>'+
+      '<span class="lexia-qv-mobile-page-label">Página '+current+'</span>'+
+      '<button type="button" data-qv-page="next">Siguiente</button>'+
+      '</div><div class="lexia-qv-mobile-page-wrap">'+
+      '<img class="lexia-qv-mobile-page" alt="Página '+current+'"></div>';
+    const previous=pane.querySelector('[data-qv-page="previous"]');
+    const next=pane.querySelector('[data-qv-page="next"]');
+    const label=pane.querySelector('.lexia-qv-mobile-page-label');
+    const image=pane.querySelector('.lexia-qv-mobile-page');
+
+    const loadPage=async requested=>{
+      if(loading)return;
+      loading=true;previous.disabled=true;next.disabled=true;
+      label.textContent='Cargando página…';
+      try{
+        const url='/api/preview-page-image?path='+encodeURIComponent(path)+
+          '&page='+encodeURIComponent(requested)+(office?'&office=1':'')+'&t='+Date.now();
+        const response=await fetch(url,{cache:'no-store'});
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        const blob=await response.blob();
+        if(currentPath!==path)return;
+        current=Number(response.headers.get('X-LexIA-Page'))||requested;
+        total=Number(response.headers.get('X-LexIA-Page-Count'))||current;
+        releasePreviewObjectUrl();
+        currentPreviewObjectUrl=URL.createObjectURL(blob);
+        image.src=currentPreviewObjectUrl;
+        image.alt='Página '+current+' de '+total;
+        label.textContent='Página '+current+' de '+total;
+        pane.scrollTop=0;pane.scrollLeft=0;
+      }catch(error){
+        label.textContent='No se pudo cargar la página';
+      }finally{
+        loading=false;
+        previous.disabled=current<=1;
+        next.disabled=total>0&&current>=total;
+      }
+    };
+    previous.addEventListener('click',()=>loadPage(current-1));
+    next.addEventListener('click',()=>loadPage(current+1));
+    await loadPage(current);
+  }
 
   window.lexiaQuickViewerOpen=showViewer;
   function closeViewer(){
     const b=backdrop(); if(!b)return;
     b.classList.remove('open'); b.setAttribute('aria-hidden','true');
-    currentPath=''; if(body())body().innerHTML='';
+    currentPath=''; releasePreviewObjectUrl(); if(body())body().innerHTML='';
   }
 
   async function showViewer(path,page,snippet){
@@ -3420,7 +3476,11 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
     b.classList.add('open'); b.setAttribute('aria-hidden','false');
 
     const e=ext(path), url=previewUrl(path);
-    if(e==='.pdf'){const pdfUrl=page?url+'#page='+encodeURIComponent(page):url;pane.innerHTML=`<iframe class="lexia-qv-frame" src="${pdfUrl}" title="Vista previa PDF"></iframe>`;return}
+    if(e==='.pdf'){
+      if(isMobileViewer()){await showMobilePagedPreview(path,page||1,false);return}
+      const pdfUrl=page?url+'#page='+encodeURIComponent(page):url;
+      pane.innerHTML=`<iframe class="lexia-qv-frame" src="${pdfUrl}" title="Vista previa PDF"></iframe>`;return
+    }
     if(['.png','.jpg','.jpeg','.gif','.webp','.bmp','.svg'].includes(e)){pane.innerHTML=`<div class="lexia-qv-image-wrap"><img class="lexia-qv-image" src="${url}" alt=""></div>`;return}
     if(['.txt','.log','.csv','.json','.xml','.md','.py','.js','.css','.html','.htm'].includes(e)){
       try{
@@ -3435,7 +3495,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
     }
 
     if(['.doc','.docx','.rtf','.odt'].includes(e)){
-      if(page){
+      if(page||isMobileViewer()){
         const requestedPage=Number(page)||1;
         let actualPage=requestedPage;
 
@@ -3474,6 +3534,11 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
             'Página índice: '+requestedPage+
             ' · Página localizada: '+requestedPage+
             ' · error: '+String(err);
+        }
+
+        if(isMobileViewer()){
+          await showMobilePagedPreview(path,actualPage,true);
+          return;
         }
 
         const officePdfUrl=
@@ -3977,7 +4042,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
         </div>
         <div class="result-actions">
           ${which==='professional'?`<span class="score">${Number(r.score||0).toLocaleString('es-AR',{maximumFractionDigits:1})}%</span>`:''}
-          <button class="search-open-file" data-path="${p}">Abrir</button>
+          <button class="search-open-file" data-path="${p}"${which==='professional'&&r.page_start?` data-page="${esc(r.page_start)}"`:''}${which==='professional'&&snippet?` data-snippet="${encodeURIComponent(snippet)}"`:''}>Abrir</button>
           <button class="search-file-info" data-path="${p}">Detalles</button>
           <button class="search-delete-file" data-path="${p}" title="Eliminar el archivo y todos sus derivados de LexIA">Eliminar</button>
         </div>
@@ -4300,10 +4365,12 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 
       window.lexiaSearch320bResolve(card)
         .then(async path=>{
+          const page=parseInt(openBtn.dataset.page||'0',10)||0;
+          const snippet=decodeURIComponent(openBtn.dataset.snippet||'');
           const res=await fetch('/api/open-file',{
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({path:path})
+            body:JSON.stringify({path:path,page:page,snippet:snippet})
           });
           const data=await res.json().catch(()=>({}));
           if(!res.ok||!data.ok)throw new Error(data.error||`HTTP ${res.status}`);
