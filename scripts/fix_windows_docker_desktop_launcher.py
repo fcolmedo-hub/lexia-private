@@ -1,18 +1,131 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "app" / "ui2" / "windows_desktop.py"
 BACKUP = TARGET.with_suffix(".py.bak-docker-desktop-launcher-20260830")
+MARKER = "Docker Desktop: ejecutable principal"
 
-OLD_DOCKER_DESKTOP = '''def docker_desktop() -> Path | None:\n    candidates: list[Path] = []\n    for key in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):\n        base = os.environ.get(key)\n        if base:\n            root = Path(base)\n            candidates.extend([root / "Docker" / "Docker" / "Docker Desktop.exe", root / "Docker" / "Docker Desktop.exe"])\n\n    lad = local_appdata()\n    candidates.extend([\n        lad / "Docker" / "Docker Desktop.exe",\n        lad / "Programs" / "Docker" / "Docker" / "Docker Desktop.exe",\n        lad / "Programs" / "Docker" / "Docker Desktop.exe",\n    ])\n\n    cli = docker_cli()\n    if cli is not None:\n        current = cli.parent\n        for _ in range(5):\n            candidates.append(current / "Docker Desktop.exe")\n            if current.parent == current:\n                break\n            current = current.parent\n\n    seen: set[str] = set()\n    for candidate in candidates:\n        key = str(candidate).lower()\n        if key in seen:\n            continue\n        seen.add(key)\n        if candidate.exists():\n            return candidate\n\n    return _docker_desktop_from_registry()\n'''
+NEW_DOCKER_DESKTOP = '''def docker_desktop() -> Path | None:
+    # Preferir el ejecutable principal de Docker Desktop. Algunas instalaciones
+    # incluyen otro Docker Desktop.exe dentro de resources; ese auxiliar no debe
+    # usarse como lanzador principal.
+    registry = _docker_desktop_from_registry()
+    if registry is not None and registry.parent.name.lower() != "resources":
+        return registry
 
-NEW_DOCKER_DESKTOP = '''def docker_desktop() -> Path | None:\n    # Preferir el ejecutable principal de Docker Desktop. Algunas instalaciones\n    # incluyen otro Docker Desktop.exe dentro de resources; ese auxiliar puede\n    # existir sin abrir la aplicación de escritorio cuando se lo ejecuta solo.\n    registry = _docker_desktop_from_registry()\n    if registry is not None:\n        return registry\n\n    candidates: list[Path] = []\n    for key in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):\n        base = os.environ.get(key)\n        if base:\n            root = Path(base)\n            candidates.extend([\n                root / "Docker" / "Docker" / "Docker Desktop.exe",\n                root / "Docker" / "Docker Desktop.exe",\n                root / "DockerDesktop" / "Docker Desktop.exe",\n            ])\n\n    lad = local_appdata()\n    candidates.extend([\n        lad / "Docker" / "Docker Desktop.exe",\n        lad / "Programs" / "Docker" / "Docker" / "Docker Desktop.exe",\n        lad / "Programs" / "Docker" / "Docker Desktop.exe",\n        lad / "Programs" / "DockerDesktop" / "Docker Desktop.exe",\n    ])\n\n    # Si docker.exe está dentro de ...\\DockerDesktop\\resources\\bin, la\n    # aplicación principal suele estar dos niveles por encima de resources.\n    cli = docker_cli()\n    if cli is not None:\n        parts = [part.lower() for part in cli.parts]\n        try:\n            idx = parts.index("resources")\n        except ValueError:\n            idx = -1\n        if idx > 0:\n            install_root = Path(*cli.parts[:idx])\n            candidates.insert(0, install_root / "Docker Desktop.exe")\n\n        current = cli.parent\n        for _ in range(6):\n            candidate = current / "Docker Desktop.exe"\n            # No elegir como principal el ejecutable auxiliar de resources.\n            if current.name.lower() != "resources":\n                candidates.append(candidate)\n            if current.parent == current:\n                break\n            current = current.parent\n\n    seen: set[str] = set()\n    for candidate in candidates:\n        key = str(candidate).lower()\n        if key in seen:\n            continue\n        seen.add(key)\n        if candidate.exists():\n            return candidate\n\n    return None\n'''
+    candidates: list[Path] = []
+    for key in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
+        base = os.environ.get(key)
+        if base:
+            root = Path(base)
+            candidates.extend([
+                root / "Docker" / "Docker" / "Docker Desktop.exe",
+                root / "Docker" / "Docker Desktop.exe",
+                root / "DockerDesktop" / "Docker Desktop.exe",
+            ])
 
-OLD_LAUNCH = '''def launch_docker_desktop() -> None:\n    desktop = docker_desktop()\n    if desktop is None:\n        binary = docker_cli()\n        hint = f" docker.exe={binary}" if binary else " docker.exe=no encontrado"\n        raise RuntimeError("No se encontró Docker Desktop en Windows." + hint)\n\n    log_startup(f"Docker Desktop: iniciando {desktop}")\n    try:\n        os.startfile(str(desktop))\n        return\n    except Exception as exc:\n        log_startup(f"Docker Desktop: os.startfile falló: {exc}")\n\n    subprocess.Popen([str(desktop)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW)\n'''
+    lad = local_appdata()
+    candidates.extend([
+        lad / "Docker" / "Docker Desktop.exe",
+        lad / "Programs" / "Docker" / "Docker" / "Docker Desktop.exe",
+        lad / "Programs" / "Docker" / "Docker Desktop.exe",
+        lad / "Programs" / "DockerDesktop" / "Docker Desktop.exe",
+    ])
 
-NEW_LAUNCH = '''def launch_docker_desktop() -> None:\n    desktop = docker_desktop()\n    if desktop is None:\n        binary = docker_cli()\n        hint = f" docker.exe={binary}" if binary else " docker.exe=no encontrado"\n        raise RuntimeError("No se encontró Docker Desktop en Windows." + hint)\n\n    log_startup(f"Docker Desktop: ejecutable principal {desktop}")\n\n    # Ejecutar directamente el EXE principal. os.startfile queda como fallback,\n    # no como primera opción, para no ocultar fallos del ejecutable elegido.\n    try:\n        process = subprocess.Popen(\n            [str(desktop)],\n            cwd=str(desktop.parent),\n            stdout=subprocess.DEVNULL,\n            stderr=subprocess.DEVNULL,\n            creationflags=CREATE_NO_WINDOW,\n        )\n        log_startup(f"Docker Desktop: proceso lanzado pid={process.pid}")\n        return\n    except Exception as exc:\n        log_startup(f"Docker Desktop: Popen falló: {exc}")\n\n    try:\n        os.startfile(str(desktop))\n        log_startup("Docker Desktop: lanzado mediante os.startfile")\n        return\n    except Exception as exc:\n        log_startup(f"Docker Desktop: os.startfile falló: {exc}")\n        raise RuntimeError(f"No se pudo iniciar Docker Desktop: {desktop}") from exc\n'''
+    cli = docker_cli()
+    if cli is not None:
+        current = cli.parent
+        while current.parent != current:
+            if current.name.lower() == "resources":
+                install_root = current.parent
+                candidates.insert(0, install_root / "Docker Desktop.exe")
+                break
+            current = current.parent
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.exists() and candidate.parent.name.lower() != "resources":
+            return candidate
+
+    return None
+'''
+
+NEW_LAUNCH = '''def launch_docker_desktop() -> None:
+    desktop = docker_desktop()
+    if desktop is None:
+        binary = docker_cli()
+        hint = f" docker.exe={binary}" if binary else " docker.exe=no encontrado"
+        raise RuntimeError("No se encontró el ejecutable principal de Docker Desktop en Windows." + hint)
+
+    log_startup(f"Docker Desktop: ejecutable principal {desktop}")
+    try:
+        process = subprocess.Popen(
+            [str(desktop)],
+            cwd=str(desktop.parent),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        log_startup(f"Docker Desktop: proceso lanzado pid={process.pid}")
+        return
+    except Exception as exc:
+        log_startup(f"Docker Desktop: Popen falló: {exc}")
+
+    try:
+        os.startfile(str(desktop))
+        log_startup("Docker Desktop: lanzado mediante os.startfile")
+        return
+    except Exception as exc:
+        log_startup(f"Docker Desktop: os.startfile falló: {exc}")
+        raise RuntimeError(f"No se pudo iniciar Docker Desktop: {desktop}") from exc
+'''
 
 
-def main() -> None:\n    if not TARGET.exists():\n        raise SystemExit(f"ABORTADO: no existe {TARGET}")\n\n    text = TARGET.read_text(encoding="utf-8", errors="strict")\n\n    if "Docker Desktop: ejecutable principal" in text:\n        print("OK: el launcher de Docker Desktop ya está corregido")\n        return\n\n    if text.count(OLD_DOCKER_DESKTOP) != 1:\n        raise SystemExit("ABORTADO: docker_desktop() no coincide con la versión esperada. No modifiqué nada.")\n    if text.count(OLD_LAUNCH) != 1:\n        raise SystemExit("ABORTADO: launch_docker_desktop() no coincide con la versión esperada. No modifiqué nada.")\n\n    patched = text.replace(OLD_DOCKER_DESKTOP, NEW_DOCKER_DESKTOP, 1)\n    patched = patched.replace(OLD_LAUNCH, NEW_LAUNCH, 1)\n\n    if not BACKUP.exists():\n        BACKUP.write_text(text, encoding="utf-8")\n    TARGET.write_text(patched, encoding="utf-8")\n\n    print("OK: windows_desktop.py corregido")\n    print("- prioriza el Docker Desktop.exe principal")\n    print("- incluye instalaciones en AppData\\Local\\Programs\\DockerDesktop")\n    print("- ignora como principal el Docker Desktop.exe auxiliar de resources")\n    print("- registra ruta y PID del proceso lanzado")\n\n\nif __name__ == "__main__":\n    main()\n
+def main() -> None:
+    if not TARGET.exists():
+        raise SystemExit(f"ABORTADO: no existe {TARGET}")
+
+    text = TARGET.read_text(encoding="utf-8", errors="strict")
+    if MARKER in text:
+        print("OK: windows_desktop.py ya contiene el launcher corregido")
+        return
+
+    desktop_pattern = re.compile(
+        r"def docker_desktop\(\) -> Path \| None:\n.*?(?=\ndef docker_ready\(\) -> bool:)",
+        re.S,
+    )
+    launch_pattern = re.compile(
+        r"def launch_docker_desktop\(\) -> None:\n.*?(?=\ndef ensure_docker\(\) -> None:)",
+        re.S,
+    )
+
+    patched, n1 = desktop_pattern.subn(NEW_DOCKER_DESKTOP.rstrip() + "\n", text, count=1)
+    patched, n2 = launch_pattern.subn(NEW_LAUNCH.rstrip() + "\n", patched, count=1)
+
+    if n1 != 1 or n2 != 1:
+        raise SystemExit(
+            f"ABORTADO: esperaba reemplazar 1 docker_desktop y 1 launch_docker_desktop; obtuve {n1} y {n2}. No modifiqué nada."
+        )
+
+    # Validar la sintaxis completa de windows_desktop.py antes de escribir.
+    compile(patched, str(TARGET), "exec")
+
+    if not BACKUP.exists():
+        BACKUP.write_text(text, encoding="utf-8")
+    TARGET.write_text(patched, encoding="utf-8")
+
+    print("OK: windows_desktop.py corregido y validado")
+    print("- prioriza Docker Desktop.exe fuera de resources")
+    print("- contempla AppData\\Local\\Programs\\DockerDesktop")
+    print("- registra ruta exacta y PID del proceso lanzado")
+
+
+if __name__ == "__main__":
+    main()
