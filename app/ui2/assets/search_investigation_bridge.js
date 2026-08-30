@@ -47,6 +47,7 @@
 
   function investigateButton(openButton){
     const button=openButton.cloneNode(true);
+    button.removeAttribute(CONTENT_OPEN_ATTR);
     button.setAttribute(INVESTIGATE_ATTR,'1');
     button.classList.add('search-investigate-file');
     button.textContent='Investigar';
