@@ -16,7 +16,7 @@
     const main=home.querySelector('.hr-main');
     const content=home.querySelector('.hr-content');
     const app=document.querySelector('.app');
-    const narrow=window.innerWidth<=900;
+    const narrow=window.innerWidth<=1199;
 
     if(!narrow){
       clearImportant(home,PROPS);
