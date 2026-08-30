@@ -4,6 +4,8 @@
 
   const SEARCH_PAGE_ID='searchpage';
   const INVESTIGATE_ATTR='data-lexia-search-investigate';
+  const CONTENT_OPEN_ATTR='data-lexia-content-open';
+  const STYLE_ID='lexiaSearchInvestigationButtonColors';
 
   function decodePath(value){
     try{return decodeURIComponent(String(value||''));}
@@ -14,6 +16,33 @@
     document.querySelector('#'+SEARCH_PAGE_ID+' .insight')?.remove();
     const grid=document.querySelector('#'+SEARCH_PAGE_ID+' .search-grid');
     if(grid)grid.style.setProperty('grid-template-columns','220px minmax(0,1fr)','important');
+  }
+
+  function ensureButtonColors(){
+    if(document.getElementById(STYLE_ID))return;
+    const style=document.createElement('style');
+    style.id=STYLE_ID;
+    style.textContent=`
+      #${SEARCH_PAGE_ID} .result-actions .search-open-file[${CONTENT_OPEN_ATTR}="1"]{
+        background:#149d55!important;
+        border-color:#149d55!important;
+        color:#fff!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions .search-open-file[${CONTENT_OPEN_ATTR}="1"]:hover{
+        background:#0f8044!important;
+        border-color:#0f8044!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${INVESTIGATE_ATTR}="1"]{
+        background:#5146f6!important;
+        border-color:#5146f6!important;
+        color:#fff!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${INVESTIGATE_ATTR}="1"]:hover{
+        background:#4338e8!important;
+        border-color:#4338e8!important;
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   function investigateButton(openButton){
@@ -35,6 +64,7 @@
 
     const contentResult=Boolean(actions.querySelector('.score'));
     if(contentResult){
+      openButton.setAttribute(CONTENT_OPEN_ATTR,'1');
       openButton.insertAdjacentElement('afterend',investigateButton(openButton));
       return;
     }
@@ -122,6 +152,7 @@
   },true);
 
   function initialize(){
+    ensureButtonColors();
     syncSearchSurface();
     const page=document.getElementById(SEARCH_PAGE_ID);
     if(!page)return;

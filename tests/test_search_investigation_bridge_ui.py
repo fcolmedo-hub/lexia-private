@@ -23,3 +23,12 @@ def test_search_bridge_replaces_or_adds_investigate_and_removes_insight():
     assert "navigate('contextpage')" in bridge
     assert "studyTab.click()" in bridge
     assert "startStudy" not in bridge
+
+
+def test_content_open_is_green_and_investigate_keeps_the_brand_blue():
+    bridge = (ASSETS / "search_investigation_bridge.js").read_text(encoding="utf-8")
+
+    assert "openButton.setAttribute(CONTENT_OPEN_ATTR,'1')" in bridge
+    assert "background:#149d55!important" in bridge
+    assert "background:#0f8044!important" in bridge
+    assert "background:#5146f6!important" in bridge
