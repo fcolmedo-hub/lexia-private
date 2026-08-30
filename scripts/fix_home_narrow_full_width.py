@@ -1,49 +1,28 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CSS = ROOT / "app" / "ui2" / "assets" / "responsive_shell.css"
-MARK = "LEXIA_HOME_NARROW_FULL_WIDTH_20260830"
-BLOCK = r'''
+INDEX = ROOT / "app" / "ui2" / "index.html"
+SCRIPT = ROOT / "app" / "ui2" / "assets" / "home_width_runtime.js"
+TAG = '<script src="assets/home_width_runtime.js?v=home-width-runtime-1"></script>'
+MARK = "home_width_runtime.js"
 
-/* LEXIA_HOME_NARROW_FULL_WIDTH_20260830
-   En modo drawer #home debe ocupar todo el viewport. El selector por ID
-   evita que reglas históricas #home con calc(100vw - sidebar) ganen sobre
-   la capa responsive basada sólo en .home. */
-@media (max-width:900px){
-  #home{
-    margin-left:0!important;
-    width:100vw!important;
-    max-width:100vw!important;
-    min-width:0!important;
-    padding-left:0!important;
-    padding-right:0!important;
-    overflow-x:hidden!important;
-  }
-  #home .home-real,
-  #home .hr-main,
-  #home .hr-content{
-    width:100%!important;
-    max-width:100%!important;
-    min-width:0!important;
-    margin-left:0!important;
-    margin-right:0!important;
-    box-sizing:border-box!important;
-  }
-  #home .hr-main{display:block!important}
-  #home .hr-content{padding-left:18px!important;padding-right:18px!important}
-}
+if not INDEX.exists():
+    raise SystemExit(f"ERROR: no existe {INDEX}")
+if not SCRIPT.exists():
+    raise SystemExit(f"ERROR: no existe {SCRIPT}")
 
-@media (max-width:560px){
-  #home .hr-content{padding-left:10px!important;padding-right:10px!important}
-}
-'''
-
-text = CSS.read_text(encoding="utf-8")
+text = INDEX.read_text(encoding="utf-8", errors="replace")
 if MARK in text:
-    print("OK: la correccion de ancho ya estaba aplicada")
+    print("OK: guardia runtime de ancho ya instalada")
 else:
-    backup = CSS.with_suffix(".css.bak-home-narrow-full-width")
+    backup = INDEX.with_suffix(".html.bak-home-width-runtime")
     if not backup.exists():
         backup.write_text(text, encoding="utf-8")
-    CSS.write_text(text.rstrip() + BLOCK + "\n", encoding="utf-8")
-    print("OK: #home ahora usa el 100% del viewport en modo angosto")
+    if "</body>" in text:
+        text = text.replace("</body>", TAG + "\n</body>", 1)
+    else:
+        text = text.rstrip() + "\n" + TAG + "\n"
+    INDEX.write_text(text, encoding="utf-8")
+    print("OK: guardia runtime instalada al final de index.html")
+
+print("OK: en <=900px #home usa el 100% real del viewport")
