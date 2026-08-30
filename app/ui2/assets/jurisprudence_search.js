@@ -149,81 +149,25 @@
     };
   }
 
-  function installContentSearchInvestigationPreview(){
-    if(window.__lexiaContentSearchInvestigationPreview)return;
-    window.__lexiaContentSearchInvestigationPreview=true;
+  function installOfficeTextViewer(){
+    if(window.__lexiaOfficeTextViewerInstalled)return;
+    window.__lexiaOfficeTextViewerInstalled=true;
 
     const officeRe=/\.(doc|docx|rtf|odt)$/i;
-    const decode=value=>{
-      try{return decodeURIComponent(String(value||''));}
-      catch(_){return String(value||'');}
-    };
     const cleanPath=value=>String(value||'').split(/[?#]/,1)[0];
     const isOfficePath=value=>officeRe.test(cleanPath(value));
-    const isSearchOfficeButton=button=>{
-      if(!button?.matches?.('.search-preview-file'))return false;
-      if(!button.closest?.('#realSearchResults'))return false;
-      return isOfficePath(decode(button.dataset.path||''));
-    };
-    const buttonData=button=>{
-      const path=decode(button?.dataset?.path||'');
-      let snippet=decode(button?.dataset?.snippet||'');
-      if(!snippet){
-        snippet=String(button?.closest?.('.result-card')?.querySelector('p')?.textContent||'')
-          .replace(/\s+/g,' ')
-          .trim();
-      }
-      return {button,path,snippet,at:Date.now()};
-    };
-
-    let pending=null;
-
-    function armFromTarget(target){
-      const button=target?.closest?.('#realSearchResults .search-preview-file');
-      if(!isSearchOfficeButton(button))return;
-      // Evita que FINAL PAGE PREVIEW capture el resultado por data-page.
-      button.removeAttribute('data-page');
-      button.removeAttribute('data-preview-page');
-      pending=buttonData(button);
-      const armed=pending;
-      setTimeout(()=>{if(pending===armed)pending=null;},8000);
-    }
-
-    // Se ejecuta antes del click, incluso aunque los listeners históricos de
-    // click hayan sido registrados antes que este asset.
-    window.addEventListener('pointerdown',event=>armFromTarget(event.target),true);
-    window.addEventListener('mousedown',event=>armFromTarget(event.target),true);
-    window.addEventListener('touchstart',event=>armFromTarget(event.target),true);
-    window.addEventListener('keydown',event=>{
-      if(event.key==='Enter'||event.key===' ')armFromTarget(event.target);
-    },true);
 
     const originalViewer=window.lexiaQuickViewerOpen;
     if(typeof originalViewer!=='function')return;
 
+    // Punto central: todos los handlers terminan llamando a esta función.
+    // Para Office ignoramos cualquier número de página y forzamos page=0,
+    // que es la rama textual del visor: /api/catalog-text-preview + snippet
+    // resaltado en amarillo. PDF y demás formatos conservan su comportamiento.
     window.lexiaQuickViewerOpen=function(path,page,snippet){
-      const now=Date.now();
-      const eventButton=window.event?.target?.closest?.('#realSearchResults .search-preview-file');
-      const activeButton=document.activeElement?.closest?.('#realSearchResults .search-preview-file');
-      let contextButton=null;
-
-      if(isSearchOfficeButton(eventButton))contextButton=eventButton;
-      else if(isSearchOfficeButton(activeButton))contextButton=activeButton;
-      else if(
-        pending&&
-        now-pending.at<8000&&
-        cleanPath(pending.path).toLowerCase()===cleanPath(path).toLowerCase()
-      ){
-        contextButton=pending.button;
+      if(isOfficePath(path)){
+        return originalViewer.call(this,path,0,String(snippet||''));
       }
-
-      if(contextButton&&isOfficePath(path)){
-        const current=buttonData(contextButton);
-        // Copia literal del contrato usado por Investigación cuando
-        // sourcePage(source) devuelve 0: path + page 0 + snippet.
-        return originalViewer.call(this,path,0,current.snippet||String(snippet||''));
-      }
-
       return originalViewer.apply(this,arguments);
     };
   }
@@ -231,7 +175,7 @@
   function initialize(){
     render();
     installFetchBridge();
-    installContentSearchInvestigationPreview();
+    installOfficeTextViewer();
     const category=categoryElement();
     category?.addEventListener('change',()=>setTimeout(render,0));
     document.getElementById('clearFilters')?.addEventListener('click',()=>setTimeout(clear,0),true);
