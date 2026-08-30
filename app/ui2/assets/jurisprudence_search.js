@@ -20,6 +20,26 @@
     document.head.appendChild(link);
   }
 
+  function isRemoteClient(){
+    const host=String(window.location.hostname||'').toLowerCase();
+    return host!=='' && host!=='localhost' && host!=='127.0.0.1' && host!=='::1';
+  }
+
+  function mobileOpenResponse(path){
+    const openInViewer=()=>{
+      if(typeof window.lexiaQuickViewerOpen==='function'){
+        window.lexiaQuickViewerOpen(path,0,'');
+        return true;
+      }
+      return false;
+    };
+    if(!openInViewer())setTimeout(openInViewer,0);
+    return new Response(JSON.stringify({ok:true,mobile:true,viewer:true}),{
+      status:200,
+      headers:{'Content-Type':'application/json; charset=utf-8'}
+    });
+  }
+
   function categoryElement(){return document.getElementById('filterCategory');}
   function host(){return document.getElementById('lexiaDynamicFilters');}
   function panel(){return document.getElementById(PANEL_ID);}
@@ -127,6 +147,13 @@
         const url=typeof input==='string'?input:String(input?.url||'');
         searchUrl=url;
         const method=String(init?.method||input?.method||'GET').toUpperCase();
+
+        if(isRemoteClient()&&method==='POST'&&url.includes('/api/open-file')&&init?.body){
+          const body=JSON.parse(String(init.body));
+          const path=String(body?.path||'').trim();
+          if(path)return mobileOpenResponse(path);
+        }
+
         if(method==='POST'&&url.includes('/api/search')&&init?.body){
           const body=JSON.parse(String(init.body));
           jurisprudenceSearch=isJuris(body.category);
@@ -144,11 +171,6 @@
 
       const response=await original(input,init);
 
-      // La API conserva lexical_rank/semantic_rank como datos diagnósticos.
-      // La interfaz histórica podía elegir uno de esos campos para la insignia
-      // del resultado, mostrando números como 26, 29, 4 aunque la lista visible
-      // estuviera correctamente ordenada. En Jurisprudencia normalizamos sólo
-      // la respuesta del navegador: el backend mantiene intactos sus rankings.
       if(jurisprudenceSearch&&searchUrl.includes('/api/search')){
         try{
           const payload=await response.clone().json();
