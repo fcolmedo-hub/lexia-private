@@ -20,6 +20,16 @@
     document.head.appendChild(link);
   }
 
+  function ensureSearchInvestigationBridge(){
+    const id='lexiaSearchInvestigationBridge';
+    if(document.getElementById(id))return;
+    const script=document.createElement('script');
+    script.id=id;
+    script.src='assets/search_investigation_bridge.js?v=ui2-3.4.2';
+    script.defer=true;
+    document.head.appendChild(script);
+  }
+
   function isRemoteClient(){
     const host=String(window.location.hostname||'').toLowerCase();
     return host!=='' && host!=='localhost' && host!=='127.0.0.1' && host!=='::1';
@@ -236,6 +246,7 @@
 
   function initialize(){
     ensureResponsiveShellStyles();
+    ensureSearchInvestigationBridge();
     enableMobileTextAssistance();
     render();
     installFetchBridge();
