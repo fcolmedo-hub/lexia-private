@@ -7,7 +7,7 @@
     date_from:'jurisDateFrom',date_to:'jurisDateTo',case_number:'jurisCaseNumber',
     party:'jurisParty',law:'jurisLaw'
   };
-  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const isJuris=value=>String(value||'').trim().toLocaleLowerCase('es-AR')==='jurisprudencia';
 
   function ensureResponsiveShellStyles(){
@@ -23,6 +23,58 @@
   function isRemoteClient(){
     const host=String(window.location.hostname||'').toLowerCase();
     return host!=='' && host!=='localhost' && host!=='127.0.0.1' && host!=='::1';
+  }
+
+  function isMobileClient(){
+    return window.matchMedia?.('(max-width: 900px)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+  }
+
+  function enableMobileTextAssistance(){
+    if(!isMobileClient())return;
+
+    const shouldAssist=el=>{
+      if(!el||!(el instanceof HTMLElement))return false;
+      if(el.tagName==='TEXTAREA')return true;
+      if(el.tagName!=='INPUT')return false;
+      const type=String(el.getAttribute('type')||'text').toLowerCase();
+      if(!['text','search','email','url','tel'].includes(type))return false;
+      const id=String(el.id||'').toLowerCase();
+      const name=String(el.getAttribute('name')||'').toLowerCase();
+      if(id.includes('path')||name.includes('path'))return false;
+      return true;
+    };
+
+    const assist=el=>{
+      if(!shouldAssist(el))return;
+      if(el.getAttribute('autocomplete')!=='on')el.setAttribute('autocomplete','on');
+      if(el.getAttribute('autocorrect')!=='on')el.setAttribute('autocorrect','on');
+      if(el.getAttribute('autocapitalize')!=='sentences')el.setAttribute('autocapitalize','sentences');
+      if(el.getAttribute('spellcheck')!=='true')el.setAttribute('spellcheck','true');
+      if((el.id==='legalQuery'||el.id==='homeQuickSearchInput') && el.getAttribute('enterkeyhint')!=='search'){
+        el.setAttribute('enterkeyhint','search');
+      }
+    };
+
+    const applyAll=()=>document.querySelectorAll('input,textarea').forEach(assist);
+    applyAll();
+
+    if(window.__lexiaMobileTextAssistObserver)return;
+    window.__lexiaMobileTextAssistObserver=new MutationObserver(records=>{
+      for(const record of records){
+        if(record.type==='attributes')assist(record.target);
+        for(const node of record.addedNodes||[]){
+          if(!(node instanceof HTMLElement))continue;
+          assist(node);
+          node.querySelectorAll?.('input,textarea').forEach(assist);
+        }
+      }
+    });
+    window.__lexiaMobileTextAssistObserver.observe(document.documentElement,{
+      subtree:true,
+      childList:true,
+      attributes:true,
+      attributeFilter:['autocomplete','autocorrect','autocapitalize','spellcheck']
+    });
   }
 
   function mobileOpenResponse(path){
@@ -91,6 +143,7 @@
     if(!isJuris(category.value)){panel()?.remove();return;}
     ensureStyles();
     if(!panel())h.insertAdjacentHTML('beforeend',markup());
+    enableMobileTextAssistance();
   }
 
   function values(){
@@ -183,6 +236,7 @@
 
   function initialize(){
     ensureResponsiveShellStyles();
+    enableMobileTextAssistance();
     render();
     installFetchBridge();
     const category=categoryElement();
