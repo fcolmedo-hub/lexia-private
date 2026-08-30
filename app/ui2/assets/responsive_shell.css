@@ -1,0 +1,167 @@
+/* LexIA UI2 — responsive shell override
+   Keeps the desktop sidebar solid on smaller notebook/window sizes and
+   reserves the drawer navigation for truly narrow screens. */
+
+/* The navigation surface itself must never inherit transparency. */
+.global-sidebar{
+  background:#fff!important;
+  opacity:1!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+.global-sidebar .nav button{
+  opacity:1!important;
+}
+.global-sidebar .nav button.active{
+  background:#efeeff!important;
+  color:#2f25b8!important;
+  box-shadow:inset 3px 0 0 #5146f6!important;
+}
+
+/*
+  Compact desktop/notebook shell.
+  The historical rule switched to a drawer below 1199 px. That made normal
+  resized desktop windows look like a mobile overlay. Keep a fixed compact
+  sidebar until the useful viewport is genuinely narrow.
+*/
+@media (min-width:901px) and (max-width:1199px){
+  :root{
+    --global-side:196px!important;
+    --canvas-pad:10px!important;
+    --canvas-gap:8px!important;
+  }
+
+  .global-sidebar{
+    transform:none!important;
+    transition:none!important;
+    left:0!important;
+    right:auto!important;
+    width:var(--global-side)!important;
+    min-width:var(--global-side)!important;
+    max-width:var(--global-side)!important;
+    box-shadow:none!important;
+    overflow:hidden!important;
+  }
+
+  .global-topbar{
+    left:var(--global-side)!important;
+    right:0!important;
+    width:auto!important;
+  }
+
+  .home,.library,.searchpage,.contextpage,.activitypage,.systempage{
+    margin-left:var(--global-side)!important;
+    width:calc(100vw - var(--global-side))!important;
+    max-width:calc(100vw - var(--global-side))!important;
+    min-width:0!important;
+  }
+
+  .lexia-nav-toggle,
+  .lexia-nav-backdrop{
+    display:none!important;
+  }
+
+  .global-sidebar .logo{
+    height:52px!important;
+    padding:0 3px!important;
+    gap:9px!important;
+  }
+  .global-sidebar .mark{
+    width:39px!important;
+    height:39px!important;
+    border-radius:10px!important;
+  }
+  .global-sidebar .logo strong{
+    font-size:20px!important;
+  }
+  .global-sidebar .logo small{
+    font-size:11px!important;
+  }
+  .global-sidebar .nav{
+    margin-top:10px!important;
+    gap:2px!important;
+  }
+  .global-sidebar .nav button{
+    height:39px!important;
+    padding:0 9px!important;
+    gap:10px!important;
+    font-size:12.5px!important;
+    border-radius:8px!important;
+  }
+  .global-sidebar .nav-glyph{
+    width:19px!important;
+    height:19px!important;
+    flex-basis:19px!important;
+    font-size:16px!important;
+  }
+  .global-sidebar .profile{
+    left:9px!important;
+    right:9px!important;
+    bottom:101px!important;
+    height:61px!important;
+    padding:8px 9px!important;
+  }
+  .global-sidebar .health{
+    left:9px!important;
+    right:9px!important;
+    bottom:9px!important;
+  }
+
+  #home .hr-content,
+  .library .page,.searchpage .page,.contextpage .page,.activitypage .page,.systempage .page{
+    padding-left:10px!important;
+    padding-right:10px!important;
+  }
+}
+
+/* Mobile/narrow-window drawer: solid panel over a dim backdrop. */
+@media (max-width:900px){
+  :root{
+    --global-side:0px!important;
+    --canvas-pad:8px!important;
+    --canvas-gap:8px!important;
+  }
+
+  .home,.library,.searchpage,.contextpage,.activitypage,.systempage{
+    margin-left:0!important;
+    width:100vw!important;
+    max-width:100vw!important;
+    min-width:0!important;
+  }
+
+  .global-topbar{
+    left:0!important;
+    right:0!important;
+  }
+
+  .global-sidebar{
+    width:min(250px,88vw)!important;
+    min-width:0!important;
+    max-width:min(250px,88vw)!important;
+    background:#fff!important;
+    opacity:1!important;
+    box-shadow:8px 0 30px rgba(18,23,55,.24)!important;
+  }
+
+  .lexia-nav-open .global-sidebar{
+    transform:translateX(0)!important;
+  }
+
+  .lexia-nav-backdrop{
+    background:rgba(15,23,52,.42)!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+
+  .global-sidebar .nav button.active{
+    background:#efeeff!important;
+    color:#2f25b8!important;
+    box-shadow:inset 3px 0 0 #5146f6!important;
+  }
+
+  #home .hr-content,
+  .library .page,.searchpage .page,.contextpage .page,.activitypage .page,.systempage .page{
+    padding-left:8px!important;
+    padding-right:8px!important;
+  }
+}
