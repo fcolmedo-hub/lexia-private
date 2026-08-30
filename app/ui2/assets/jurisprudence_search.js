@@ -10,6 +10,16 @@
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const isJuris=value=>String(value||'').trim().toLocaleLowerCase('es-AR')==='jurisprudencia';
 
+  function ensureResponsiveShellStyles(){
+    const id='lexiaResponsiveShellStyles';
+    if(document.getElementById(id))return;
+    const link=document.createElement('link');
+    link.id=id;
+    link.rel='stylesheet';
+    link.href='assets/responsive_shell.css?v=ui2-3.4';
+    document.head.appendChild(link);
+  }
+
   function categoryElement(){return document.getElementById('filterCategory');}
   function host(){return document.getElementById('lexiaDynamicFilters');}
   function panel(){return document.getElementById(PANEL_ID);}
@@ -150,6 +160,7 @@
   }
 
   function initialize(){
+    ensureResponsiveShellStyles();
     render();
     installFetchBridge();
     const category=categoryElement();
