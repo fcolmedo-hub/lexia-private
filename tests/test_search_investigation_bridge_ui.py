@@ -8,7 +8,7 @@ ASSETS = ROOT / "app" / "ui2" / "assets"
 def test_search_bridge_is_loaded_by_the_shared_windows_macos_asset():
     loader = (ASSETS / "jurisprudence_search.js").read_text(encoding="utf-8")
 
-    assert "search_investigation_bridge.js?v=ui2-3.4.2" in loader
+    assert "search_investigation_bridge.js?v=ui2-3.4.3" in loader
     assert "ensureSearchInvestigationBridge();" in loader
 
 

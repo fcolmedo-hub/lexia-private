@@ -25,7 +25,7 @@
     if(document.getElementById(id))return;
     const script=document.createElement('script');
     script.id=id;
-    script.src='assets/search_investigation_bridge.js?v=ui2-3.4.2';
+    script.src='assets/search_investigation_bridge.js?v=ui2-3.4.3';
     script.defer=true;
     document.head.appendChild(script);
   }
