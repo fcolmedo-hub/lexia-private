@@ -16,7 +16,7 @@
     const link=document.createElement('link');
     link.id=id;
     link.rel='stylesheet';
-    link.href='assets/responsive_shell.css?v=ui2-3.4.1-full-width';
+    link.href='assets/responsive_shell.css?v=ui2-3.4.4-search-width';
     document.head.appendChild(link);
   }
 

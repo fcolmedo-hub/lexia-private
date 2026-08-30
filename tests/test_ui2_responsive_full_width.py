@@ -21,4 +21,13 @@ def test_responsive_assets_share_the_same_breakpoint_and_cache_version():
     loader = (ASSETS / "jurisprudence_search.js").read_text(encoding="utf-8")
 
     assert "window.innerWidth<=1199" in runtime
-    assert "responsive_shell.css?v=ui2-3.4.1-full-width" in loader
+    assert "responsive_shell.css?v=ui2-3.4.4-search-width" in loader
+
+
+def test_desktop_search_uses_exact_viewport_remainder():
+    css = (ASSETS / "responsive_shell.css").read_text(encoding="utf-8")
+
+    assert "@media (min-width:1200px)" in css
+    assert "html body #searchpage" in css
+    assert "width:calc(100vw - var(--global-side))!important" in css
+    assert "html body #searchpage .results-wrap" in css

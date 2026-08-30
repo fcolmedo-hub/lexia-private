@@ -18,6 +18,29 @@
   box-shadow:inset 3px 0 0 #5146f6!important;
 }
 
+/* On compact desktop windows Search must use the viewport remainder, not its
+   grid's intrinsic width. The sidebar width is fluid in this range, so a
+   fixed subtraction leaves the actions clipped at the right edge. */
+@media (min-width:1200px){
+  html body #searchpage{
+    width:calc(100vw - var(--global-side))!important;
+    max-width:calc(100vw - var(--global-side))!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+
+  html body #searchpage > .main,
+  html body #searchpage .page.search-layout,
+  html body #searchpage .search-hero,
+  html body #searchpage .search-grid,
+  html body #searchpage .results-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+}
+
 /* Drawer for notebooks, resized windows and mobile clients. */
 @media (max-width:1199px){
   :root{
