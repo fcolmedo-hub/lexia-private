@@ -52,17 +52,21 @@
       style.id=RECENT_TOUCH_STYLE_ID;
       style.textContent=`
         @media (max-width:700px){
+          #${SEARCH_PAGE_ID} #searchRecentHistory,
+          #${SEARCH_PAGE_ID} #searchRecentHistory *{
+            -webkit-user-select:none!important;
+            user-select:none!important;
+            -webkit-touch-callout:none!important;
+          }
           #${SEARCH_PAGE_ID} #searchRecentHistory{
             overflow-x:hidden!important;
             overflow-y:auto!important;
-            -webkit-overflow-scrolling:touch!important;
+            -webkit-overflow-scrolling:auto!important;
             overscroll-behavior:contain!important;
-            touch-action:pan-y!important;
+            touch-action:none!important;
           }
           #${SEARCH_PAGE_ID} #searchRecentHistory button[data-query]{
-            touch-action:pan-y!important;
-            -webkit-user-select:none!important;
-            user-select:none!important;
+            touch-action:none!important;
           }
         }
       `;
@@ -73,44 +77,69 @@
     let moved=false;
     let startX=0;
     let startY=0;
+    let startScrollTop=0;
+    let activePanel=null;
     let suppressClickUntil=0;
 
     const isMobileTouch=()=>{
       try{return window.matchMedia('(max-width:700px)').matches || Number(navigator.maxTouchPoints||0)>0;}
       catch(_){return Number(navigator.maxTouchPoints||0)>0;}
     };
-    const inRecent=target=>target?.closest?.('#searchRecentHistory');
+    const recentPanel=target=>target?.closest?.('#searchRecentHistory');
 
-    window.addEventListener('pointerdown',event=>{
-      if(!isMobileTouch()||!inRecent(event.target))return;
-      if(event.pointerType && event.pointerType!=='touch' && event.pointerType!=='pen')return;
+    window.addEventListener('touchstart',event=>{
+      if(!isMobileTouch()||event.touches.length!==1)return;
+      const panel=recentPanel(event.target);
+      if(!panel)return;
+      const touch=event.touches[0];
       touchActive=true;
       moved=false;
-      startX=event.clientX;
-      startY=event.clientY;
-    },true);
+      startX=touch.clientX;
+      startY=touch.clientY;
+      startScrollTop=panel.scrollTop;
+      activePanel=panel;
+    },{capture:true,passive:false});
 
-    window.addEventListener('pointermove',event=>{
+    window.addEventListener('touchmove',event=>{
+      if(!touchActive||!activePanel||event.touches.length!==1)return;
+      const touch=event.touches[0];
+      const dx=touch.clientX-startX;
+      const dy=touch.clientY-startY;
+      if(Math.abs(dx)>4 || Math.abs(dy)>4)moved=true;
+      if(!moved)return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      activePanel.scrollTop=startScrollTop-dy;
+      try{window.getSelection()?.removeAllRanges();}catch(_){}
+    },{capture:true,passive:false});
+
+    window.addEventListener('touchend',event=>{
       if(!touchActive)return;
-      if(Math.abs(event.clientY-startY)>6 || Math.abs(event.clientX-startX)>6)moved=true;
+      if(moved){
+        suppressClickUntil=performance.now()+700;
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      touchActive=false;
+      activePanel=null;
+    },{capture:true,passive:false});
+
+    window.addEventListener('touchcancel',()=>{
+      if(moved)suppressClickUntil=performance.now()+700;
+      touchActive=false;
+      activePanel=null;
     },true);
 
     window.addEventListener('pointerout',event=>{
-      if(!touchActive||!inRecent(event.target))return;
-      // The legacy document-level pointerout handler closes the history while
-      // a finger is panning. Stop it at Window before it reaches Document.
+      if(!touchActive||!recentPanel(event.target))return;
       event.stopPropagation();
     },true);
 
-    window.addEventListener('pointerup',event=>{
-      if(!touchActive)return;
-      if(moved)suppressClickUntil=performance.now()+650;
-      touchActive=false;
-    },true);
-
-    window.addEventListener('pointercancel',()=>{
-      if(moved)suppressClickUntil=performance.now()+650;
-      touchActive=false;
+    window.addEventListener('selectstart',event=>{
+      if(!isMobileTouch()||!recentPanel(event.target))return;
+      event.preventDefault();
+      event.stopPropagation();
     },true);
 
     window.addEventListener('click',event=>{
@@ -118,8 +147,6 @@
       const item=event.target.closest?.('#searchRecentHistory button[data-query]');
       if(!item)return;
 
-      // This runs on Window capture, before the old Document capture handler
-      // that calls runSearch() immediately.
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -132,6 +159,7 @@
       const input=document.getElementById('legalQuery');
       if(input){
         input.value=item.dataset.query||'';
+        input.dispatchEvent(new Event('input',{bubbles:true}));
         try{input.focus({preventScroll:true});}catch(_){input.focus();}
       }
       document.getElementById('searchRecentHistory')?.classList.remove('open');
