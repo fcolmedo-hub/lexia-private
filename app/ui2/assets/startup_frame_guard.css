@@ -1,11 +1,23 @@
-/* LexIA UI2 — prevent transient focus/frame artifacts during first WebView paint. */
+/* LexIA UI2 — startup/shell polish loaded by desktop launchers. */
 #home .home-real,
 #home .hr-main,
 #home .home-real:focus,
 #home .home-real:focus-visible,
 #home .hr-main:focus,
 #home .hr-main:focus-visible{
-  border:0!important;
   outline:0!important;
   box-shadow:none!important;
+}
+
+/* Match the existing thin left separator with an equally subtle top edge. */
+#home .hr-main{
+  border-top:1px solid #d9dde8!important;
+}
+
+/* Maintenance is a dynamic #maintenance surface, not .systempage. Reserve
+   the hamburger strip on compact desktop widths so its title is never covered. */
+@media (min-width:701px) and (max-width:1199px){
+  #maintenance{
+    padding-top:58px!important;
+  }
 }
