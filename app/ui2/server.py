@@ -159,6 +159,7 @@ def _normalize_preview_locator_text(value):
     text = _ud.normalize("NFKD", str(value or ""))
     text = "".join(ch for ch in text if not _ud.combining(ch))
     text = text.lower()
+    text = _re.sub(r"[^a-z0-9]+", " ", text)
     text = _re.sub(r"\s+", " ", text)
     return text.strip()
 
@@ -198,6 +199,30 @@ def _best_office_preview_page(pdf_path, snippet, fallback_page=None):
             except Exception:
                 txt = ""
             page_texts.append(txt)
+
+        # Search every contiguous portion of the result excerpt, rather than
+        # trusting only its first words.  FTS snippets may start with headers
+        # or an ellipsis while the distinctive legal passage appears later.
+        locator_words = [
+            word for word in search_words
+            if len(word) >= 2 or word.isdigit()
+        ]
+        for size in (14, 12, 10, 8, 6, 5, 4):
+            if len(locator_words) < size:
+                continue
+            windows = [
+                " ".join(locator_words[start:start + size])
+                for start in range(0, len(locator_words) - size + 1)
+            ]
+            hits = []
+            for idx, txt in enumerate(page_texts):
+                count = sum(1 for candidate in windows if candidate in txt)
+                if count:
+                    distance = abs((idx + 1) - fallback) if fallback > 0 else 0
+                    hits.append((count, -distance, -(idx + 1), idx + 1))
+            if hits:
+                hits.sort(reverse=True)
+                return hits[0][3]
 
         if len(needle) >= 24:
             for idx, txt in enumerate(page_texts):

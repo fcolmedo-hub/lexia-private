@@ -3982,7 +3982,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
         ? ((r.text||'').replace(/\s+/g,' ').trim().slice(0,520))
         : '';
       return `<div class="result-card card">
-        <div class="result-rank">${which==='filename'?i+1:(r.rank||'')}</div>
+        <div class="result-rank">${i+1}</div>
         <div class="result-body">
           <button class="result-title result-title-btn search-preview-file" data-path="${p}"${which==='professional'&&r.page_start?` data-page="${esc(r.page_start)}"`:''}${which==='professional'&&snippet?` data-snippet="${encodeURIComponent(snippet)}"`:''}>${esc(r.document_name||'Documento')}</button>
           <div class="result-meta">${esc(r.category||'Documento')}${which==='professional'&&r.page_start?` · pág. ${esc(r.page_start)}${r.page_end&&r.page_end!==r.page_start?'–'+esc(r.page_end):''}`:''}</div>
@@ -4727,11 +4727,11 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 (function(){
   if(window.__lexia324FinalPagePreviewInstalled)return;
   window.__lexia324FinalPagePreviewInstalled=true;
+
   window.addEventListener('click',function(ev){
-    const btn=ev.target.closest?.('.search-preview-file[data-page]');
+    const btn=ev.target.closest?.('.search-preview-file');
     if(!btn)return;
-    const sourcePage=parseInt(btn.dataset.page||'0',10);
-    if(!sourcePage || sourcePage<1)return;
+
     ev.preventDefault();
     ev.stopPropagation();
     ev.stopImmediatePropagation();
@@ -4739,49 +4739,48 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
     const card=btn.closest('.result-card');
     const resolver=window.lexiaSearch320bResolve;
     if(!resolver)return;
-    const snippet=decodeURIComponent(btn.dataset.snippet||'');
+
+    const sourcePage=parseInt(btn.dataset.page||'0',10)||0;
+    let snippet='';
+    try{snippet=decodeURIComponent(btn.dataset.snippet||'');}catch(_){}
+    if(!snippet){
+      snippet=String(card?.querySelector?.('.result-body > p')?.textContent||'')
+        .replace(/\s+/g,' ').trim().slice(0,1800);
+    }
 
     resolver(card).then(async path=>{
       const ext=(String(path||'').toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
       const isOffice=['.doc','.docx','.rtf','.odt'].includes(ext);
 
       if(isOffice){
-        // LEXIA_OFFICE_RESULT_PAGE_FALLBACK_20260828
-        // Para Office, si el backend no localiza el pasaje y devuelve pag. 1,
-        // conservar la pagina que ya muestra el resultado de busqueda.
-        const metaText=String(card?.querySelector?.('.result-meta')?.textContent||card?.innerText||'');
+        const metaText=String(card?.querySelector?.('.result-meta')?.textContent||'');
         const metaPageMatch=metaText.match(/p[áa]g\.?\s*(\d+)/i);
-        const officeSourcePage=(Number(sourcePage)>1?Number(sourcePage):(metaPageMatch?Number(metaPageMatch[1]):(Number(sourcePage)||1)));
-        let previewPage=parseInt(btn.dataset.previewPage||'0',10)||0;
-        if(previewPage<2){
-          previewPage=0;
-          try{ delete btn.dataset.previewPage; }catch(_){}
-        }
-        if(!previewPage){
-          try{
-            const u=
-              '/api/office-preview-page?path='+encodeURIComponent(path)+
-              '&fallback='+encodeURIComponent(String(officeSourcePage||''))+
-              '&snippet='+encodeURIComponent(String(snippet||''))+
-              '&convert=1';
-            const res=await fetch(u,{cache:'no-store'});
-            const data=await res.json();
-            if(res.ok&&data.ok&&Number(data.page)>0){
-              const calculatedPage=Number(data.page)||0;
-              previewPage=(calculatedPage>1?calculatedPage:officeSourcePage);
-              btn.dataset.previewPage=String(previewPage);
-            }
-          }catch(_){}
-        }
+        const fallbackPage=sourcePage>0
+          ? sourcePage
+          : (metaPageMatch?Number(metaPageMatch[1]):1);
+        let previewPage=fallbackPage;
+
+        try{
+          const url=
+            '/api/office-preview-page?path='+encodeURIComponent(path)+
+            '&fallback='+encodeURIComponent(fallbackPage)+
+            '&snippet='+encodeURIComponent(String(snippet||''))+
+            '&convert=1';
+          const response=await fetch(url,{cache:'no-store'});
+          const data=await response.json();
+          if(response.ok&&data.ok&&Number(data.page)>0){
+            previewPage=Number(data.page);
+          }
+        }catch(_){}
 
         if(window.lexiaQuickViewerOpen){
-          window.lexiaQuickViewerOpen(path,((previewPage&&previewPage>1)?previewPage:officeSourcePage)||1,snippet);
+          window.lexiaQuickViewerOpen(path,previewPage||1,snippet);
         }
         return;
       }
 
       if(window.lexiaQuickViewerOpen){
-        window.lexiaQuickViewerOpen(path,sourcePage,snippet);
+        window.lexiaQuickViewerOpen(path,sourcePage||1,snippet);
       }
     }).catch(err=>{
       alert('No se pudo abrir la vista rápida:\n\n'+(err.message||err));

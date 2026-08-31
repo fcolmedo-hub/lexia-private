@@ -164,3 +164,35 @@ def test_frontend_removes_demo_metrics_and_loads_research_history() -> None:
     assert "Sin registro histórico" in javascript
     assert "installPersistentResearchHistory" in javascript
     assert "fetch('/api/research-history'" in javascript
+
+
+def test_visible_search_numbers_are_always_incremental() -> None:
+    index = (UI2 / "index.html").read_text(encoding="utf-8")
+
+    assert '<div class="result-rank">${i+1}</div>' in index
+    assert "const btn=ev.target.closest?.('.search-preview-file');" in index
+
+
+def test_office_locator_uses_distinctive_words_later_in_snippet(tmp_path: Path) -> None:
+    import fitz
+
+    server = _load_server()
+    pdf = tmp_path / "office-preview.pdf"
+    document = fitz.open()
+    for text in (
+        "primera pagina sin el pasaje buscado",
+        "segunda pagina con informacion general",
+        "la indemnizacion procede por responsabilidad estatal ante clausura municipal arbitraria",
+    ):
+        page = document.new_page()
+        page.insert_text((72, 72), text)
+    document.save(pdf)
+    document.close()
+
+    snippet = (
+        "encabezado expediente organismo categoria documento resultado busqueda "
+        "antecedentes resumen caratula archivo metadata informacion referencia "
+        "la indemnización procede por responsabilidad estatal ante clausura municipal arbitraria"
+    )
+
+    assert server._best_office_preview_page(pdf, snippet, fallback_page=1) == 3
