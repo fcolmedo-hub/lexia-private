@@ -275,6 +275,8 @@
     if(!isMobileClient()||window.__lexiaMobileRecentHistoryInstalled)return;
     window.__lexiaMobileRecentHistoryInstalled=true;
     let activatedAt=0;
+    let suppressClickUntil=0;
+    let gesture=null;
 
     const historyButton=target=>target?.closest?.('#searchRecentHistory button[data-query]');
     const activate=button=>{
@@ -291,12 +293,52 @@
     };
 
     window.addEventListener('pointerdown',event=>{
-      const button=historyButton(event.target);
-      if(!button)return;
+      const panel=event.target?.closest?.('#searchRecentHistory');
+      if(!panel)return;
+      gesture={
+        pointerId:event.pointerId,
+        button:historyButton(event.target),
+        x:Number(event.clientX||0),
+        y:Number(event.clientY||0),
+        moved:false,
+      };
+    },true);
+
+    window.addEventListener('pointermove',event=>{
+      if(!gesture||event.pointerId!==gesture.pointerId)return;
+      const dx=Number(event.clientX||0)-gesture.x;
+      const dy=Number(event.clientY||0)-gesture.y;
+      if(Math.hypot(dx,dy)>12)gesture.moved=true;
+    },true);
+
+    window.addEventListener('pointerout',event=>{
+      if(!gesture||event.pointerId!==gesture.pointerId)return;
+      if(!event.target?.closest?.('#searchRecentHistory'))return;
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    },true);
+
+    window.addEventListener('pointercancel',event=>{
+      if(!gesture||event.pointerId!==gesture.pointerId)return;
+      suppressClickUntil=performance.now()+700;
+      gesture=null;
+    },true);
+
+    window.addEventListener('pointerup',event=>{
+      if(!gesture||event.pointerId!==gesture.pointerId)return;
+      const finished=gesture;
+      gesture=null;
+      const dx=Number(event.clientX||0)-finished.x;
+      const dy=Number(event.clientY||0)-finished.y;
+      const moved=finished.moved||Math.hypot(dx,dy)>12;
+      if(moved||!finished.button){
+        suppressClickUntil=performance.now()+700;
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      activate(button);
+      activate(finished.button);
     },true);
 
     window.addEventListener('click',event=>{
@@ -305,6 +347,7 @@
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
+      if(performance.now()<suppressClickUntil)return;
       if(performance.now()-activatedAt>700)activate(button);
     },true);
   }

@@ -34,7 +34,7 @@ def test_mobile_search_prevents_and_recovers_focus_zoom():
     assert "__lexiaMobileViewportResetInstalled" in loader
     for launcher in ("launch_ui2.py", "macos_desktop.py", "windows_desktop.py"):
         source = (UI2 / launcher).read_text(encoding="utf-8")
-        assert "jurisprudence_search.js?v=juris-mobile-4" in source
+        assert "jurisprudence_search.js?v=juris-mobile-5" in source
 
 
 def test_mobile_recent_history_activates_before_pointerout_closes_panel():
@@ -43,6 +43,13 @@ def test_mobile_recent_history_activates_before_pointerout_closes_panel():
     assert "installMobileRecentHistoryFix" in loader
     assert "#searchRecentHistory button[data-query]" in loader
     assert "window.addEventListener('pointerdown'" in loader
+    assert "window.addEventListener('pointermove'" in loader
+    assert "window.addEventListener('pointerup'" in loader
+    assert "Math.hypot(dx,dy)>12" in loader
+    recent_start = loader.index("function installMobileRecentHistoryFix")
+    down_start = loader.index("window.addEventListener('pointerdown'", recent_start)
+    move_start = loader.index("window.addEventListener('pointermove'", down_start)
+    assert "activate(" not in loader[down_start:move_start]
     assert "input.value=String(button.dataset.query||'')" in loader
     assert "window.lexiaSearch320Run?.()" in loader
 
