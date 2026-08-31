@@ -6,6 +6,7 @@
   const INVESTIGATE_ATTR='data-lexia-search-investigate';
   const CONTENT_OPEN_ATTR='data-lexia-content-open';
   const STYLE_ID='lexiaSearchInvestigationButtonColors';
+  const MOBILE_NAV_SCROLL_STYLE_ID='lexiaMobileNavigatorScrollFix';
 
   function decodePath(value){
     try{return decodeURIComponent(String(value||''));}
@@ -40,6 +41,47 @@
       #${SEARCH_PAGE_ID} .result-actions [${INVESTIGATE_ATTR}="1"]:hover{
         background:#4338e8!important;
         border-color:#4338e8!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureMobileNavigatorScroll(){
+    if(document.getElementById(MOBILE_NAV_SCROLL_STYLE_ID))return;
+    const style=document.createElement('style');
+    style.id=MOBILE_NAV_SCROLL_STYLE_ID;
+    style.textContent=`
+      @media (max-width:700px){
+        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel,
+        #${SEARCH_PAGE_ID} .lexia-nav-files-panel{
+          display:flex!important;
+          flex-direction:column!important;
+          overflow:hidden!important;
+        }
+        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel{
+          height:230px!important;
+          max-height:230px!important;
+          min-height:160px!important;
+        }
+        #${SEARCH_PAGE_ID} .lexia-nav-files-panel{
+          height:min(58dvh,560px)!important;
+          max-height:min(58dvh,560px)!important;
+          min-height:320px!important;
+        }
+        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel > .lexia-nav-scroll,
+        #${SEARCH_PAGE_ID} .lexia-nav-files-panel > .lexia-nav-scroll,
+        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel .lexia-nav-scroll,
+        #${SEARCH_PAGE_ID} .lexia-nav-files-panel .lexia-nav-scroll{
+          flex:1 1 auto!important;
+          min-height:0!important;
+          height:auto!important;
+          max-height:none!important;
+          overflow-x:hidden!important;
+          overflow-y:auto!important;
+          -webkit-overflow-scrolling:touch!important;
+          overscroll-behavior:contain!important;
+          touch-action:pan-y!important;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -154,6 +196,7 @@
 
   function initialize(){
     ensureButtonColors();
+    ensureMobileNavigatorScroll();
     syncSearchSurface();
     const page=document.getElementById(SEARCH_PAGE_ID);
     if(!page)return;
