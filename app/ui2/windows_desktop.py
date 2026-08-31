@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import os
 import shutil
 import socket
@@ -13,6 +14,7 @@ PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
 URL = f"http://127.0.0.1:{PORT}"
 BRIDGE_PORT = 8513
 QDRANT_PORT = 6333
+WINDOWS_APP_ID = "LexIA.Desktop"
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
@@ -60,6 +62,15 @@ def log_startup(message: str) -> None:
             fh.write(time.strftime("%Y-%m-%d %H:%M:%S") + "  " + message + "\n")
     except OSError:
         pass
+
+
+def configure_taskbar_identity() -> None:
+    """Give every LexIA window the same explicit Windows taskbar identity."""
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(WINDOWS_APP_ID)
+        log_startup(f"Taskbar AppUserModelID: {WINDOWS_APP_ID}")
+    except Exception as exc:
+        log_startup(f"Taskbar AppUserModelID no disponible: {exc}")
 
 
 def wait_tcp(port: int, timeout: float) -> bool:
@@ -383,6 +394,7 @@ def main() -> int:
 
     logs = logs_dir()
     log_startup("===== inicio LexIA Windows =====")
+    configure_taskbar_identity()
 
     ensure_docker()
     kill_stale(root)
