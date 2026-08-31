@@ -82,12 +82,19 @@
       panel.classList.add('open');
     };
 
-    input.addEventListener('click',event=>{
-      event.stopPropagation();
-      close();
+    // Mismo patrón que Buscar -> legalQuery:
+    // clic explícito abre; escritura, Escape o clic fuera cierran.
+    document.addEventListener('click',event=>{
+      if(event.target.closest?.('#homeQuickSearchInput'))open();
+    },true);
+
+    document.addEventListener('input',event=>{
+      if(event.target?.id==='homeQuickSearchInput')close();
+    },true);
+
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Escape')close();
     });
-    input.addEventListener('input',close);
-    input.addEventListener('keydown',event=>{ if(event.key==='Escape')close(); });
 
     panel.addEventListener('mousedown',event=>event.preventDefault());
     panel.addEventListener('click',event=>{
@@ -101,12 +108,10 @@
       try{input.focus({preventScroll:true});}catch(_){input.focus();}
     });
 
-    document.addEventListener('mousedown',event=>{
-      if(event.target===input||panel.contains(event.target))return;
+    document.addEventListener('pointerdown',event=>{
+      if(panel.contains(event.target)||input.contains(event.target))return;
       close();
     },true);
-
-    open();
   }
 
   function extension(path){
