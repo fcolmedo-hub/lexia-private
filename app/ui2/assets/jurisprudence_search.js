@@ -412,6 +412,159 @@
     },true);
   }
 
+  function installHomeLiveDataFix(){
+    if(window.__lexiaHomeLiveDataInstalled)return;
+    window.__lexiaHomeLiveDataInstalled=true;
+    const format=value=>new Intl.NumberFormat('es-AR').format(Number(value||0));
+    const card=target=>document.querySelector('#home .hr-metrics article[data-home-target="'+target+'"]');
+    const setText=(root,selector,value)=>{const node=root?.querySelector(selector);if(node)node.textContent=value;};
+
+    const setDelta=(target,label,value)=>{
+      const root=card(target);
+      setText(root,'.hr-line span',label);
+      setText(root,'.hr-line em',value);
+      const progress=root?.querySelector('.hr-progress i');
+      if(progress)progress.style.width='0%';
+    };
+
+    const neutralizeDemoValues=()=>{
+      setDelta('search-file','Agregados hoy','—');
+      setDelta('search-professional','Ejecutadas hoy','—');
+      setDelta('contextpage','Creadas hoy','—');
+      setDelta('search-fragments','Indexados','Datos reales');
+      const activity=card('activitypage');
+      setText(activity,'strong','—');
+      setDelta('activitypage','Actividad','Sin medición');
+      setText(activity,'small','Productividad');
+      setText(activity,'p','Sin datos');
+      document.querySelectorAll('#home .hr-lower .hr-card:nth-child(-n+2) > .hr-row').forEach(row=>row.remove());
+    };
+
+    const renderRecent=(selector,rows,kind)=>{
+      const box=document.querySelector(selector);
+      if(!box)return;
+      const title=box.querySelector('.hr-card-title');
+      let list=box.querySelector('.hr-scroll-list');
+      box.querySelectorAll(':scope > .hr-row').forEach(row=>row.remove());
+      if(!list){
+        list=document.createElement('div');
+        list.className='hr-scroll-list';
+        title?.after(list);
+      }
+      const items=Array.isArray(rows)?rows.slice(0,12):[];
+      if(kind==='context')setText(title,'b','Consultas recientes de Investigación');
+      else setText(title,'b','Documentos recientes');
+      if(!items.length){
+        list.innerHTML='<div class="hr-row lexia-home-empty"><i>·</i><div><b>Sin registros</b><span>No hay datos recientes.</span></div></div>';
+        return;
+      }
+      list.innerHTML=items.map(row=>{
+        if(kind==='context'){
+          return '<div class="hr-row home-context-link" data-query="'+encodeURIComponent(row.query||'')+'">'+
+            '<i>▤</i><div><b>'+esc(row.query||'Consulta jurídica')+'</b><span>'+esc(row.objective||'Investigación jurídica')+'</span></div><time>'+esc(row.created_at||'')+'</time></div>';
+        }
+        return '<div class="hr-row home-document-link" data-path="'+encodeURIComponent(row.path||'')+'">'+
+          '<i>▣</i><div><b>'+esc(row.name||'Documento')+'</b><span>'+esc(row.category||'Documento')+'</span></div><time>'+esc(row.updated_at||'')+'</time></div>';
+      }).join('');
+    };
+
+    const update=async()=>{
+      try{
+        const response=await fetch('/api/live',{cache:'no-store'});
+        const data=await response.json();
+        if(!response.ok||!data.ok)return;
+        const catalog=data.catalog||{}, searches=data.searches||{}, contexts=data.contexts||{};
+        setText(card('search-file'),'strong',format(catalog.documents));
+        setText(card('search-professional'),'strong',format(searches.count));
+        setText(card('contextpage'),'strong',format(contexts.count));
+        setText(card('search-fragments'),'strong',format(catalog.fragments));
+        setDelta('search-file','Agregados hoy',catalog.added_today==null?'Sin registro histórico':format(catalog.added_today)+' hoy');
+        setDelta('search-professional','Ejecutadas hoy',format(searches.today_count)+' hoy');
+        setDelta('contextpage','Creadas hoy',format(contexts.today_count)+' hoy');
+        setDelta('search-fragments','Indexados','Datos reales');
+        setText(card('search-file'),'p',data.autosync?.last_sync||'Sin sincronización registrada');
+        setText(card('search-professional'),'p',searches.recent?.[0]?.created_at||'Sin búsquedas registradas');
+        setText(card('contextpage'),'p',contexts.recent?.[0]?.created_at||'Sin consultas registradas');
+        renderRecent('#home .hr-lower .hr-card:nth-child(1)',contexts.recent,'context');
+        renderRecent('#home .hr-lower .hr-card:nth-child(2)',catalog.recent_documents,'document');
+      }catch(_){/* Inicio conserva guiones cuando el backend no está disponible. */}
+    };
+
+    neutralizeDemoValues();
+    update();
+    window.setInterval(update,3200);
+  }
+
+  function installPersistentResearchHistory(){
+    if(window.__lexiaPersistentResearchHistoryInstalled)return;
+    window.__lexiaPersistentResearchHistoryInstalled=true;
+    const key='lexia.research.history';
+    const fields=['researchQuery','researchFacts','researchObjective','researchInstruction'];
+    let items=[];
+    const localItems=()=>{try{return JSON.parse(localStorage.getItem(key)||'[]').filter(item=>item?.researchQuery);}catch(_){return [];}};
+    const signature=item=>JSON.stringify(fields.map(name=>String(item?.[name]||'')));
+    const merge=(...groups)=>{
+      const seen=new Set(),merged=[];
+      groups.flat().forEach(item=>{
+        if(!item?.researchQuery)return;
+        const id=signature(item);
+        if(seen.has(id))return;
+        seen.add(id);merged.push(item);
+      });
+      return merged.slice(0,12);
+    };
+    const save=()=>{try{localStorage.setItem(key,JSON.stringify(items));}catch(_){}};
+    const render=()=>{
+      const select=document.getElementById('researchHistory');
+      if(!select)return;
+      select.innerHTML='<option value="">Elegir una consulta anterior…</option>'+items.map((item,index)=>
+        '<option value="'+index+'">'+esc(String(item.researchQuery||'').slice(0,120))+'</option>'
+      ).join('');
+    };
+    const refresh=async()=>{
+      let remote=[];
+      try{
+        const response=await fetch('/api/research-history',{cache:'no-store'});
+        const data=await response.json();
+        if(response.ok&&data.ok&&Array.isArray(data.items))remote=data.items;
+      }catch(_){}
+      items=merge(remote,localItems(),items);
+      save();render();
+    };
+    const currentDraft=()=>({
+      researchQuery:String(document.getElementById('researchQuery')?.value||'').trim(),
+      researchFacts:String(document.getElementById('researchFacts')?.value||'').trim(),
+      researchObjective:String(document.getElementById('researchObjective')?.value||'').trim(),
+      researchInstruction:String(document.getElementById('researchInstruction')?.value||'').trim(),
+      maxSources:Number(document.getElementById('researchMaxSources')?.value||14),
+    });
+
+    document.addEventListener('change',event=>{
+      if(event.target?.id!=='researchHistory'||event.target.value==='')return;
+      const item=items[Number(event.target.value)];
+      if(!item)return;
+      event.stopImmediatePropagation();
+      fields.forEach(name=>{
+        const field=document.getElementById(name);
+        if(field){field.value=String(item[name]||'');field.dispatchEvent(new Event('input',{bubbles:true}));}
+      });
+      const max=document.getElementById('researchMaxSources');
+      if(max&&Number(item.maxSources)>0)max.value=String(item.maxSources);
+      event.target.value='';
+    },true);
+
+    document.addEventListener('click',event=>{
+      if(!event.target?.closest?.('#startContext'))return;
+      const draft=currentDraft();
+      if(!draft.researchQuery)return;
+      items=merge([draft],items,localItems());
+      save();render();
+    },true);
+
+    refresh();
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
+  }
+
   function mobileOpenResponse(path,page,snippet){
     const openInViewer=()=>{
       if(typeof window.lexiaQuickViewerOpen==='function'){
@@ -578,6 +731,8 @@
     installMobileViewerFix();
     installMobileRecentHistoryFix();
     installHomeFilenameSearchFix();
+    installHomeLiveDataFix();
+    installPersistentResearchHistory();
     const category=categoryElement();
     category?.addEventListener('change',()=>setTimeout(render,0));
     document.getElementById('clearFilters')?.addEventListener('click',()=>setTimeout(clear,0),true);

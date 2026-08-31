@@ -1243,6 +1243,129 @@ def _search_filename_rows(query: str, limit: int = 100, category=None, folder=No
     finally:
         con.close()
 
+def _research_history_items(limit: int = 12):
+    """Return persisted Investigation drafts, newest unique query first."""
+    db = RUNTIME_ROOT / "context_query_history.sqlite3"
+    if not db.exists():
+        return []
+    wanted = max(1, min(int(limit or 12), 50))
+    con = sqlite3.connect(str(db), timeout=5)
+    con.row_factory = sqlite3.Row
+    try:
+        tables = {
+            str(row[0])
+            for row in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "context_query_history" not in tables:
+            return []
+        columns = {
+            str(row[1])
+            for row in con.execute(
+                'PRAGMA table_info("context_query_history")'
+            ).fetchall()
+        }
+        if "query" not in columns:
+            return []
+        selected = [
+            name for name in (
+                "id", "query", "facts", "objective",
+                "additional_instruction", "max_sources", "created_at",
+            ) if name in columns
+        ]
+        order = "id DESC" if "id" in columns else (
+            "created_at DESC" if "created_at" in columns else "rowid DESC"
+        )
+        rows = con.execute(
+            "SELECT " + ",".join('"' + name + '"' for name in selected) +
+            " FROM context_query_history "
+            "WHERE TRIM(COALESCE(query,''))<>'' "
+            "ORDER BY " + order + " LIMIT ?",
+            (max(wanted * 8, 50),),
+        ).fetchall()
+        items = []
+        seen = set()
+        for row in rows:
+            keys = set(row.keys())
+            item = {
+                "researchQuery": str(row["query"] or "").strip(),
+                "researchFacts": str(row["facts"] or "").strip() if "facts" in keys else "",
+                "researchObjective": str(row["objective"] or "").strip() if "objective" in keys else "",
+                "researchInstruction": (
+                    str(row["additional_instruction"] or "").strip()
+                    if "additional_instruction" in keys else ""
+                ),
+                "maxSources": (
+                    int(row["max_sources"] or 0)
+                    if "max_sources" in keys and row["max_sources"] is not None else None
+                ),
+                "createdAt": str(row["created_at"] or "") if "created_at" in keys else "",
+            }
+            key = tuple(item[name] for name in (
+                "researchQuery", "researchFacts", "researchObjective", "researchInstruction"
+            ))
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(item)
+            if len(items) >= wanted:
+                break
+        return items
+    finally:
+        con.close()
+
+
+def _record_ui2_context_query_history(payload):
+    """Persist one successful Investigation start without affecting its result."""
+    body = payload if isinstance(payload, dict) else {}
+    query = str(body.get("query") or "").strip()
+    if not query:
+        return
+    db = RUNTIME_ROOT / "context_query_history.sqlite3"
+    db.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(db), timeout=5)
+    try:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS context_query_history ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, query TEXT NOT NULL, "
+            "facts TEXT NOT NULL DEFAULT '', objective TEXT NOT NULL DEFAULT '', "
+            "additional_instruction TEXT NOT NULL DEFAULT '', "
+            "max_sources INTEGER NOT NULL DEFAULT 14, "
+            "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+        )
+        columns = {
+            str(row[1])
+            for row in con.execute(
+                'PRAGMA table_info("context_query_history")'
+            ).fetchall()
+        }
+        values_by_name = {
+            "query": query,
+            "facts": str(body.get("facts") or "").strip(),
+            "objective": str(body.get("objective") or "Investigación jurídica").strip(),
+            "additional_instruction": str(
+                body.get("additional_instruction") or body.get("instruction") or ""
+            ).strip(),
+            "max_sources": max(1, int(body.get("max_sources") or 14)),
+        }
+        fields = [name for name in values_by_name if name in columns]
+        placeholders = ["?" for _ in fields]
+        values = [values_by_name[name] for name in fields]
+        if "created_at" in columns:
+            fields.append("created_at")
+            placeholders.append("CURRENT_TIMESTAMP")
+        con.execute(
+            "INSERT INTO context_query_history (" +
+            ",".join('"' + name + '"' for name in fields) +
+            ") VALUES (" + ",".join(placeholders) + ")",
+            values,
+        )
+        con.commit()
+    finally:
+        con.close()
+
+
 def _record_ui2_search_history(query: str, mode: str):
     value = str(query or "").strip()
     search_mode = str(mode or "").strip().lower()
@@ -1557,6 +1680,11 @@ def _core_research_result():
 
 def _core_research_candidates_start(payload):
     response, _ = _delete_bridge_request("POST", "/api/research-candidates-start", payload)
+    try:
+        _record_ui2_context_query_history(payload)
+    except Exception:
+        # History must never make a successful Investigation fail.
+        pass
     return response
 
 
@@ -2557,6 +2685,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == "/api/research-history":
+            try:
+                return self._json({"ok": True, "items": _research_history_items(12)})
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
         if path == "/api/maintenance-live":
             try:
                 return self._json(_maintenance_live_snapshot())
