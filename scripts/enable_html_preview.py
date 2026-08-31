@@ -15,8 +15,8 @@ ARRAY_OLD = "['.doc','.docx','.rtf','.odt']"
 ARRAY_NEW = "['.doc','.docx','.rtf','.odt','.html','.htm']"
 
 REGEX_REPLACEMENTS = (
-    (r'/\\.(doc|docx|rtf|odt)$/i', r'/\\.(doc|docx|rtf|odt|html|htm)$/i'),
-    (r'/\\.(doc|docx|rtf|odt)(?:\\?|#|$)/i', r'/\\.(doc|docx|rtf|odt|html|htm)(?:\\?|#|$)/i'),
+    (r'/\.(doc|docx|rtf|odt)$/i', r'/\.(doc|docx|rtf|odt|html|htm)$/i'),
+    (r'/\.(doc|docx|rtf|odt)(?:\?|#|$)/i', r'/\.(doc|docx|rtf|odt|html|htm)(?:\?|#|$)/i'),
 )
 
 MARKER = "LEXIA_HTML_PREVIEW_20260831"
