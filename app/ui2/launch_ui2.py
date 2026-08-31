@@ -37,7 +37,7 @@ def _ensure_ui_assets() -> str | None:
         return None
     if marker in original:
         return None
-    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-3"></script>\n'
+    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-4"></script>\n'
     patched = (
         original.replace("</body>", tag + "</body>", 1)
         if "</body>" in original

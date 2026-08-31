@@ -34,7 +34,7 @@ def test_mobile_search_prevents_and_recovers_focus_zoom():
     assert "__lexiaMobileViewportResetInstalled" in loader
     for launcher in ("launch_ui2.py", "macos_desktop.py", "windows_desktop.py"):
         source = (UI2 / launcher).read_text(encoding="utf-8")
-        assert "jurisprudence_search.js?v=juris-mobile-3" in source
+        assert "jurisprudence_search.js?v=juris-mobile-4" in source
 
 
 def test_mobile_recent_history_activates_before_pointerout_closes_panel():
@@ -45,6 +45,18 @@ def test_mobile_recent_history_activates_before_pointerout_closes_panel():
     assert "window.addEventListener('pointerdown'" in loader
     assert "input.value=String(button.dataset.query||'')" in loader
     assert "window.lexiaSearch320Run?.()" in loader
+
+
+def test_home_search_always_switches_to_filename_before_running():
+    loader = (UI2 / "assets" / "jurisprudence_search.js").read_text(encoding="utf-8")
+
+    assert "installHomeFilenameSearchFix" in loader
+    assert "#homeQuickSearchButton" in loader
+    assert "window.lexiaSearch320SetMode?.('filename')" in loader
+    mode_position = loader.index("window.lexiaSearch320SetMode?.('filename')")
+    query_position = loader.index("legal.value=query", mode_position)
+    run_position = loader.index("window.lexiaSearch320Run?.()", query_position)
+    assert mode_position < query_position < run_position
 
 
 def test_mobile_viewer_has_real_page_controls_and_server_renderer():

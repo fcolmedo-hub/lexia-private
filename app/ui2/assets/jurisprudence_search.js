@@ -309,6 +309,66 @@
     },true);
   }
 
+  function installHomeFilenameSearchFix(){
+    if(window.__lexiaHomeFilenameSearchInstalled)return;
+    window.__lexiaHomeFilenameSearchInstalled=true;
+    let activatedAt=0;
+
+    const navigateToSearch=()=>{
+      const navigate=
+        window.lexiaUI2NavigateGlobal||
+        window.lexiaUI2NavigateSafe||
+        window.lexiaUI2Navigate||
+        window.lexiaUI2Show||
+        window.go;
+      if(typeof navigate==='function')navigate('searchpage');
+    };
+
+    const run=()=>{
+      const home=document.getElementById('homeQuickSearchInput');
+      const query=String(home?.value||'').trim();
+      if(!query)return false;
+      activatedAt=performance.now();
+      navigateToSearch();
+      window.setTimeout(()=>{
+        window.lexiaSearch320SetMode?.('filename');
+        const legal=document.getElementById('legalQuery');
+        if(legal){
+          legal.value=query;
+          legal.dispatchEvent(new Event('input',{bubbles:true}));
+        }
+        window.lexiaSearch320Run?.();
+      },0);
+      return true;
+    };
+
+    if(isMobileClient()){
+      window.addEventListener('pointerdown',event=>{
+        if(!event.target?.closest?.('#homeQuickSearchButton'))return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        run();
+      },true);
+    }
+
+    window.addEventListener('click',event=>{
+      if(!event.target?.closest?.('#homeQuickSearchButton'))return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      if(performance.now()-activatedAt>700)run();
+    },true);
+
+    window.addEventListener('keydown',event=>{
+      if(event.key!=='Enter'||event.target?.id!=='homeQuickSearchInput')return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      run();
+    },true);
+  }
+
   function mobileOpenResponse(path,page,snippet){
     const openInViewer=()=>{
       if(typeof window.lexiaQuickViewerOpen==='function'){
@@ -474,6 +534,7 @@
     installFetchBridge();
     installMobileViewerFix();
     installMobileRecentHistoryFix();
+    installHomeFilenameSearchFix();
     const category=categoryElement();
     category?.addEventListener('change',()=>setTimeout(render,0));
     document.getElementById('clearFilters')?.addEventListener('click',()=>setTimeout(clear,0),true);
