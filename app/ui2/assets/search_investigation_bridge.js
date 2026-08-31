@@ -239,9 +239,9 @@
     const status=document.getElementById('studyStatus');
     if(status){
       status.hidden=false;
-      status.textContent='Archivo cargado desde Buscar: '+(name||path)+'. Configurá el objetivo y presioná “Estudiar”.';
+      status.textContent='Archivo cargado: '+(name||path)+'. Indicá qué querés investigar, elegí el tipo de documento y presioná “Estudiar”.';
     }
-    input.focus({preventScroll:true});
+    try{input.focus({preventScroll:true});}catch(_){input.focus();}
     studyPanel?.scrollIntoView({block:'start'});
   }
 
@@ -311,7 +311,7 @@
     try{
       const requested=decodePath(button.dataset.path);
       const resolver=window.lexiaSearch320bResolve;
-      const resolved=typeof resolver==='function' ? await resolver(card) : requested;
+      const resolved=typeof resolver==='function' && !button.hasAttribute('data-lexia-navigator-investigate') ? await resolver(card) : requested;
       if(!resolved)throw new Error('El resultado no conserva una ruta utilizable.');
       loadStudyFile(resolved,name);
     }catch(error){
@@ -322,14 +322,56 @@
     }
   },true);
 
+  function ensureStudyTypes(){
+    const select=document.getElementById('studyType');
+    if(!select)return;
+    const existing=new Set([...select.options].map(option=>option.value.trim().toLocaleLowerCase('es')));
+    ['Libro','Doctrina','Legislación'].forEach(label=>{
+      if(existing.has(label.toLocaleLowerCase('es')))return;
+      const option=document.createElement('option');
+      option.value=label;
+      option.textContent=label;
+      select.appendChild(option);
+    });
+  }
+
+  function syncNavigatorSurface(){
+    document.querySelectorAll('#lexiaNavigatorFiles .lexia-nav-file-card').forEach(card=>{
+      const actions=card.querySelector('.result-actions');
+      if(!actions||actions.querySelector('[data-lexia-navigator-investigate]'))return;
+      const encoded=card.dataset.navPath||actions.querySelector('[data-path]')?.dataset.path||'';
+      if(!encoded)return;
+      const button=document.createElement('button');
+      button.type='button';
+      button.setAttribute('role','menuitem');
+      button.setAttribute(INVESTIGATE_ATTR,'1');
+      button.setAttribute('data-lexia-navigator-investigate','1');
+      button.className='search-investigate-file lexia-nav-investigate-file';
+      button.dataset.path=encoded;
+      button.textContent='Investigar';
+      button.title='Cargar este archivo en Investigación · Estudiar un archivo';
+      const remove=actions.querySelector('.search-delete-file');
+      if(remove)actions.insertBefore(button,remove);
+      else actions.appendChild(button);
+    });
+  }
+
+  function syncAllSurfaces(){
+    syncSearchSurface();
+    syncNavigatorSurface();
+    ensureStudyTypes();
+  }
+
   function initialize(){
     ensureButtonColors();
     setupRecentHistoryTouchFix();
     installHtmlViewerFix();
-    syncSearchSurface();
+    syncAllSurfaces();
     const page=document.getElementById(SEARCH_PAGE_ID);
     if(!page)return;
-    new MutationObserver(syncSearchSurface).observe(page,{childList:true,subtree:true});
+    new MutationObserver(syncAllSurfaces).observe(page,{childList:true,subtree:true});
+    const context=document.getElementById('contextpage');
+    if(context)new MutationObserver(ensureStudyTypes).observe(context,{childList:true,subtree:true});
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
