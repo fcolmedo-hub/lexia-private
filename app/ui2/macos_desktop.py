@@ -118,28 +118,39 @@ def ensure_ui_assets(root: Path) -> str | None:
     index = here / "index.html"
     jurisprudence = here / "assets" / "jurisprudence_search.js"
     app_runtime = here / "assets" / "app_runtime.js"
+    study_layout_guard = here / "assets" / "study_layout_guard.js"
+    startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
         return None
 
     original = index.read_text(encoding="utf-8")
     patched = original
-    tags = []
+    head_tags: list[str] = []
+    body_tags: list[str] = []
+
+    if startup_frame_guard.exists() and "assets/startup_frame_guard.css" not in patched:
+        head_tags.append('<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">')
 
     if "assets/jurisprudence_search.js" not in patched:
-        tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
+        body_tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
 
     if "assets/app_runtime.js" not in patched:
-        tags.append('<script src="assets/app_runtime.js?v=app-runtime-1"></script>')
+        body_tags.append('<script src="assets/app_runtime.js?v=app-runtime-2"></script>')
 
-    if not tags:
+    if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
+        body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
+
+    if not head_tags and not body_tags:
         return None
 
-    block = "\n".join(tags) + "\n"
-    patched = (
-        patched.replace("</body>", block + "</body>", 1)
-        if "</body>" in patched
-        else patched + "\n" + block
-    )
+    if head_tags:
+        block = "\n".join(head_tags) + "\n"
+        patched = patched.replace("</head>", block + "</head>", 1) if "</head>" in patched else block + patched
+
+    if body_tags:
+        block = "\n".join(body_tags) + "\n"
+        patched = patched.replace("</body>", block + "</body>", 1) if "</body>" in patched else patched + "\n" + block
+
     index.write_text(patched, encoding="utf-8")
     return original
 
@@ -231,7 +242,9 @@ def main() -> int:
             min_size=(1000, 700),
             resizable=True,
         )
-        webview.start(gui="cocoa")
+        # PyWebView usa modo privado por defecto. Desactivarlo conserva
+        # localStorage entre sesiones (p. ej. Indicaciones recientes).
+        webview.start(gui="cocoa", private_mode=False)
         return 0
     finally:
         stop_process(server)
