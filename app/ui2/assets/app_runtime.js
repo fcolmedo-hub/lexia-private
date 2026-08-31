@@ -46,21 +46,21 @@
     const panel=document.createElement('div');
     panel.id='lexiaAppHomeHistory';
     panel.setAttribute('role','listbox');
-    panel.setAttribute('aria-label','Búsquedas recientes');
+    panel.setAttribute('aria-label','Búsquedas recientes por nombre');
     form.appendChild(panel);
 
     let serial=0;
     const close=()=>panel.classList.remove('open');
     const refresh=async()=>{
       const current=++serial;
-      panel.innerHTML='<div class="head">Búsquedas recientes</div>';
+      panel.innerHTML='<div class="head">Búsquedas recientes por nombre</div>';
       try{
-        const response=await fetch('/api/search-history?mode=professional',{cache:'no-store'});
+        const response=await fetch('/api/search-history?mode=filename',{cache:'no-store'});
         const data=await response.json();
         if(current!==serial)return;
         const items=Array.isArray(data?.items)?data.items:[];
         if(!items.length){
-          panel.insertAdjacentHTML('beforeend','<div class="empty">Todavía no hay búsquedas recientes.</div>');
+          panel.insertAdjacentHTML('beforeend','<div class="empty">Todavía no hay búsquedas recientes por nombre.</div>');
           return;
         }
         items.slice(0,30).forEach(item=>{
@@ -139,15 +139,15 @@
   }
 
   function installHtmlViewer(){
-    if(window.__lexiaAppHtmlViewerInstalled)return;
-    const original=window.lexiaQuickViewerOpen;
-    if(typeof original!=='function'){
+    const current=window.lexiaQuickViewerOpen;
+    if(typeof current!=='function'){
       window.setTimeout(installHtmlViewer,50);
       return;
     }
-    window.__lexiaAppHtmlViewerInstalled=true;
+    if(current.__lexiaHtmlViewerWrapper===true)return;
 
-    window.lexiaQuickViewerOpen=async function(path,page,snippet){
+    const original=current;
+    const wrapped=async function(path,page,snippet){
       const ext=extension(path);
       if(ext!=='.htm'&&ext!=='.html')return original(path,page,snippet);
 
@@ -183,11 +183,22 @@
       }
       return true;
     };
+
+    wrapped.__lexiaHtmlViewerWrapper=true;
+    wrapped.__lexiaHtmlViewerOriginal=original;
+    window.lexiaQuickViewerOpen=wrapped;
   }
 
   function initialize(){
     installHomeHistory();
     installHtmlViewer();
+
+    // Algunos módulos históricos vuelven a asignar lexiaQuickViewerOpen después
+    // de cargar el runtime. Reinstalar el wrapper en fase de captura garantiza
+    // que el clic que abre el archivo ya vea el visor HTML correcto.
+    document.addEventListener('pointerdown',installHtmlViewer,true);
+    document.addEventListener('mousedown',installHtmlViewer,true);
+    document.addEventListener('click',installHtmlViewer,true);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
