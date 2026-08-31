@@ -77,10 +77,15 @@
       }
     };
 
-    const open=()=>{ refresh(); panel.classList.add('open'); };
+    const open=()=>{
+      refresh();
+      panel.classList.add('open');
+    };
 
-    input.addEventListener('focus',open);
-    input.addEventListener('click',event=>{ event.stopPropagation(); close(); });
+    input.addEventListener('click',event=>{
+      event.stopPropagation();
+      close();
+    });
     input.addEventListener('input',close);
     input.addEventListener('keydown',event=>{ if(event.key==='Escape')close(); });
 
@@ -100,6 +105,8 @@
       if(event.target===input||panel.contains(event.target))return;
       close();
     },true);
+
+    open();
   }
 
   function extension(path){
@@ -192,10 +199,6 @@
   function initialize(){
     installHomeHistory();
     installHtmlViewer();
-
-    // Algunos módulos históricos vuelven a asignar lexiaQuickViewerOpen después
-    // de cargar el runtime. Reinstalar el wrapper en fase de captura garantiza
-    // que el clic que abre el archivo ya vea el visor HTML correcto.
     document.addEventListener('pointerdown',installHtmlViewer,true);
     document.addEventListener('mousedown',installHtmlViewer,true);
     document.addEventListener('click',installHtmlViewer,true);
