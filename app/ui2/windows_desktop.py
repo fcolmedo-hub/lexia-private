@@ -313,7 +313,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     original = index.read_text(encoding="utf-8")
     if marker in original:
         return None
-    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-2"></script>\n'
+    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-3"></script>\n'
     patched = original.replace("</body>", tag + "</body>", 1) if "</body>" in original else original + "\n" + tag
     index.write_text(patched, encoding="utf-8")
     return original

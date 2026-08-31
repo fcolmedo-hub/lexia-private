@@ -271,6 +271,44 @@
     },true);
   }
 
+  function installMobileRecentHistoryFix(){
+    if(!isMobileClient()||window.__lexiaMobileRecentHistoryInstalled)return;
+    window.__lexiaMobileRecentHistoryInstalled=true;
+    let activatedAt=0;
+
+    const historyButton=target=>target?.closest?.('#searchRecentHistory button[data-query]');
+    const activate=button=>{
+      if(!button)return false;
+      const input=document.getElementById('legalQuery');
+      if(!input)return false;
+      activatedAt=performance.now();
+      input.value=String(button.dataset.query||'');
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      document.getElementById('searchRecentHistory')?.classList.remove('open');
+      input.blur();
+      window.setTimeout(()=>window.lexiaSearch320Run?.(),0);
+      return true;
+    };
+
+    window.addEventListener('pointerdown',event=>{
+      const button=historyButton(event.target);
+      if(!button)return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      activate(button);
+    },true);
+
+    window.addEventListener('click',event=>{
+      const button=historyButton(event.target);
+      if(!button)return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      if(performance.now()-activatedAt>700)activate(button);
+    },true);
+  }
+
   function mobileOpenResponse(path,page,snippet){
     const openInViewer=()=>{
       if(typeof window.lexiaQuickViewerOpen==='function'){
@@ -435,6 +473,7 @@
     render();
     installFetchBridge();
     installMobileViewerFix();
+    installMobileRecentHistoryFix();
     const category=categoryElement();
     category?.addEventListener('change',()=>setTimeout(render,0));
     document.getElementById('clearFilters')?.addEventListener('click',()=>setTimeout(clear,0),true);
