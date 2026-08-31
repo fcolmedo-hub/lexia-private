@@ -1,0 +1,11 @@
+/* LexIA UI2 — prevent transient focus/frame artifacts during first WebView paint. */
+#home .home-real,
+#home .hr-main,
+#home .home-real:focus,
+#home .home-real:focus-visible,
+#home .hr-main:focus,
+#home .hr-main:focus-visible{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
