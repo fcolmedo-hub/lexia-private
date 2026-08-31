@@ -102,6 +102,41 @@
     document.head.appendChild(style);
   }
 
+  function installStudyFileInterface(){
+    if(window.__lexiaAppStudyFileInterfaceInstalled)return;
+    const type=document.getElementById('studyType');
+    const instruction=document.getElementById('studyInstruction');
+    if(!type||!instruction){
+      window.setTimeout(installStudyFileInterface,50);
+      return;
+    }
+    window.__lexiaAppStudyFileInterfaceInstalled=true;
+
+    [...type.options].forEach(option=>{
+      if(String(option.textContent||'').trim().toLowerCase()==='dictamen')option.remove();
+    });
+
+    const existing=new Set(
+      [...type.options].map(option=>String(option.textContent||'').trim().toLowerCase())
+    );
+    const insertBefore=[...type.options].find(option=>
+      String(option.textContent||'').trim().toLowerCase()==='otro documento jurídico'
+    );
+    ['Libro','Doctrina'].forEach(label=>{
+      if(existing.has(label.toLowerCase()))return;
+      const option=document.createElement('option');
+      option.value=label;
+      option.textContent=label;
+      if(insertBefore)type.insertBefore(option,insertBefore);
+      else type.appendChild(option);
+      existing.add(label.toLowerCase());
+    });
+
+    const label=document.querySelector('label[for="studyInstruction"]');
+    if(label)label.textContent='Indicaciones';
+    instruction.placeholder='Ej.: divorcio, responsabilidad parental, alimentos…';
+  }
+
   function installHomeHistory(){
     if(window.__lexiaAppHomeHistoryInstalled)return;
     const input=document.getElementById('homeQuickSearchInput');
@@ -177,8 +212,6 @@
       panel.classList.add('open');
     };
 
-    // Mismo patrón que Buscar -> legalQuery:
-    // clic explícito abre; escritura, Escape o clic fuera cierran.
     document.addEventListener('click',event=>{
       if(event.target.closest?.('#homeQuickSearchInput'))open();
     },true);
@@ -298,6 +331,7 @@
 
   function initialize(){
     installInvestigationResponsiveStyles();
+    installStudyFileInterface();
     installHomeHistory();
     installHtmlViewer();
     document.addEventListener('pointerdown',installHtmlViewer,true);
