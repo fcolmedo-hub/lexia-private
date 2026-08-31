@@ -18,6 +18,17 @@
   box-shadow:inset 3px 0 0 #5146f6!important;
 }
 
+/* Home is rendered once before its live-data refresh.  The legacy first paint
+   can expose a black frame around the main surface.  Keep the application
+   shell permanently frameless instead of relying on a launcher-injected CSS. */
+#home,
+#home .home-real,
+#home .hr-main{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+
 /* On compact desktop windows Search must use the viewport remainder, not its
    grid's intrinsic width. The sidebar width is fluid in this range, so a
    fixed subtraction leaves the actions clipped at the right edge. */
@@ -102,7 +113,15 @@
     box-shadow:inset 3px 0 0 #5146f6!important;
   }
 
-  #home .hr-content,
+  /* The fixed menu trigger occupies the upper-left corner.  Home previously
+     started underneath it, so the button covered "Bienvenido".  Reserve a
+     real header row for the trigger on every compact desktop/mobile width. */
+  #home .hr-content{
+    padding-top:58px!important;
+    padding-left:8px!important;
+    padding-right:8px!important;
+  }
+
   .library .page,.searchpage .page,.contextpage .page,.activitypage .page,.systempage .page{
     padding-left:8px!important;
     padding-right:8px!important;
