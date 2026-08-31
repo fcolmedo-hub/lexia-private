@@ -80,7 +80,7 @@
     const open=()=>{ refresh(); panel.classList.add('open'); };
 
     input.addEventListener('focus',open);
-    input.addEventListener('click',event=>{ event.stopPropagation(); open(); });
+    input.addEventListener('click',event=>{ event.stopPropagation(); close(); });
     input.addEventListener('input',close);
     input.addEventListener('keydown',event=>{ if(event.key==='Escape')close(); });
 
