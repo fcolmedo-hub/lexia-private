@@ -105,12 +105,35 @@ def _stop_process(process: subprocess.Popen) -> None:
         process.wait(timeout=3)
 
 
+def _start_windows_core_bridge():
+    """En Windows, UI2 puede ser la única interfaz visible.
+
+    El puente central antes nacía dentro de app/ui.py (Streamlit).  Al lanzar
+    UI2 directamente no existe esa sesión clásica, por lo que server.py no
+    encuentra ui2_delete_bridge.json.  Crear aquí la aplicación central y el
+    puente mantiene borrado, mantenimiento y OCR disponibles sin abrir la UI
+    clásica.  Se limita a Windows para no alterar el arranque ya estable de
+    macOS.
+    """
+    if os.name != "nt":
+        return None
+
+    from services.application import LexIAApplication
+    from services.ui2_delete_bridge import start_ui2_delete_bridge
+
+    application = LexIAApplication()
+    if not start_ui2_delete_bridge(application):
+        raise RuntimeError("No se pudo iniciar el puente central de LexIA para UI2.")
+    return application
+
+
 def main() -> int:
     print("LexIA UI2 Desktop")
     print("Proyecto:", ROOT)
     print("UI2:", URL)
 
     original_index = _ensure_ui_assets()
+    core_application = _start_windows_core_bridge()
 
     env = os.environ.copy()
     env["LEXIA_UI2_PORT"] = PORT
@@ -146,15 +169,14 @@ def main() -> int:
             resizable=True,
         )
 
-        # webview.start() bloquea hasta que se cierra la última ventana.
-        # Al cerrar la ventana de LexIA este proceso continúa al finally,
-        # detiene server.py y permite que el launcher principal apague
-        # también los servicios headless mediante su trap de salida.
         webview.start()
         return 0
     finally:
         _stop_process(server)
         _restore_ui_assets(original_index)
+        # Mantiene una referencia viva durante toda la sesión; al cerrar la
+        # ventana, el proceso termina y con él el servidor daemon del puente.
+        del core_application
 
 
 if __name__ == "__main__":
