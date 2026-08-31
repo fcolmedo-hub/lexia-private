@@ -307,14 +307,27 @@ def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
     script = here / "assets" / "jurisprudence_search.js"
+    startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (index.exists() and script.exists()):
         return None
-    marker = "assets/jurisprudence_search.js"
+
     original = index.read_text(encoding="utf-8")
-    if marker in original:
+    patched = original
+    changed = False
+
+    if startup_frame_guard.exists() and "assets/startup_frame_guard.css" not in patched:
+        tag = '<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">\n'
+        patched = patched.replace("</head>", tag + "</head>", 1) if "</head>" in patched else tag + patched
+        changed = True
+
+    if "assets/jurisprudence_search.js" not in patched:
+        tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>\n'
+        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
+        changed = True
+
+    if not changed:
         return None
-    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>\n'
-    patched = original.replace("</body>", tag + "</body>", 1) if "</body>" in original else original + "\n" + tag
+
     index.write_text(patched, encoding="utf-8")
     return original
 
@@ -414,7 +427,9 @@ def main() -> int:
         import webview
 
         webview.create_window("LexIA", URL, width=1440, height=900, min_size=(1000, 700), resizable=True)
-        webview.start()
+        # PyWebView usa modo privado por defecto; desactivarlo conserva
+        # localStorage entre reinicios (por ejemplo Indicaciones recientes).
+        webview.start(private_mode=False)
         return 0
     finally:
         stop_process(server)
