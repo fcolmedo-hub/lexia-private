@@ -169,6 +169,101 @@
     observer.observe(document.body,{childList:true,subtree:true});
   }
 
+  function installNavigatorExactFolderFilter(){
+    if(window.__lexiaAppNavigatorExactFolderInstalled)return;
+    window.__lexiaAppNavigatorExactFolderInstalled=true;
+
+    const nativeFetch=window.fetch.bind(window);
+    const normalizePath=value=>String(value||'')
+      .replace(/\\/g,'/')
+      .replace(/\/+$/,'')
+      .toLowerCase();
+    const parentPath=value=>{
+      const normalized=normalizePath(value);
+      const slash=normalized.lastIndexOf('/');
+      return slash>0?normalized.slice(0,slash):'';
+    };
+
+    window.fetch=async function(input,init){
+      const requestUrl=typeof input==='string'?input:String(input?.url||'');
+      const method=String(init?.method||input?.method||'GET').toUpperCase();
+      if(method!=='POST'||!requestUrl.includes('/api/navigator-documents')){
+        return nativeFetch(input,init);
+      }
+
+      let body;
+      try{
+        body=JSON.parse(String(init?.body||''));
+      }catch(_){
+        return nativeFetch(input,init);
+      }
+
+      const rawSelections=Array.isArray(body?.selections)
+        ? body.selections
+        : ((body?.folder||body?.category)
+          ? [{category:body?.category||'',folder:body?.folder||''}]
+          : []);
+      const folders=rawSelections
+        .map(selection=>normalizePath(selection?.folder))
+        .filter(Boolean);
+      if(!folders.length)return nativeFetch(input,init);
+
+      const requestedOffset=Math.max(0,Number(body?.offset||0));
+      const requestedLimit=Math.max(1,Math.min(Number(body?.limit||200),200));
+      const wanted=requestedOffset+requestedLimit+1;
+      const exact=[];
+      let recursiveOffset=0;
+      let recursiveTotal=Infinity;
+      let template=null;
+      let templateResponse=null;
+
+      while(recursiveOffset<recursiveTotal&&exact.length<wanted){
+        const scanBody={...body,offset:recursiveOffset,limit:200};
+        const scanInit={...(init||{}),body:JSON.stringify(scanBody)};
+        const response=await nativeFetch(input,scanInit);
+        if(!response.ok)return response;
+
+        const data=await response.json();
+        if(!template){
+          template=data;
+          templateResponse=response;
+        }
+        const items=Array.isArray(data?.items)?data.items:[];
+        recursiveTotal=Math.max(0,Number(data?.total||0));
+        for(const item of items){
+          if(folders.includes(parentPath(item?.document_path)))exact.push(item);
+        }
+        if(!items.length)break;
+        recursiveOffset+=items.length;
+      }
+
+      if(!template)return nativeFetch(input,init);
+
+      const exhausted=recursiveOffset>=recursiveTotal;
+      const pageItems=exact.slice(requestedOffset,requestedOffset+requestedLimit);
+      const hasMore=exact.length>requestedOffset+requestedLimit||!exhausted;
+      const exactTotal=exhausted
+        ? exact.length
+        : requestedOffset+pageItems.length+(hasMore?1:0);
+      const output={
+        ...template,
+        items:pageItems,
+        total:exactTotal,
+        offset:requestedOffset,
+        limit:requestedLimit,
+        has_more:hasMore,
+        include_subfolders:false,
+      };
+      const headers=new Headers(templateResponse?.headers||{});
+      headers.set('content-type','application/json; charset=utf-8');
+      return new Response(JSON.stringify(output),{
+        status:templateResponse?.status||200,
+        statusText:templateResponse?.statusText||'OK',
+        headers,
+      });
+    };
+  }
+
   function installHomeHistory(){
     if(window.__lexiaAppHomeHistoryInstalled)return;
     const input=document.getElementById('homeQuickSearchInput');
@@ -365,6 +460,7 @@
     installInvestigationResponsiveStyles();
     installStudyFileInterface();
     installLiveSearchBadgeRemoval();
+    installNavigatorExactFolderFilter();
     installHomeHistory();
     installHtmlViewer();
     document.addEventListener('pointerdown',installHtmlViewer,true);
