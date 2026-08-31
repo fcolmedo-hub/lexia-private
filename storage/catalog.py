@@ -254,6 +254,16 @@ class DocumentCatalog:
                 "duplicate_of",
                 "TEXT",
             )
+            # Existing catalogs did not preserve the first insertion time.  Keep
+            # migrated rows NULL instead of pretending they were all added on
+            # the migration day; new rows receive a real creation timestamp in
+            # save().
+            self._ensure_column(
+                connection,
+                "documents",
+                "created_at",
+                "TEXT",
+            )
 
             connection.execute(
                 """
@@ -537,9 +547,9 @@ class DocumentCatalog:
                     content_hash, vector_indexed_hash, text_content,
                     extraction_error, metadata_json, extraction_method,
                     ocr_pages, total_pages, duplicate_of, is_deleted,
-                    updated_at
+                    created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?,
                         CURRENT_TIMESTAMP)
                 """,
                 (
@@ -558,6 +568,7 @@ class DocumentCatalog:
                     old["ocr_pages"],
                     old["total_pages"],
                     old["duplicate_of"],
+                    old["created_at"],
                 ),
             )
             _probe["insert_new_document"] += perf_counter() - _probe_t0
@@ -787,9 +798,9 @@ class DocumentCatalog:
                         content_hash, vector_indexed_hash, text_content,
                         extraction_error, metadata_json, extraction_method,
                         ocr_pages, total_pages, duplicate_of, is_deleted,
-                        updated_at
+                        created_at, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?,
                             CURRENT_TIMESTAMP)
                     """,
                     [
@@ -812,6 +823,7 @@ class DocumentCatalog:
                             old_rows[old_resolved]["ocr_pages"],
                             old_rows[old_resolved]["total_pages"],
                             old_rows[old_resolved]["duplicate_of"],
+                            old_rows[old_resolved]["created_at"],
                         )
                         for old_resolved, new_resolved, document in valid
                     ],
@@ -1142,11 +1154,11 @@ class DocumentCatalog:
                     content_hash, vector_indexed_hash, text_content,
                     extraction_error, metadata_json,
                     extraction_method, ocr_pages, total_pages,
-                    duplicate_of, is_deleted, updated_at
+                    duplicate_of, is_deleted, created_at, updated_at
                 )
                 VALUES (
                     ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?,
-                    ?, ?, ?, ?, 0, CURRENT_TIMESTAMP
+                    ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 ON CONFLICT(path) DO UPDATE SET
                     name = excluded.name,

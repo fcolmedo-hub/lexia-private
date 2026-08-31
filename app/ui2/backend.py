@@ -79,6 +79,7 @@ class LiveReadOnlyAdapter:
         result = {
             "documents": 0,
             "fragments": 0,
+            "added_today": None,
             "categories": [],
             "recent_documents": [],
             "recent_errors": [],
@@ -88,9 +89,20 @@ class LiveReadOnlyAdapter:
             return result
         try:
             with _ro_connect(self.catalog_path) as con:
+                document_columns = {
+                    str(row[1])
+                    for row in con.execute('PRAGMA table_info("documents")').fetchall()
+                }
                 result["documents"] = int(con.execute(
                     "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
                 ).fetchone()[0])
+                if "created_at" in document_columns:
+                    result["added_today"] = int(con.execute(
+                        """SELECT COUNT(*) FROM documents
+                           WHERE is_deleted = 0
+                             AND created_at IS NOT NULL
+                             AND date(created_at, 'localtime') = date('now', 'localtime')"""
+                    ).fetchone()[0])
                 result["fragments"] = int(con.execute(
                     """SELECT COUNT(*)
                        FROM fragments f
@@ -161,7 +173,7 @@ class LiveReadOnlyAdapter:
 
     @staticmethod
     def _generic_history(path: Path, limit: int = 5) -> dict:
-        out = {"count": 0, "recent": []}
+        out = {"count": 0, "today_count": 0, "recent": []}
         if not path.exists():
             return out
         try:
@@ -173,10 +185,20 @@ class LiveReadOnlyAdapter:
                 ]
                 if not tables:
                     return out
-                # Prefer a table containing query/title/objective.
+                # search_history.sqlite3 contains legacy and UI2 tables.  The
+                # home counter must read the table updated by the current UI.
                 selected = tables[0]
                 selected_cols = []
-                for table in tables:
+                candidates = list(tables)
+                if path.name == "search_history.sqlite3":
+                    candidates = [
+                        "ui2_search_history_v2",
+                        "ui2_search_history",
+                        "search_history",
+                    ] + candidates
+                for table in candidates:
+                    if table not in tables:
+                        continue
                     cols = [r[1] for r in con.execute(f'PRAGMA table_info("{table}")').fetchall()]
                     lowered = {c.lower() for c in cols}
                     if {"query", "created_at"} & lowered or "query" in lowered:
@@ -194,12 +216,21 @@ class LiveReadOnlyAdapter:
                 qcol = lower.get("query") or lower.get("title") or lower.get("prompt")
                 ocol = lower.get("objective") or lower.get("mode") or lower.get("category")
                 ccol = lower.get("created_at") or lower.get("updated_at") or lower.get("timestamp")
+                if ccol:
+                    out["today_count"] = int(con.execute(
+                        f'''SELECT COUNT(*) FROM "{selected}"
+                            WHERE "{ccol}" IS NOT NULL
+                              AND date("{ccol}", 'localtime') = date('now', 'localtime')'''
+                    ).fetchone()[0])
                 if qcol:
                     fields = [qcol]
                     if ocol and ocol not in fields: fields.append(ocol)
                     if ccol and ccol not in fields: fields.append(ccol)
                     select = ", ".join(f'"{c}"' for c in fields)
-                    order = f' ORDER BY "{ccol}" DESC' if ccol else " ORDER BY rowid DESC"
+                    order = (
+                        f' ORDER BY "{ccol}" DESC, rowid DESC'
+                        if ccol else " ORDER BY rowid DESC"
+                    )
                     rows = con.execute(
                         f'SELECT {select} FROM "{selected}"{order} LIMIT ?',
                         (limit,),
