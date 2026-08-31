@@ -30,7 +30,7 @@ def _ensure_ui_assets() -> str | None:
     index = HERE / "index.html"
     jurisprudence = HERE / "assets" / "jurisprudence_search.js"
     app_runtime = HERE / "assets" / "app_runtime.js"
-    windows_study_guard = HERE / "assets" / "windows_study_layout_guard.js"
+    study_layout_guard = HERE / "assets" / "study_layout_guard.js"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
         return None
 
@@ -53,12 +53,11 @@ def _ensure_ui_assets() -> str | None:
         )
 
     if (
-        os.name == "nt"
-        and windows_study_guard.exists()
-        and "assets/windows_study_layout_guard.js" not in patched
+        study_layout_guard.exists()
+        and "assets/study_layout_guard.js" not in patched
     ):
         tags.append(
-            '<script src="assets/windows_study_layout_guard.js?v=study-layout-win-1"></script>'
+            '<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>'
         )
 
     if not tags:
