@@ -156,6 +156,42 @@ Trabajá con los pasajes seleccionados del libro o documento doctrinario y con l
         self.interpreter = query_interpreter
         self.extractor = DocumentExtractor()
 
+        # KnowledgeContextPackageBuilder redefine build_documents_package().
+        # El estudio UI2 usa ese método incluso para un solo archivo. Para
+        # Libro/Doctrina derivamos ese caso al selector temático de este
+        # builder, sin alterar el comportamiento histórico de documentos
+        # múltiples ni de los demás tipos documentales.
+        inherited_multi_builder = getattr(self, "build_documents_package", None)
+        if callable(inherited_multi_builder):
+            def _document_package_router(
+                documents,
+                objective: str = "Análisis de jurisprudencia",
+                instruction: str = "",
+                document_type: str = "Detección automática",
+            ):
+                items = list(documents or [])
+                if (
+                    self._normalize(document_type) in {"libro", "doctrina"}
+                    and len(items) == 1
+                ):
+                    item = items[0]
+                    path = item[0] if isinstance(item, (tuple, list)) else item
+                    return ContextPackageBuilder.build_document_package(
+                        self,
+                        path=path,
+                        objective=objective,
+                        instruction=instruction,
+                        document_type=document_type,
+                    )
+                return inherited_multi_builder(
+                    documents=items,
+                    objective=objective,
+                    instruction=instruction,
+                    document_type=document_type,
+                )
+
+            self.build_documents_package = _document_package_router
+
     def build_research_package(
         self,
         query: str,
