@@ -7,6 +7,7 @@
   const CONTENT_OPEN_ATTR='data-lexia-content-open';
   const STYLE_ID='lexiaSearchInvestigationButtonColors';
   const RECENT_TOUCH_STYLE_ID='lexiaSearchRecentTouchFix';
+  const STUDY_LAYOUT_STYLE_ID='lexiaStudyLayoutFix';
 
   function decodePath(value){
     try{return decodeURIComponent(String(value||''));}
@@ -41,6 +42,43 @@
       #${SEARCH_PAGE_ID} .result-actions [${INVESTIGATE_ATTR}="1"]:hover{
         background:#4338e8!important;
         border-color:#4338e8!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureStudyLayout(){
+    if(document.getElementById(STUDY_LAYOUT_STYLE_ID))return;
+    const style=document.createElement('style');
+    style.id=STUDY_LAYOUT_STYLE_ID;
+    style.textContent=`
+      #contextpage #studyPanel:not([hidden]){
+        display:block!important;
+        position:relative!important;
+        height:auto!important;
+        min-height:0!important;
+        max-height:none!important;
+        overflow:visible!important;
+        margin-bottom:20px!important;
+        box-sizing:border-box!important;
+      }
+      #contextpage #studyPanel[hidden]{
+        display:none!important;
+      }
+      #contextpage #studyPanel .context-actions{
+        position:static!important;
+        inset:auto!important;
+        transform:none!important;
+        margin-top:14px!important;
+        padding-top:12px!important;
+      }
+      #contextpage .output-card{
+        position:relative!important;
+        inset:auto!important;
+        transform:none!important;
+        clear:both!important;
+        margin-top:0!important;
+        z-index:0!important;
       }
     `;
     document.head.appendChild(style);
@@ -360,10 +398,12 @@
     syncSearchSurface();
     syncNavigatorSurface();
     ensureStudyTypes();
+    ensureStudyLayout();
   }
 
   function initialize(){
     ensureButtonColors();
+    ensureStudyLayout();
     setupRecentHistoryTouchFix();
     installHtmlViewerFix();
     syncAllSurfaces();
@@ -371,7 +411,7 @@
     if(!page)return;
     new MutationObserver(syncAllSurfaces).observe(page,{childList:true,subtree:true});
     const context=document.getElementById('contextpage');
-    if(context)new MutationObserver(ensureStudyTypes).observe(context,{childList:true,subtree:true});
+    if(context)new MutationObserver(()=>{ensureStudyTypes();ensureStudyLayout();}).observe(context,{childList:true,subtree:true});
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
