@@ -7,6 +7,101 @@
 
   document.documentElement.dataset.lexiaApp='1';
 
+  function installInvestigationResponsiveStyles(){
+    if(document.getElementById('lexiaAppInvestigationResponsiveStyle'))return;
+    const style=document.createElement('style');
+    style.id='lexiaAppInvestigationResponsiveStyle';
+    style.textContent=`
+      html[data-lexia-app="1"] #contextpage,
+      html[data-lexia-app="1"] #contextpage>.main,
+      html[data-lexia-app="1"] #contextpage .page.context-layout,
+      html[data-lexia-app="1"] #contextpage .context-grid,
+      html[data-lexia-app="1"] #contextpage .research-main-column,
+      html[data-lexia-app="1"] #contextpage .context-side,
+      html[data-lexia-app="1"] #contextpage .context-form,
+      html[data-lexia-app="1"] #contextpage #studyPanel,
+      html[data-lexia-app="1"] #contextpage .output-card{
+        min-width:0!important;
+        max-width:100%!important;
+        box-sizing:border-box!important;
+      }
+      html[data-lexia-app="1"] #contextpage .head,
+      html[data-lexia-app="1"] #contextpage .head>div,
+      html[data-lexia-app="1"] #contextpage .context-actions,
+      html[data-lexia-app="1"] #contextpage .output-head,
+      html[data-lexia-app="1"] #contextpage .output-actions{
+        min-width:0!important;
+      }
+      html[data-lexia-app="1"] #contextpage .head p,
+      html[data-lexia-app="1"] #contextpage .study-help,
+      html[data-lexia-app="1"] #contextpage .context-actions .hint,
+      html[data-lexia-app="1"] #contextpage .output-summary,
+      html[data-lexia-app="1"] #contextpage .study-output,
+      html[data-lexia-app="1"] #contextpage label,
+      html[data-lexia-app="1"] #contextpage small,
+      html[data-lexia-app="1"] #contextpage b{
+        max-width:100%!important;
+        overflow-wrap:anywhere!important;
+        word-break:normal!important;
+      }
+      html[data-lexia-app="1"] #contextpage input,
+      html[data-lexia-app="1"] #contextpage textarea,
+      html[data-lexia-app="1"] #contextpage select{
+        min-width:0!important;
+        max-width:100%!important;
+        box-sizing:border-box!important;
+      }
+      @media (min-width:701px) and (max-width:1199px){
+        html[data-lexia-app="1"] #contextpage>.main,
+        html[data-lexia-app="1"] #contextpage .page.context-layout{
+          width:100%!important;
+          max-width:100%!important;
+          min-width:0!important;
+          overflow-x:hidden!important;
+        }
+        html[data-lexia-app="1"] #contextpage .context-grid{
+          grid-template-columns:minmax(0,1fr)!important;
+          width:100%!important;
+          gap:12px!important;
+        }
+        html[data-lexia-app="1"] #contextpage .research-main-column,
+        html[data-lexia-app="1"] #contextpage .context-side{
+          width:100%!important;
+          max-width:100%!important;
+        }
+        html[data-lexia-app="1"] #contextpage .context-options,
+        html[data-lexia-app="1"] #contextpage .research-settings,
+        html[data-lexia-app="1"] #contextpage .form-row{
+          grid-template-columns:minmax(0,1fr)!important;
+        }
+        html[data-lexia-app="1"] #contextpage .head,
+        html[data-lexia-app="1"] #contextpage .output-head,
+        html[data-lexia-app="1"] #contextpage .context-actions{
+          display:flex!important;
+          flex-wrap:wrap!important;
+          gap:10px!important;
+          align-items:flex-start!important;
+        }
+        html[data-lexia-app="1"] #contextpage .head>div:first-child{
+          flex:1 1 420px!important;
+          min-width:0!important;
+        }
+        html[data-lexia-app="1"] #contextpage .head-actions,
+        html[data-lexia-app="1"] #contextpage .output-actions{
+          max-width:100%!important;
+          display:flex!important;
+          flex-wrap:wrap!important;
+          gap:7px!important;
+        }
+        html[data-lexia-app="1"] #contextpage .steps,
+        html[data-lexia-app="1"] #contextpage .output-stats{
+          grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function installHomeHistory(){
     if(window.__lexiaAppHomeHistoryInstalled)return;
     const input=document.getElementById('homeQuickSearchInput');
@@ -202,6 +297,7 @@
   }
 
   function initialize(){
+    installInvestigationResponsiveStyles();
     installHomeHistory();
     installHtmlViewer();
     document.addEventListener('pointerdown',installHtmlViewer,true);
