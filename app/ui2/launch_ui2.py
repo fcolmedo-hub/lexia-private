@@ -15,7 +15,8 @@ if str(ROOT) not in sys.path:
 from app.ui2.portability import venv_python
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
-URL = f"http://127.0.0.1:{PORT}"
+BASE_URL = f"http://127.0.0.1:{PORT}"
+URL = BASE_URL + "/?lexia_app=1"
 py = venv_python(ROOT)
 
 if not py.exists():
@@ -25,24 +26,41 @@ if not py.exists():
 
 
 def _ensure_ui_assets() -> str | None:
-    """Temporarily register optional UI2 assets and return the original HTML."""
+    """Registra temporalmente los assets específicos de la app y devuelve el HTML original."""
     index = HERE / "index.html"
-    script = HERE / "assets" / "jurisprudence_search.js"
-    if not (index.exists() and script.exists()):
+    jurisprudence = HERE / "assets" / "jurisprudence_search.js"
+    app_runtime = HERE / "assets" / "app_runtime.js"
+    if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
         return None
-    marker = 'assets/jurisprudence_search.js'
+
     try:
         original = index.read_text(encoding="utf-8")
     except OSError:
         return None
-    if marker in original:
+
+    patched = original
+    tags: list[str] = []
+
+    if "assets/jurisprudence_search.js" not in patched:
+        tags.append(
+            '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>'
+        )
+
+    if "assets/app_runtime.js" not in patched:
+        tags.append(
+            '<script src="assets/app_runtime.js?v=app-runtime-2"></script>'
+        )
+
+    if not tags:
         return None
-    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>\n'
+
+    block = "\n".join(tags) + "\n"
     patched = (
-        original.replace("</body>", tag + "</body>", 1)
-        if "</body>" in original
-        else original + "\n" + tag
+        patched.replace("</body>", block + "</body>", 1)
+        if "</body>" in patched
+        else patched + "\n" + block
     )
+
     try:
         index.write_text(patched, encoding="utf-8")
     except OSError:
@@ -104,7 +122,7 @@ def main() -> int:
     )
 
     try:
-        _wait_for_ui(URL, server)
+        _wait_for_ui(BASE_URL, server)
 
         try:
             import webview

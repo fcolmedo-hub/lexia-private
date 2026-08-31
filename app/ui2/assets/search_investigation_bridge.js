@@ -245,6 +245,55 @@
     studyPanel?.scrollIntoView({block:'start'});
   }
 
+  function installHtmlViewerFix(){
+    if(window.__lexiaHtmlViewerFixInstalled)return;
+    const original=window.lexiaQuickViewerOpen;
+    if(typeof original!=='function'){
+      window.setTimeout(installHtmlViewerFix,25);
+      return;
+    }
+    window.__lexiaHtmlViewerFixInstalled=true;
+
+    const extension=path=>{
+      const clean=String(path||'').split('?')[0].split('#')[0];
+      const name=clean.split(/[\\/]/).pop()||'';
+      const dot=name.lastIndexOf('.');
+      return dot>=0?name.slice(dot).toLowerCase():'';
+    };
+    const basename=path=>String(path||'').split(/[\\/]/).pop()||'Documento HTML';
+
+    window.lexiaQuickViewerOpen=function(path,page,snippet){
+      const ext=extension(path);
+      if(ext!=='.htm'&&ext!=='.html')return original(path,page,snippet);
+
+      const backdrop=document.getElementById('lexiaQuickViewer');
+      const pane=document.getElementById('lexiaQvBody');
+      const name=document.getElementById('lexiaQvName');
+      const pathLabel=document.getElementById('lexiaQvPath');
+      const open=document.getElementById('lexiaQvOpen');
+      if(!backdrop||!pane)return original(path,page,snippet);
+
+      if(name)name.textContent=basename(path);
+      if(pathLabel)pathLabel.textContent=String(path||'');
+      if(open)open.hidden=false;
+      pane.classList.remove('lexia-qv-mobile-mode');
+      pane.innerHTML='';
+
+      const frame=document.createElement('iframe');
+      frame.className='lexia-qv-html-frame';
+      frame.title='Vista HTML · '+basename(path);
+      frame.setAttribute('sandbox','');
+      frame.setAttribute('referrerpolicy','no-referrer');
+      frame.style.cssText='display:block;width:100%;height:100%;min-height:68vh;border:0;background:#fff;';
+      frame.src='/api/file-preview?path='+encodeURIComponent(String(path||''));
+      pane.appendChild(frame);
+
+      backdrop.classList.add('open');
+      backdrop.setAttribute('aria-hidden','false');
+      return true;
+    };
+  }
+
   window.addEventListener('click',async event=>{
     const button=event.target.closest?.('['+INVESTIGATE_ATTR+']');
     if(!button)return;
@@ -276,6 +325,7 @@
   function initialize(){
     ensureButtonColors();
     setupRecentHistoryTouchFix();
+    installHtmlViewerFix();
     syncSearchSurface();
     const page=document.getElementById(SEARCH_PAGE_ID);
     if(!page)return;
