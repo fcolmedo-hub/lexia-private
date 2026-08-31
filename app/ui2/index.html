@@ -3452,7 +3452,8 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
           const metaUrl=
             '/api/office-preview-page?path='+encodeURIComponent(path)+
             '&fallback='+encodeURIComponent(requestedPage)+
-            '&snippet='+encodeURIComponent(String(snippet||''));
+            '&snippet='+encodeURIComponent(String(snippet||''))+
+            '&convert=1';
 
           const metaRes=await fetch(metaUrl,{cache:'no-store'});
           const meta=await metaRes.json();
@@ -3864,15 +3865,11 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
     ['.doc','.docx','.rtf','.odt'].includes(lexiaOfficeResultExt(path));
 
   async function lexiaResolveOfficeResultPage(path,snippet){
-    const url=
-      '/api/office-preview-page?path='+encodeURIComponent(path)+
-      '&snippet='+encodeURIComponent(String(snippet||''));
-    const res=await fetch(url,{cache:'no-store'});
-    const data=await res.json();
-    if(!res.ok||!data.ok||!Number(data.page)){
-      throw new Error(data.error||`HTTP ${res.status}`);
-    }
-    return Number(data.page);
+    // LEXIA_OFFICE_NO_PREFETCH_20260828
+    // No convertir documentos Office durante busquedas/listados.
+    // La vista previa real conserva su flujo propio: al hacer click usa
+    // /api/office-preview-page y /api/office-preview-pdf para convertir y localizar.
+    return 0;
   }
 
   function lexiaSetOfficePreviewPage(btn,page){
@@ -3902,7 +3899,24 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
       pending.add(btn);
 
       const path=decodeURIComponent(btn.dataset.path||'');
-      const snippet=decodeURIComponent(btn.dataset.snippet||'');
+      let snippet=decodeURIComponent(btn.dataset.snippet||'');
+    // LEXIA_OFFICE_CLICK_SNIPPET_20260828
+    // Los resultados Office no siempre traen page_start ni data-snippet.
+    // Si falta snippet, usamos el texto visible de la tarjeta para que
+    // /api/office-preview-page pueda localizar la pagina dentro del PDF convertido.
+    if(!snippet){
+      const lexiaOfficeSnippetCard = btn.closest?.('.result-card,.source-card,.hit-card,article,li,div');
+      if(lexiaOfficeSnippetCard){
+        const lexiaOfficeSnippetClone = lexiaOfficeSnippetCard.cloneNode(true);
+        try{
+          lexiaOfficeSnippetClone.querySelectorAll('button,.result-meta,.source-meta,.actions,.lexiaOfficeDiag').forEach(n=>n.remove());
+        }catch(_){ }
+        snippet=String(lexiaOfficeSnippetClone.innerText||'')
+          .replace(/\s+/g,' ')
+          .trim()
+          .slice(0,1800);
+      }
+    }
       // No modificamos result-meta: ahí sólo se informa page_start/page_end
       // del documento original cuando LexIA dispone de ese dato.
       try{
@@ -4732,23 +4746,36 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
       const isOffice=['.doc','.docx','.rtf','.odt'].includes(ext);
 
       if(isOffice){
+        // LEXIA_OFFICE_RESULT_PAGE_FALLBACK_20260828
+        // Para Office, si el backend no localiza el pasaje y devuelve pag. 1,
+        // conservar la pagina que ya muestra el resultado de busqueda.
+        const metaText=String(card?.querySelector?.('.result-meta')?.textContent||card?.innerText||'');
+        const metaPageMatch=metaText.match(/p[áa]g\.?\s*(\d+)/i);
+        const officeSourcePage=(Number(sourcePage)>1?Number(sourcePage):(metaPageMatch?Number(metaPageMatch[1]):(Number(sourcePage)||1)));
         let previewPage=parseInt(btn.dataset.previewPage||'0',10)||0;
+        if(previewPage<2){
+          previewPage=0;
+          try{ delete btn.dataset.previewPage; }catch(_){}
+        }
         if(!previewPage){
           try{
             const u=
               '/api/office-preview-page?path='+encodeURIComponent(path)+
-              '&snippet='+encodeURIComponent(String(snippet||''));
+              '&fallback='+encodeURIComponent(String(officeSourcePage||''))+
+              '&snippet='+encodeURIComponent(String(snippet||''))+
+              '&convert=1';
             const res=await fetch(u,{cache:'no-store'});
             const data=await res.json();
             if(res.ok&&data.ok&&Number(data.page)>0){
-              previewPage=Number(data.page);
+              const calculatedPage=Number(data.page)||0;
+              previewPage=(calculatedPage>1?calculatedPage:officeSourcePage);
               btn.dataset.previewPage=String(previewPage);
             }
           }catch(_){}
         }
 
         if(window.lexiaQuickViewerOpen){
-          window.lexiaQuickViewerOpen(path,previewPage||sourcePage,snippet);
+          window.lexiaQuickViewerOpen(path,((previewPage&&previewPage>1)?previewPage:officeSourcePage)||1,snippet);
         }
         return;
       }
@@ -5299,5 +5326,6 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 <script src="navigator_3_3_4a.js?v=334a"></script>
 <link rel="stylesheet" href="assets/maintenance.css?v=phase1">
 <script src="assets/maintenance.js?v=phase2"></script>
+<script src="assets/jurisprudence_search.js?v=juris1"></script>
 </body>
 </html>
