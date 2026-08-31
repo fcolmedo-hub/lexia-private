@@ -128,6 +128,18 @@
   }
 }
 
+/* Between full desktop and phone layout the fixed hamburger still occupies
+   the upper-left corner. Search, Investigation and Maintenance need the same
+   reserved header strip as Home so their H1 never sits underneath the button.
+   Phone layout already reserves --global-top on the route itself. */
+@media (min-width:701px) and (max-width:1199px){
+  #searchpage .page,
+  #contextpage .page,
+  #systempage .page{
+    padding-top:58px!important;
+  }
+}
+
 /* Phone layout for secondary screens. Home has its own responsive layout. */
 @media (max-width:700px){
   html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
@@ -301,7 +313,7 @@
     background:#fff;color:#5e3232;text-align:center;font-size:12px;line-height:1.45
   }
   .lexia-qv-mobile-error b,.lexia-qv-mobile-error span{display:block}
-  .lexia-qv-mobile-error span{margin-top:6px;overflow-wrap:anywhere}
+  .lexia-qv-mobile-error span{margin-top:6px;overflow-wrap:anywhere;font-size:12px}
   .lexia-qv-mobile-error button{
     min-height:40px;margin-top:14px;padding:0 18px;border:1px solid #d9d6ff;border-radius:8px;
     background:#f7f6ff;color:#382cbd;font-size:13px;font-weight:750
