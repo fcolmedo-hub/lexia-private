@@ -21,7 +21,7 @@ def test_responsive_assets_share_the_same_breakpoint_and_cache_version():
     loader = (ASSETS / "jurisprudence_search.js").read_text(encoding="utf-8")
 
     assert "window.innerWidth<=1199" in runtime
-    assert "responsive_shell.css?v=ui2-3.4.5-mobile-viewer" in loader
+    assert "responsive_shell.css?v=ui2-3.4.6-mobile-viewer" in loader
 
 
 def test_desktop_search_uses_exact_viewport_remainder():

@@ -9,6 +9,8 @@
   };
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const isJuris=value=>String(value||'').trim().toLocaleLowerCase('es-AR')==='jurisprudencia';
+  let mobileViewerPath='';
+  let mobileViewerObjectUrl='';
 
   function ensureResponsiveShellStyles(){
     const id='lexiaResponsiveShellStyles';
@@ -16,7 +18,7 @@
     const link=document.createElement('link');
     link.id=id;
     link.rel='stylesheet';
-    link.href='assets/responsive_shell.css?v=ui2-3.4.5-mobile-viewer';
+    link.href='assets/responsive_shell.css?v=ui2-3.4.6-mobile-viewer';
     document.head.appendChild(link);
   }
 
@@ -42,6 +44,27 @@
   function enableMobileTextAssistance(){
     if(!isMobileClient())return;
 
+    const viewport=document.querySelector('meta[name="viewport"]');
+    if(viewport){
+      viewport.id='lexiaViewport';
+      const content=viewport.getAttribute('content')||'width=device-width,initial-scale=1';
+      if(!/viewport-fit\s*=/.test(content))viewport.setAttribute('content',content+',viewport-fit=cover');
+    }
+
+    const resetViewportZoom=()=>{
+      const viewport=document.querySelector('meta[name="viewport"]');
+      if(!viewport)return;
+      const stable=viewport.dataset.lexiaStableContent||viewport.getAttribute('content')||'width=device-width,initial-scale=1';
+      viewport.dataset.lexiaStableContent=stable;
+      const scale=Number(window.visualViewport?.scale||1);
+      if(scale<=1.01)return;
+      viewport.setAttribute('content',stable.replace(/\s*,?\s*(?:minimum|maximum)-scale\s*=\s*[^,]+/gi,'')+',minimum-scale=1,maximum-scale=1');
+      window.setTimeout(()=>{
+        viewport.setAttribute('content',stable);
+        window.scrollTo(Math.max(0,window.scrollX),Math.max(0,window.scrollY));
+      },120);
+    };
+
     const shouldAssist=el=>{
       if(!el||!(el instanceof HTMLElement))return false;
       if(el.tagName==='TEXTAREA')return true;
@@ -62,6 +85,11 @@
       if(el.getAttribute('spellcheck')!=='true')el.setAttribute('spellcheck','true');
       if((el.id==='legalQuery'||el.id==='homeQuickSearchInput') && el.getAttribute('enterkeyhint')!=='search'){
         el.setAttribute('enterkeyhint','search');
+      }
+      if(el.id==='legalQuery'){
+        el.type='search';
+        el.setAttribute('inputmode','search');
+        el.style.setProperty('font-size','16px','important');
       }
     };
 
@@ -85,6 +113,162 @@
       attributes:true,
       attributeFilter:['autocomplete','autocorrect','autocapitalize','spellcheck']
     });
+
+    if(!window.__lexiaMobileViewportResetInstalled){
+      window.__lexiaMobileViewportResetInstalled=true;
+      document.addEventListener('focusout',event=>{
+        if(event.target?.id==='legalQuery')window.setTimeout(resetViewportZoom,0);
+      },true);
+    }
+  }
+
+  function releaseMobileViewerObjectUrl(){
+    if(!mobileViewerObjectUrl)return;
+    URL.revokeObjectURL(mobileViewerObjectUrl);
+    mobileViewerObjectUrl='';
+  }
+
+  function resetMobileViewerSurface(){
+    releaseMobileViewerObjectUrl();
+    mobileViewerPath='';
+    document.getElementById('lexiaQvBody')?.classList.remove('lexia-qv-mobile-mode');
+    const open=document.getElementById('lexiaQvOpen');
+    if(open)open.hidden=false;
+  }
+
+  function installMobileViewerFix(){
+    if(!isMobileClient()||window.__lexiaMobileViewerFixInstalled)return;
+    const original=window.lexiaQuickViewerOpen;
+    if(typeof original!=='function'){
+      window.setTimeout(installMobileViewerFix,0);
+      return;
+    }
+    window.__lexiaMobileViewerFixInstalled=true;
+
+    const ext=path=>{
+      const name=String(path||'').split(/[\\/]/).pop()||'';
+      const dot=name.lastIndexOf('.');
+      return dot>=0?name.slice(dot).toLowerCase():'';
+    };
+    const basename=path=>String(path||'').split(/[\\/]/).pop()||'Documento';
+
+    window.lexiaQuickViewerOpen=async function(path,page,snippet){
+      const extension=ext(path);
+      const office=['.doc','.docx','.rtf','.odt'].includes(extension);
+      if(extension!=='.pdf'&&!office){
+        resetMobileViewerSurface();
+        return original(path,page,snippet);
+      }
+
+      const backdrop=document.getElementById('lexiaQuickViewer');
+      const pane=document.getElementById('lexiaQvBody');
+      const name=document.getElementById('lexiaQvName');
+      const pathLabel=document.getElementById('lexiaQvPath');
+      const open=document.getElementById('lexiaQvOpen');
+      if(!backdrop||!pane)return original(path,page,snippet);
+
+      releaseMobileViewerObjectUrl();
+      mobileViewerPath=String(path||'');
+      if(name)name.textContent=basename(path);
+      if(pathLabel)pathLabel.textContent=String(path||'');
+      if(open)open.hidden=true;
+      backdrop.classList.add('open');
+      backdrop.setAttribute('aria-hidden','false');
+      pane.classList.add('lexia-qv-mobile-mode');
+
+      let current=Math.max(1,Number(page)||1),total=0,loading=false;
+      let locateFirstPage=!office&&Boolean(String(snippet||'').trim());
+      let touchStartX=0,touchStartY=0;
+      pane.innerHTML=
+        '<div class="lexia-qv-mobile-pager">'+
+        '<button type="button" data-qv-page="previous" aria-label="Página anterior">Anterior</button>'+
+        '<span class="lexia-qv-mobile-page-label">Página '+current+'</span>'+
+        '<button type="button" data-qv-page="next" aria-label="Página siguiente">Siguiente</button>'+
+        '</div><div class="lexia-qv-mobile-page-wrap">'+
+        '<img class="lexia-qv-mobile-page" alt="Página '+current+'">'+
+        '<div class="lexia-qv-mobile-error" hidden></div></div>';
+
+      const previous=pane.querySelector('[data-qv-page="previous"]');
+      const next=pane.querySelector('[data-qv-page="next"]');
+      const label=pane.querySelector('.lexia-qv-mobile-page-label');
+      const image=pane.querySelector('.lexia-qv-mobile-page');
+      const pageWrap=pane.querySelector('.lexia-qv-mobile-page-wrap');
+      const errorBox=pane.querySelector('.lexia-qv-mobile-error');
+
+      const loadPage=async requested=>{
+        if(loading||mobileViewerPath!==String(path||''))return;
+        requested=Math.max(1,Number(requested)||1);
+        loading=true;previous.disabled=true;next.disabled=true;
+        label.textContent='Cargando página…';errorBox.hidden=true;
+        try{
+          const url='/api/preview-page-image?path='+encodeURIComponent(path)+
+            '&page='+encodeURIComponent(requested)+(office?'&office=1':'')+
+            (locateFirstPage?'&locate=1&snippet='+encodeURIComponent(String(snippet||'')):'')+
+            '&t='+Date.now();
+          const response=await fetch(url,{cache:'no-store'});
+          if(!response.ok){
+            let detail='';
+            try{detail=String((await response.json()).error||'')}catch(_){}
+            throw new Error(detail||('HTTP '+response.status));
+          }
+          const blob=await response.blob();
+          if(mobileViewerPath!==String(path||''))return;
+          current=Number(response.headers.get('X-LexIA-Page'))||requested;
+          total=Number(response.headers.get('X-LexIA-Page-Count'))||current;
+          locateFirstPage=false;
+          releaseMobileViewerObjectUrl();
+          mobileViewerObjectUrl=URL.createObjectURL(blob);
+          image.src=mobileViewerObjectUrl;image.hidden=false;
+          image.alt='Página '+current+' de '+total;
+          label.textContent='Página '+current+' de '+total;
+          pageWrap.scrollTop=0;pageWrap.scrollLeft=0;
+        }catch(error){
+          label.textContent='No se pudo cargar la página';
+          image.hidden=true;errorBox.hidden=false;
+          errorBox.innerHTML='<b>No se pudo mostrar el documento.</b><span>'+esc(error.message||error)+'</span>'+
+            '<button type="button" data-qv-retry>Reintentar</button>';
+        }finally{
+          loading=false;
+          previous.disabled=current<=1;
+          next.disabled=total>0&&current>=total;
+        }
+      };
+
+      previous.addEventListener('click',()=>loadPage(current-1));
+      next.addEventListener('click',()=>loadPage(current+1));
+      errorBox.addEventListener('click',event=>{
+        if(event.target.closest('[data-qv-retry]'))loadPage(current);
+      });
+      pageWrap.addEventListener('touchstart',event=>{
+        const touch=event.changedTouches?.[0];
+        if(!touch)return;
+        touchStartX=touch.clientX;touchStartY=touch.clientY;
+      },{passive:true});
+      pageWrap.addEventListener('touchend',event=>{
+        const touch=event.changedTouches?.[0];
+        if(!touch||loading)return;
+        const dx=touch.clientX-touchStartX,dy=touch.clientY-touchStartY;
+        if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.35)return;
+        if(dx<0&&(!total||current<total))loadPage(current+1);
+        if(dx>0&&current>1)loadPage(current-1);
+      },{passive:true});
+
+      if(office&&String(snippet||'').trim()){
+        try{
+          const metaUrl='/api/office-preview-page?path='+encodeURIComponent(path)+
+            '&fallback='+encodeURIComponent(current)+'&snippet='+encodeURIComponent(String(snippet||''));
+          const response=await fetch(metaUrl,{cache:'no-store'});
+          const data=await response.json();
+          if(response.ok&&data.ok&&Number(data.page)>0)current=Number(data.page);
+        }catch(_){}
+      }
+      await loadPage(current);
+    };
+
+    document.addEventListener('click',event=>{
+      const backdrop=document.getElementById('lexiaQuickViewer');
+      if(event.target?.id==='lexiaQvClose'||event.target===backdrop)resetMobileViewerSurface();
+    },true);
   }
 
   function mobileOpenResponse(path,page,snippet){
@@ -250,6 +434,7 @@
     enableMobileTextAssistance();
     render();
     installFetchBridge();
+    installMobileViewerFix();
     const category=categoryElement();
     category?.addEventListener('change',()=>setTimeout(render,0));
     document.getElementById('clearFilters')?.addEventListener('click',()=>setTimeout(clear,0),true);

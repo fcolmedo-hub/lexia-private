@@ -350,7 +350,7 @@ def _office_preview_pdf(requested_path):
             shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def _preview_page_png(requested_path, page=1, office=False):
+def _preview_page_png(requested_path, page=1, office=False, snippet="", locate=False):
     """Render one catalogued PDF/office preview page for mobile clients."""
     if office:
         pdf_path = _office_preview_pdf(requested_path)
@@ -374,6 +374,13 @@ def _preview_page_png(requested_path, page=1, office=False):
         except (TypeError, ValueError):
             selected = 1
         selected = max(1, min(total, selected))
+        if locate and snippet:
+            selected = _best_office_preview_page(
+                pdf_path,
+                snippet,
+                fallback_page=selected,
+            )
+            selected = max(1, min(total, int(selected or 1)))
         pixmap = document.load_page(selected - 1).get_pixmap(
             matrix=fitz.Matrix(1.55, 1.55),
             alpha=False,
@@ -2708,6 +2715,10 @@ class Handler(SimpleHTTPRequestHandler):
                 query = parse_qs(urlparse(self.path).query)
                 requested = str((query.get("path") or [""])[0] or "").strip()
                 page_number = str((query.get("page") or ["1"])[0] or "1").strip()
+                snippet = str((query.get("snippet") or [""])[0] or "")[:4000]
+                locate = str((query.get("locate") or ["0"])[0] or "0").lower() in {
+                    "1", "true", "yes"
+                }
                 office = str((query.get("office") or ["0"])[0] or "0").lower() in {
                     "1", "true", "yes"
                 }
@@ -2718,6 +2729,8 @@ class Handler(SimpleHTTPRequestHandler):
                     requested,
                     page=page_number,
                     office=office,
+                    snippet=snippet,
+                    locate=locate,
                 )
                 self.send_response(200)
                 self.send_header("Content-Type", "image/png")
