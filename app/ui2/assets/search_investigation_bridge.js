@@ -6,7 +6,7 @@
   const INVESTIGATE_ATTR='data-lexia-search-investigate';
   const CONTENT_OPEN_ATTR='data-lexia-content-open';
   const STYLE_ID='lexiaSearchInvestigationButtonColors';
-  const MOBILE_NAV_SCROLL_STYLE_ID='lexiaMobileNavigatorScrollFix';
+  const RECENT_TOUCH_STYLE_ID='lexiaSearchRecentTouchFix';
 
   function decodePath(value){
     try{return decodeURIComponent(String(value||''));}
@@ -46,45 +46,96 @@
     document.head.appendChild(style);
   }
 
-  function ensureMobileNavigatorScroll(){
-    if(document.getElementById(MOBILE_NAV_SCROLL_STYLE_ID))return;
-    const style=document.createElement('style');
-    style.id=MOBILE_NAV_SCROLL_STYLE_ID;
-    style.textContent=`
-      @media (max-width:700px){
-        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel,
-        #${SEARCH_PAGE_ID} .lexia-nav-files-panel{
-          display:flex!important;
-          flex-direction:column!important;
-          overflow:hidden!important;
+  function setupRecentHistoryTouchFix(){
+    if(!document.getElementById(RECENT_TOUCH_STYLE_ID)){
+      const style=document.createElement('style');
+      style.id=RECENT_TOUCH_STYLE_ID;
+      style.textContent=`
+        @media (max-width:700px){
+          #${SEARCH_PAGE_ID} #searchRecentHistory{
+            overflow-x:hidden!important;
+            overflow-y:auto!important;
+            -webkit-overflow-scrolling:touch!important;
+            overscroll-behavior:contain!important;
+            touch-action:pan-y!important;
+          }
+          #${SEARCH_PAGE_ID} #searchRecentHistory button[data-query]{
+            touch-action:pan-y!important;
+            -webkit-user-select:none!important;
+            user-select:none!important;
+          }
         }
-        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel{
-          height:230px!important;
-          max-height:230px!important;
-          min-height:160px!important;
-        }
-        #${SEARCH_PAGE_ID} .lexia-nav-files-panel{
-          height:min(58dvh,560px)!important;
-          max-height:min(58dvh,560px)!important;
-          min-height:320px!important;
-        }
-        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel > .lexia-nav-scroll,
-        #${SEARCH_PAGE_ID} .lexia-nav-files-panel > .lexia-nav-scroll,
-        #${SEARCH_PAGE_ID} .lexia-nav-tree-panel .lexia-nav-scroll,
-        #${SEARCH_PAGE_ID} .lexia-nav-files-panel .lexia-nav-scroll{
-          flex:1 1 auto!important;
-          min-height:0!important;
-          height:auto!important;
-          max-height:none!important;
-          overflow-x:hidden!important;
-          overflow-y:auto!important;
-          -webkit-overflow-scrolling:touch!important;
-          overscroll-behavior:contain!important;
-          touch-action:pan-y!important;
-        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    let touchActive=false;
+    let moved=false;
+    let startX=0;
+    let startY=0;
+    let suppressClickUntil=0;
+
+    const isMobileTouch=()=>{
+      try{return window.matchMedia('(max-width:700px)').matches || Number(navigator.maxTouchPoints||0)>0;}
+      catch(_){return Number(navigator.maxTouchPoints||0)>0;}
+    };
+    const inRecent=target=>target?.closest?.('#searchRecentHistory');
+
+    window.addEventListener('pointerdown',event=>{
+      if(!isMobileTouch()||!inRecent(event.target))return;
+      if(event.pointerType && event.pointerType!=='touch' && event.pointerType!=='pen')return;
+      touchActive=true;
+      moved=false;
+      startX=event.clientX;
+      startY=event.clientY;
+    },true);
+
+    window.addEventListener('pointermove',event=>{
+      if(!touchActive)return;
+      if(Math.abs(event.clientY-startY)>6 || Math.abs(event.clientX-startX)>6)moved=true;
+    },true);
+
+    window.addEventListener('pointerout',event=>{
+      if(!touchActive||!inRecent(event.target))return;
+      // The legacy document-level pointerout handler closes the history while
+      // a finger is panning. Stop it at Window before it reaches Document.
+      event.stopPropagation();
+    },true);
+
+    window.addEventListener('pointerup',event=>{
+      if(!touchActive)return;
+      if(moved)suppressClickUntil=performance.now()+650;
+      touchActive=false;
+    },true);
+
+    window.addEventListener('pointercancel',()=>{
+      if(moved)suppressClickUntil=performance.now()+650;
+      touchActive=false;
+    },true);
+
+    window.addEventListener('click',event=>{
+      if(!isMobileTouch())return;
+      const item=event.target.closest?.('#searchRecentHistory button[data-query]');
+      if(!item)return;
+
+      // This runs on Window capture, before the old Document capture handler
+      // that calls runSearch() immediately.
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      if(moved || performance.now()<suppressClickUntil){
+        moved=false;
+        return;
       }
-    `;
-    document.head.appendChild(style);
+
+      const input=document.getElementById('legalQuery');
+      if(input){
+        input.value=item.dataset.query||'';
+        try{input.focus({preventScroll:true});}catch(_){input.focus();}
+      }
+      document.getElementById('searchRecentHistory')?.classList.remove('open');
+    },true);
   }
 
   function investigateButton(openButton){
@@ -196,7 +247,7 @@
 
   function initialize(){
     ensureButtonColors();
-    ensureMobileNavigatorScroll();
+    setupRecentHistoryTouchFix();
     syncSearchSurface();
     const page=document.getElementById(SEARCH_PAGE_ID);
     if(!page)return;
