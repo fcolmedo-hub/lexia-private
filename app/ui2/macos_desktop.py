@@ -10,8 +10,7 @@ from pathlib import Path
 from urllib import request as urllib_request
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
-BASE_URL = f"http://127.0.0.1:{PORT}"
-URL = BASE_URL + "/?lexia_app=1"
+URL = f"http://127.0.0.1:{PORT}"
 BRIDGE_PORT = 8513
 QDRANT_PORT = 6333
 
@@ -116,30 +115,15 @@ def kill_stale(root: Path) -> None:
 def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
-    jurisprudence = here / "assets" / "jurisprudence_search.js"
-    app_runtime = here / "assets" / "app_runtime.js"
-    if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
+    script = here / "assets" / "jurisprudence_search.js"
+    if not (index.exists() and script.exists()):
         return None
-
+    marker = "assets/jurisprudence_search.js"
     original = index.read_text(encoding="utf-8")
-    patched = original
-    tags = []
-
-    if "assets/jurisprudence_search.js" not in patched:
-        tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
-
-    if "assets/app_runtime.js" not in patched:
-        tags.append('<script src="assets/app_runtime.js?v=app-runtime-1"></script>')
-
-    if not tags:
+    if marker in original:
         return None
-
-    block = "\n".join(tags) + "\n"
-    patched = (
-        patched.replace("</body>", block + "</body>", 1)
-        if "</body>" in patched
-        else patched + "\n" + block
-    )
+    tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>\n'
+    patched = original.replace("</body>", tag + "</body>", 1) if "</body>" in original else original + "\n" + tag
     index.write_text(patched, encoding="utf-8")
     return original
 
@@ -159,7 +143,7 @@ def wait_http(process: subprocess.Popen, timeout: float = 25.0) -> None:
         if process.poll() is not None:
             raise RuntimeError("El servidor UI2 se cerró durante el arranque.")
         try:
-            with urllib_request.urlopen(BASE_URL, timeout=0.8) as response:
+            with urllib_request.urlopen(URL, timeout=0.8) as response:
                 if 200 <= int(response.status) < 500:
                     return
         except Exception:

@@ -1,6 +1,5 @@
 import json
 import re
-import unicodedata
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -132,65 +131,10 @@ Proponé una estrategia procesal fundada e incluí:
 """,
     }
 
-    LONG_DOCUMENT_TASK = """
-Trabajá con los pasajes seleccionados del libro o documento doctrinario y con las Indicaciones del usuario.
-1. Identificá qué pasajes responden directamente a las Indicaciones.
-2. Agrupá los pasajes por tema, capítulo o sección cuando el propio texto permita reconocerlos.
-3. Explicá la tesis o desarrollo doctrinario de cada grupo.
-4. Señalá posiciones, excepciones, distinciones, requisitos y consecuencias que aparezcan en el texto.
-5. Conservá las referencias [FUENTE N] de cada pasaje.
-6. No resumas partes del libro ajenas a las Indicaciones.
-7. Si los pasajes recuperados no alcanzan para responder, indicá expresamente la insuficiencia.
-""".strip()
-
-    _STOPWORDS = {
-        "para", "como", "donde", "desde", "sobre", "entre", "hasta", "este", "esta", "estos", "estas",
-        "aquel", "aquella", "del", "las", "los", "una", "uno", "unos", "unas", "que", "con", "por",
-        "sin", "sus", "sea", "son", "ser", "hay", "muy", "mas", "más", "pero", "porque", "cuando",
-        "cual", "cuál", "todo", "toda", "todos", "todas", "documento", "libro", "doctrina", "informacion",
-        "información", "indicacion", "indicación", "indicaciones", "tema", "habla", "hablen", "referido",
-    }
-
     def __init__(self, interpreted_search, query_interpreter):
         self.search = interpreted_search
         self.interpreter = query_interpreter
         self.extractor = DocumentExtractor()
-
-        # KnowledgeContextPackageBuilder redefine build_documents_package().
-        # El estudio UI2 usa ese método incluso para un solo archivo. Para
-        # Libro/Doctrina derivamos ese caso al selector temático de este
-        # builder, sin alterar el comportamiento histórico de documentos
-        # múltiples ni de los demás tipos documentales.
-        inherited_multi_builder = getattr(self, "build_documents_package", None)
-        if callable(inherited_multi_builder):
-            def _document_package_router(
-                documents,
-                objective: str = "Análisis de jurisprudencia",
-                instruction: str = "",
-                document_type: str = "Detección automática",
-            ):
-                items = list(documents or [])
-                if (
-                    self._normalize(document_type) in {"libro", "doctrina"}
-                    and len(items) == 1
-                ):
-                    item = items[0]
-                    path = item[0] if isinstance(item, (tuple, list)) else item
-                    return ContextPackageBuilder.build_document_package(
-                        self,
-                        path=path,
-                        objective=objective,
-                        instruction=instruction,
-                        document_type=document_type,
-                    )
-                return inherited_multi_builder(
-                    documents=items,
-                    objective=objective,
-                    instruction=instruction,
-                    document_type=document_type,
-                )
-
-            self.build_documents_package = _document_package_router
 
     def build_research_package(
         self,
@@ -205,12 +149,23 @@ Trabajá con los pasajes seleccionados del libro o documento doctrinario y con l
 
         interpretation = self.interpreter.interpret(query)
         limit = max_sources or SETTINGS.context_builder_max_sources
-        results = self.search.search(interpretation, limit=max(limit * 2, limit))
-        selected = self._select_sources(results, limit)
-        if not selected:
-            raise RuntimeError("LexIA no encontró fuentes para preparar el contexto.")
 
-        objective_text = self.TASKS.get(objective, self.TASKS["Investigación jurídica"]).strip()
+        results = self.search.search(
+            interpretation,
+            limit=max(limit * 2, limit),
+        )
+        selected = self._select_sources(results, limit)
+
+        if not selected:
+            raise RuntimeError(
+                "LexIA no encontró fuentes para preparar el contexto."
+            )
+
+        objective_text = self.TASKS.get(
+            objective,
+            self.TASKS["Investigación jurídica"],
+        ).strip()
+
         interpretation_dict = interpretation.to_dict()
         sources_text = self._render_sources(selected)
         created_at = datetime.now().isoformat(timespec="seconds")
@@ -245,9 +200,9 @@ Trabajá con los pasajes seleccionados del libro o documento doctrinario y con l
 - Cuestiones procesales: {', '.join(interpretation.procedural_issues) or 'No determinadas'}
 - Subtemas: {', '.join(interpretation.subtopics) or 'No determinados'}
 
-## INDICACIONES
+## INDICACIÓN ADICIONAL
 
-{additional_instruction.strip() or '[No se agregaron indicaciones]'}
+{additional_instruction.strip() or '[No se agregó una indicación adicional]'}
 
 ## TAREA
 
@@ -287,41 +242,20 @@ Comenzá directamente con el análisis jurídico.
         document_type: str = "Detección automática",
     ) -> ContextPackage:
         extraction = self.extractor.extract(path)
-        full_text = extraction.text.strip()
-        if not full_text:
-            raise RuntimeError("No fue posible extraer texto del documento.")
+        text = extraction.text.strip()
 
+        if not text:
+            raise RuntimeError(
+                "No fue posible extraer texto del documento."
+            )
+
+        text = text[: SETTINGS.context_builder_upload_max_chars]
         filename = Path(path).name
         created_at = datetime.now().isoformat(timespec="seconds")
-        long_document = self._normalize(document_type) in {"libro", "doctrina"}
-        focused = long_document and bool(instruction.strip())
-
-        if focused:
-            passages = self._focused_document_passages(
-                full_text,
-                instruction,
-                total_pages=extraction.total_pages,
-            )
-            if not passages:
-                raise RuntimeError(
-                    "LexIA no encontró pasajes del documento relacionados con las Indicaciones. "
-                    "Probá con términos más amplios o agregá conceptos relacionados."
-                )
-            sources_text = self._render_document_passages(filename, passages)
-            objective_text = self.LONG_DOCUMENT_TASK
-            source_count = len(passages)
-            mode = "selección temática de pasajes"
-        else:
-            text = full_text[: SETTINGS.context_builder_upload_max_chars]
-            sources_text = (
-                f"[FUENTE 1]\nDocumento: {filename}\nContenido:\n{text}"
-            )
-            objective_text = self.TASKS.get(
-                objective,
-                self.TASKS["Análisis de jurisprudencia"],
-            ).strip()
-            source_count = 1
-            mode = "análisis documental"
+        objective_text = self.TASKS.get(
+            objective,
+            self.TASKS["Análisis de jurisprudencia"],
+        ).strip()
 
         content = f"""# PAQUETE DE ANÁLISIS DOCUMENTAL — LEXIA
 
@@ -335,13 +269,12 @@ Comenzá directamente con el análisis jurídico.
 - Tipo indicado: {document_type}
 - Método de extracción: {extraction.method}
 - Páginas detectadas: {extraction.total_pages or 'No determinadas'}
-- Modo de recuperación: {mode}
 
 ## OBJETIVO
 
 {objective}
 
-## INDICACIONES
+## INDICACIÓN DEL USUARIO
 
 {instruction.strip() or 'Analizá integralmente el documento.'}
 
@@ -349,17 +282,29 @@ Comenzá directamente con el análisis jurídico.
 
 {objective_text}
 
-## FUENTES SELECCIONADAS POR LEXIA
+Además:
+1. Resumí el documento.
+2. Identificá su finalidad.
+3. Separá hechos, argumentos y decisión o petición.
+4. Enumerá normas, jurisprudencia y doctrina citadas.
+5. Señalá fortalezas, debilidades, contradicciones y omisiones.
+6. Explicá su utilidad práctica.
+7. Cuando sea un fallo, distinguí ratio decidendi, obiter dicta, votos y disidencias.
+8. Cuando sea un escrito, evaluá la coherencia entre hechos, derecho, prueba y petitorio.
 
-{sources_text}
+## FUENTE 1
+
+[FUENTE 1]
+Documento: {filename}
+Contenido:
+{text}
 
 ## CONTROL FINAL
 
 Respondé directamente en español.
 No revises este paquete ni preguntes qué debe hacerse con él.
 No inventes información ausente del documento.
-Citá cada afirmación relevante con la fuente concreta [FUENTE N].
-En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su relación con las Indicaciones.
+Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá la página.
 """
 
         return ContextPackage(
@@ -369,209 +314,86 @@ En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su r
             created_at=created_at,
             character_count=len(content),
             objective=objective,
-            query=(
-                f"Localizar en {filename}: {instruction.strip()}"
-                if focused else f"Analizar el documento {filename}"
-            ),
+            query=f"Analizar el documento {filename}",
             facts="",
             interpretation={
                 "document_type": document_type,
                 "extraction_method": extraction.method,
                 "pages": extraction.total_pages,
-                "mode": mode,
-                "indications": instruction.strip(),
-                "passages": source_count,
             },
             document_count=1,
-            selected_count=source_count,
+            selected_count=1,
         )
 
-    def _focused_document_passages(self, text: str, instruction: str, total_pages=None) -> list[dict]:
-        chunks = self._document_chunks(text)
-        terms, phrases = self._instruction_terms(instruction)
-        if not chunks or not terms:
-            return []
-
-        scored = []
-        for index, chunk in enumerate(chunks):
-            normalized = self._normalize(chunk["text"])
-            if not normalized:
-                continue
-            score = 0.0
-            matched = set()
-            for term in terms:
-                count = len(re.findall(r"(?<!\w)" + re.escape(term) + r"(?!\w)", normalized))
-                if count:
-                    matched.add(term)
-                    score += min(count, 8) * (2.0 if len(term) >= 7 else 1.35)
-            for phrase in phrases:
-                if len(phrase) >= 5 and phrase in normalized:
-                    score += 10.0
-            coverage = len(matched) / max(1, len(terms))
-            score += coverage * 12.0
-            if score <= 0:
-                continue
-            scored.append((score, coverage, index, chunk))
-
-        if not scored:
-            return []
-
-        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
-        max_sources = min(24, max(8, int(getattr(SETTINGS, "context_builder_max_sources", 14) or 14)))
-        max_chars = int(getattr(SETTINGS, "context_builder_max_total_chars", 90000) or 90000)
-        selected = []
-        selected_indices = set()
-        total_chars = 0
-
-        for score, coverage, index, chunk in scored:
-            if index in selected_indices:
-                continue
-            passage_text = chunk["text"].strip()
-            per_source = int(getattr(SETTINGS, "context_builder_max_chars_per_source", 6500) or 6500)
-            if len(passage_text) > per_source:
-                passage_text = passage_text[:per_source].rstrip() + " […]"
-            if selected and total_chars + len(passage_text) > max_chars:
-                break
-
-            page = None
-            try:
-                pages = int(total_pages or 0)
-                if pages > 0 and len(text) > 0:
-                    page = min(pages, max(1, int((chunk["start"] / len(text)) * pages) + 1))
-            except Exception:
-                page = None
-
-            selected.append({
-                "text": passage_text,
-                "start": chunk["start"],
-                "end": chunk["end"],
-                "page": page,
-                "score": round(score, 2),
-            })
-            selected_indices.add(index)
-            total_chars += len(passage_text)
-            if len(selected) >= max_sources:
-                break
-
-        selected.sort(key=lambda item: item["start"])
-        return selected
-
-    def _document_chunks(self, text: str) -> list[dict]:
-        text = text.strip()
-        if not text:
-            return []
-        target = 3600
-        overlap = 650
-        chunks = []
-        start = 0
-        length = len(text)
-        while start < length:
-            raw_end = min(length, start + target)
-            end = raw_end
-            if raw_end < length:
-                candidates = [
-                    text.rfind("\n\n", start + int(target * 0.55), raw_end),
-                    text.rfind(". ", start + int(target * 0.55), raw_end),
-                    text.rfind("; ", start + int(target * 0.55), raw_end),
-                ]
-                best = max(candidates)
-                if best > start:
-                    end = best + (2 if text[best:best + 2] in {". ", "; "} else 0)
-            chunk_text = text[start:end].strip()
-            if chunk_text:
-                chunks.append({"text": chunk_text, "start": start, "end": end})
-            if end >= length:
-                break
-            start = max(start + 1, end - overlap)
-        return chunks
-
-    def _instruction_terms(self, instruction: str) -> tuple[list[str], list[str]]:
-        normalized_instruction = self._normalize(instruction)
-        terms = set(self._meaningful_terms(normalized_instruction))
-        phrases = {normalized_instruction} if normalized_instruction else set()
-
-        try:
-            interpreted = self.interpreter.interpret(instruction)
-            values = [
-                getattr(interpreted, "area", ""),
-                getattr(interpreted, "main_institute", ""),
-                getattr(interpreted, "claim_or_goal", ""),
-                getattr(interpreted, "jurisdiction", ""),
-            ]
-            for attr in ("conduct", "damages", "procedural_issues", "subtopics"):
-                values.extend(getattr(interpreted, attr, []) or [])
-            for value in values:
-                normalized = self._normalize(value)
-                if not normalized:
-                    continue
-                phrases.add(normalized)
-                terms.update(self._meaningful_terms(normalized))
-        except Exception:
-            pass
-
-        return sorted(terms), sorted(phrases, key=len, reverse=True)
-
-    def _meaningful_terms(self, text: str) -> list[str]:
-        return [
-            token for token in re.findall(r"[a-z0-9]+", text)
-            if len(token) >= 3 and token not in self._STOPWORDS
-        ]
-
-    def _normalize(self, value) -> str:
-        text = unicodedata.normalize("NFKD", str(value or ""))
-        text = "".join(ch for ch in text if not unicodedata.combining(ch)).lower()
-        text = re.sub(r"[^a-z0-9]+", " ", text)
-        return " ".join(text.split())
-
-    def _render_document_passages(self, filename: str, passages: list[dict]) -> str:
-        blocks = []
-        for number, passage in enumerate(passages, start=1):
-            location = (
-                f"Página aproximada: {passage['page']}"
-                if passage.get("page") else
-                f"Posición aproximada: caracteres {passage['start'] + 1}-{passage['end']}"
-            )
-            blocks.append(
-                f"[FUENTE {number}]\n"
-                f"Documento: {filename}\n"
-                f"{location}\n"
-                f"Pasaje relacionado con las Indicaciones:\n{passage['text']}"
-            )
-        return "\n\n".join(blocks)
-
     def save(self, package: ContextPackage) -> dict[str, Path]:
-        SETTINGS.context_builder_exports_path.mkdir(parents=True, exist_ok=True)
+        SETTINGS.context_builder_exports_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = f"{stamp}_{package.title}"
-        lexia_path = SETTINGS.context_builder_exports_path / f"{base_name}.lexia"
-        txt_path = SETTINGS.context_builder_exports_path / f"{base_name}.txt"
-        manifest_path = SETTINGS.context_builder_exports_path / f"{base_name}.json"
+
+        lexia_path = (
+            SETTINGS.context_builder_exports_path
+            / f"{base_name}.lexia"
+        )
+        txt_path = (
+            SETTINGS.context_builder_exports_path
+            / f"{base_name}.txt"
+        )
+        manifest_path = (
+            SETTINGS.context_builder_exports_path
+            / f"{base_name}.json"
+        )
+
         lexia_path.write_text(package.content, encoding="utf-8")
         txt_path.write_text(package.content, encoding="utf-8")
-        manifest_path.write_text(json.dumps(package.metadata(), ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"lexia": lexia_path, "txt": txt_path, "manifest": manifest_path}
+        manifest_path.write_text(
+            json.dumps(
+                package.metadata(),
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        return {
+            "lexia": lexia_path,
+            "txt": txt_path,
+            "manifest": manifest_path,
+        }
 
     def curate_package(
         self,
         package: ContextPackage,
         selected_indices: list[int],
     ) -> ContextPackage:
+        """Reconstruye el contexto con un subconjunto sin repetir la búsqueda."""
         source_count = len(package.sources)
-        normalized_indices = []
-        seen = set()
+        normalized_indices: list[int] = []
+        seen: set[int] = set()
         for value in selected_indices:
             index = int(value)
             if 0 <= index < source_count and index not in seen:
                 normalized_indices.append(index)
                 seen.add(index)
+
         if not normalized_indices:
-            raise ValueError("Seleccioná al menos una fuente para preparar el contexto.")
-        selected_sources = [package.sources[index] for index in normalized_indices]
+            raise ValueError(
+                "Seleccioná al menos una fuente para preparar el contexto."
+            )
+
+        selected_sources = [
+            package.sources[index]
+            for index in normalized_indices
+        ]
         curated_content = self._curate_source_section(
             package.content,
             normalized_indices,
             selected_sources,
         )
+
         return replace(
             package,
             content=curated_content,
@@ -587,9 +409,16 @@ En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su r
         selected_sources: list[SearchResult],
     ) -> str:
         formats = (
-            ("\nFUENTES\n\n", "\n\nESTRUCTURA DE LA RESPUESTA\n"),
-            ("\n## FUENTES SELECCIONADAS POR LEXIA\n\n", "\n\n## CONTROL FINAL\n"),
+            (
+                "\nFUENTES\n\n",
+                "\n\nESTRUCTURA DE LA RESPUESTA\n",
+            ),
+            (
+                "\n## FUENTES SELECCIONADAS POR LEXIA\n\n",
+                "\n\n## CONTROL FINAL\n",
+            ),
         )
+
         for start_marker, end_marker in formats:
             start = content.find(start_marker)
             if start < 0:
@@ -598,18 +427,34 @@ En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su r
             end = content.find(end_marker, section_start)
             if end < 0:
                 continue
+
             section = content[section_start:end].strip()
-            block_matches = list(re.finditer(r"(?m)^\[FUENTE\s+\d+\]\s*$", section))
+            block_matches = list(
+                re.finditer(
+                    r"(?m)^\[FUENTE\s+\d+\]\s*$",
+                    section,
+                )
+            )
             if not block_matches:
                 continue
-            blocks = []
+
+            blocks: list[str] = []
             for position, match in enumerate(block_matches):
-                block_end = block_matches[position + 1].start() if position + 1 < len(block_matches) else len(section)
+                block_end = (
+                    block_matches[position + 1].start()
+                    if position + 1 < len(block_matches)
+                    else len(section)
+                )
                 blocks.append(section[match.start():block_end].strip())
+
             if max(selected_indices) >= len(blocks):
                 continue
+
             curated_blocks = []
-            for new_number, original_index in enumerate(selected_indices, start=1):
+            for new_number, original_index in enumerate(
+                selected_indices,
+                start=1,
+            ):
                 block = re.sub(
                     r"^\[FUENTE\s+\d+\]",
                     f"[FUENTE {new_number}]",
@@ -617,8 +462,15 @@ En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su r
                     count=1,
                 )
                 curated_blocks.append(block)
-            return content[:section_start] + "\n\n".join(curated_blocks) + content[end:]
 
+            return (
+                content[:section_start]
+                + "\n\n".join(curated_blocks)
+                + content[end:]
+            )
+
+        # Compatibilidad con paquetes históricos que no tenían marcadores
+        # de sección inequívocos.
         rendered = self._render_sources(selected_sources)
         if "## FUENTES SELECCIONADAS POR LEXIA" in content:
             start_marker = "\n## FUENTES SELECCIONADAS POR LEXIA\n\n"
@@ -628,33 +480,50 @@ En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su r
             if start >= 0 and end >= 0:
                 section_start = start + len(start_marker)
                 return content[:section_start] + rendered + content[end:]
-        raise ValueError("El contexto no contiene una sección de fuentes compatible.")
 
-    def _select_sources(self, results: list[SearchResult], limit: int) -> list[SearchResult]:
-        selected = []
-        seen_fragments = set()
-        per_document = {}
+        raise ValueError(
+            "El contexto no contiene una sección de fuentes compatible."
+        )
+
+    def _select_sources(
+        self,
+        results: list[SearchResult],
+        limit: int,
+    ) -> list[SearchResult]:
+        selected: list[SearchResult] = []
+        seen_fragments: set[tuple[str, int]] = set()
+        per_document: dict[str, int] = {}
+
         for result in results:
             path_key = str(result.document_path).lower()
             key = (path_key, result.fragment_index)
+
             if key in seen_fragments:
                 continue
             if per_document.get(path_key, 0) >= 2:
                 continue
+
             selected.append(result)
             seen_fragments.add(key)
             per_document[path_key] = per_document.get(path_key, 0) + 1
+
             if len(selected) >= limit:
                 break
+
         return selected
 
-    def _render_sources(self, results: list[SearchResult]) -> str:
-        blocks = []
+    def _render_sources(
+        self,
+        results: list[SearchResult],
+    ) -> str:
+        blocks: list[str] = []
         total_chars = 0
+
         for number, result in enumerate(results, start=1):
             metadata = result.metadata or {}
             text = " ".join(result.text.split())
             text = text[: SETTINGS.context_builder_max_chars_per_source]
+
             block = (
                 f"[FUENTE {number}]\n"
                 f"Documento: {result.document_name}\n"
@@ -665,13 +534,24 @@ En Libro y Doctrina, concentrá la respuesta en los pasajes recuperados por su r
                 f"Ruta local: {result.document_path}\n"
                 f"Contenido: {text}"
             )
-            if blocks and total_chars + len(block) > SETTINGS.context_builder_max_total_chars:
+
+            if (
+                blocks
+                and total_chars + len(block)
+                > SETTINGS.context_builder_max_total_chars
+            ):
                 break
+
             blocks.append(block)
             total_chars += len(block)
+
         return "\n\n".join(blocks)
 
     def _safe_title(self, text: str) -> str:
-        clean = re.sub(r"[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 _-]+", "", text)
+        clean = re.sub(
+            r"[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 _-]+",
+            "",
+            text,
+        )
         clean = "_".join(clean.split())[:75]
         return clean or "consulta_lexia"
