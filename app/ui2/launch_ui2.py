@@ -115,10 +115,16 @@ def main() -> int:
     env = os.environ.copy()
     env["LEXIA_UI2_PORT"] = PORT
 
+    popen_kwargs = {
+        "cwd": str(ROOT),
+        "env": env,
+    }
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
     server = subprocess.Popen(
         [str(py), str(HERE / "server.py")],
-        cwd=str(ROOT),
-        env=env,
+        **popen_kwargs,
     )
 
     try:
