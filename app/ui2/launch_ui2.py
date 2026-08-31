@@ -30,6 +30,7 @@ def _ensure_ui_assets() -> str | None:
     index = HERE / "index.html"
     jurisprudence = HERE / "assets" / "jurisprudence_search.js"
     app_runtime = HERE / "assets" / "app_runtime.js"
+    windows_study_guard = HERE / "assets" / "windows_study_layout_guard.js"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
         return None
 
@@ -49,6 +50,15 @@ def _ensure_ui_assets() -> str | None:
     if "assets/app_runtime.js" not in patched:
         tags.append(
             '<script src="assets/app_runtime.js?v=app-runtime-2"></script>'
+        )
+
+    if (
+        os.name == "nt"
+        and windows_study_guard.exists()
+        and "assets/windows_study_layout_guard.js" not in patched
+    ):
+        tags.append(
+            '<script src="assets/windows_study_layout_guard.js?v=study-layout-win-1"></script>'
         )
 
     if not tags:
@@ -108,11 +118,11 @@ def _stop_process(process: subprocess.Popen) -> None:
 def _start_windows_core_bridge():
     """En Windows, UI2 puede ser la única interfaz visible.
 
-    El puente central antes nacía dentro de app/ui.py (Streamlit).  Al lanzar
+    El puente central antes nacía dentro de app/ui.py (Streamlit). Al lanzar
     UI2 directamente no existe esa sesión clásica, por lo que server.py no
-    encuentra ui2_delete_bridge.json.  Crear aquí la aplicación central y el
+    encuentra ui2_delete_bridge.json. Crear aquí la aplicación central y el
     puente mantiene borrado, mantenimiento y OCR disponibles sin abrir la UI
-    clásica.  Se limita a Windows para no alterar el arranque ya estable de
+    clásica. Se limita a Windows para no alterar el arranque ya estable de
     macOS.
     """
     if os.name != "nt":
