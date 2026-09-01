@@ -95,7 +95,7 @@
 #contextpage .context-actions .primary{font-size:11px!important;min-height:34px!important}
 #contextpage .research-main-column>.context-form{flex:0 0 auto!important;min-height:0!important;overflow:visible!important}
 
-@media(max-width:1199px){#maintenance{inset:0!important;padding:18px!important}}
+@media(max-width:1199px){#maintenance{inset:0!important;padding:64px 18px 18px!important}}
 @media(max-width:900px){#maintenance .maint-about{grid-template-columns:1fr}}
 @media(max-width:840px){#maintenance .maint-kpis,#maintenance .maint-grid,#maintenance .maint-form,#maintenance .maint-ocr-details{grid-template-columns:1fr}#maintenance .maint-head{flex-direction:column}#maintenance .maint-activity,#maintenance .maint-history-card{grid-column:auto;grid-row:auto}#maintenance .maint-history-card{max-height:300px}#maintenance .maint-history{max-height:224px}}
 
@@ -129,3 +129,69 @@
   body.lexia-nav-open .global-sidebar{transform:translateX(0)!important;visibility:visible!important;pointer-events:auto!important}
 }
 @media(max-width:520px){#maintenance .maint-ocr-stats{grid-template-columns:1fr}}
+
+/* ==========================================================
+   INVESTIGACIÓN / ESTUDIAR — layout compartido Mac/Windows
+   ========================================================== */
+
+/* Nueva investigación / Nuevo estudio: mismo aspecto visual. */
+#contextpage #newContext{
+  background:#5146f6!important;
+  border-color:#5146f6!important;
+  color:#fff!important;
+  min-height:40px!important;
+  padding:0 18px!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  border-radius:9px!important;
+}
+#contextpage #newContext:hover{
+  background:#4035c7!important;
+  border-color:#4035c7!important;
+}
+
+/*
+ * Cuando está visible Estudiar archivo no dependemos del guard JS.
+ * El propio DOM determina el layout.
+ */
+#contextpage .context-layout:has(> #studyPanel:not([hidden])){
+  height:auto!important;
+  min-height:calc(100vh - var(--global-top))!important;
+  grid-template-rows:auto auto auto auto auto!important;
+  grid-auto-rows:auto!important;
+  align-content:start!important;
+  overflow:visible!important;
+  padding-bottom:20px!important;
+}
+
+#contextpage .context-layout > #studyPanel:not([hidden]){
+  display:block!important;
+  position:relative!important;
+  grid-row:auto!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  margin:0!important;
+  padding-bottom:16px!important;
+}
+
+/* Paquete de investigación: siempre debajo del estudio. */
+#contextpage .context-layout > #studyPanel:not([hidden]) ~ .output-card{
+  display:block!important;
+  position:relative!important;
+  grid-row:auto!important;
+  grid-column:auto!important;
+  top:auto!important;
+  right:auto!important;
+  bottom:auto!important;
+  left:auto!important;
+  inset:auto!important;
+  transform:none!important;
+  float:none!important;
+  clear:both!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:18px 0 0!important;
+  overflow:visible!important;
+}

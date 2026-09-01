@@ -275,9 +275,54 @@
     try{const raw=JSON.parse(localStorage.getItem(STUDY_HISTORY_KEY)||'[]');return Array.isArray(raw)?raw.map(v=>String(v||'').trim()).filter(Boolean).slice(0,20):[];}catch(_){return [];}
   }
   function saveStudyHistory(value){
-    const text=String(value||'').trim();if(!text)return;
-    const items=readStudyHistory().filter(item=>item.toLocaleLowerCase('es')!==text.toLocaleLowerCase('es'));
-    items.unshift(text);try{localStorage.setItem(STUDY_HISTORY_KEY,JSON.stringify(items.slice(0,20)));}catch(_){}
+    const text=String(value||'').trim();
+    if(!text)return;
+
+    const items=readStudyHistory()
+      .filter(item=>item.toLocaleLowerCase('es')!==text.toLocaleLowerCase('es'));
+
+    items.unshift(text);
+    const saved=items.slice(0,20);
+
+    try{
+      localStorage.setItem(
+        STUDY_HISTORY_KEY,
+        JSON.stringify(saved)
+      );
+    }catch(_){}
+
+    fetch('/api/study-history',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({items:saved}),
+      cache:'no-store'
+    }).catch(()=>{});
+  }
+
+  async function loadPersistentStudyHistory(){
+    try{
+      const response=await fetch(
+        '/api/study-history',
+        {cache:'no-store'}
+      );
+      if(!response.ok)return;
+
+      const data=await response.json();
+      const items=Array.isArray(data.items)
+        ? data.items.map(v=>String(v||'').trim()).filter(Boolean).slice(0,20)
+        : [];
+
+      if(items.length){
+        try{
+          localStorage.setItem(
+            STUDY_HISTORY_KEY,
+            JSON.stringify(items)
+          );
+        }catch(_){}
+
+        renderStudyHistory();
+      }
+    }catch(_){}
   }
   function renderStudyHistory(){
     const panel=document.getElementById(STUDY_HISTORY_PANEL_ID);if(!panel)return;
@@ -352,7 +397,7 @@
   }
 
   function initialize(){
-    ensureButtonColors();ensureStudyLayout();setupRecentHistoryTouchFix();installHtmlViewerFix();syncAllSurfaces();
+    ensureButtonColors();ensureStudyLayout();setupRecentHistoryTouchFix();installHtmlViewerFix();syncAllSurfaces();loadPersistentStudyHistory();
     const page=document.getElementById(SEARCH_PAGE_ID);
     if(page)new MutationObserver(syncAllSurfaces).observe(page,{childList:true,subtree:true});
     const context=document.getElementById('contextpage');
@@ -363,3 +408,196 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
   else initialize();
 })();
+
+/* >>> LEXIA STUDY INSTRUCTION VALIDATION UI 1.0 */
+(function(){
+  'use strict';
+
+  function el(id){
+    return document.getElementById(id);
+  }
+
+  function runStudy(button){
+    button.dataset.lexiaValidationBypass='1';
+    button.click();
+  }
+
+  function showWarning(button, validation){
+    const status=el('studyStatus');
+    const field=el('studyInstruction');
+
+    if(!status){
+      runStudy(button);
+      return;
+    }
+
+    status.hidden=false;
+    status.innerHTML='';
+
+    const box=document.createElement('div');
+    box.style.cssText=[
+      'border:1px solid #f0b429',
+      'background:#fff8e6',
+      'border-radius:10px',
+      'padding:12px 14px',
+      'color:#4a3500'
+    ].join(';');
+
+    const title=document.createElement('div');
+    title.textContent=
+      'La indicación no parece estar respaldada por el documento.';
+    title.style.fontWeight='700';
+
+    const detail=document.createElement('div');
+    detail.style.marginTop='6px';
+
+    const missing=Array.isArray(validation.missing_terms)
+      ? validation.missing_terms
+      : [];
+
+    detail.textContent=missing.length
+      ? 'No se localizaron con suficiente evidencia: '
+        + missing.join(', ') + '.'
+      : 'No se encontró evidencia textual suficiente.';
+
+    const note=document.createElement('div');
+    note.style.marginTop='6px';
+    note.textContent=
+      'Podés continuar igualmente si querés estudiar una relación '
+      +'indirecta o comprobar expresamente si el documento trata ese tema.';
+
+    const actions=document.createElement('div');
+    actions.style.cssText=
+      'display:flex;gap:8px;margin-top:10px;flex-wrap:wrap';
+
+    const continueButton=document.createElement('button');
+    continueButton.type='button';
+    continueButton.textContent='Continuar igualmente';
+    continueButton.style.cssText=[
+      'background:#5146f6',
+      'border:1px solid #5146f6',
+      'color:#fff',
+      'border-radius:8px',
+      'padding:8px 13px',
+      'font-weight:700'
+    ].join(';');
+
+    const modifyButton=document.createElement('button');
+    modifyButton.type='button';
+    modifyButton.textContent='Modificar indicación';
+    modifyButton.className='secondary';
+    modifyButton.style.cssText=
+      'border-radius:8px;padding:8px 13px';
+
+    continueButton.addEventListener('click',function(){
+      status.innerHTML='';
+      status.hidden=true;
+      runStudy(button);
+    });
+
+    modifyButton.addEventListener('click',function(){
+      field?.focus();
+      field?.select();
+    });
+
+    actions.append(
+      continueButton,
+      modifyButton
+    );
+
+    box.append(
+      title,
+      detail,
+      note,
+      actions
+    );
+
+    status.appendChild(box);
+  }
+
+  document.addEventListener(
+    'click',
+    async function(event){
+      const button=event.target?.closest?.('#startStudy');
+      if(!button)return;
+
+      if(button.dataset.lexiaValidationBypass==='1'){
+        delete button.dataset.lexiaValidationBypass;
+        return;
+      }
+
+      const path=String(el('studyPath')?.value||'').trim();
+      const instruction=String(
+        el('studyInstruction')?.value||''
+      ).trim();
+
+      // Sin indicación específica no hace falta validar.
+      if(!path || !instruction)return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const status=el('studyStatus');
+
+      if(status){
+        status.hidden=false;
+        status.textContent='Validando la indicación contra el documento…';
+      }
+
+      try{
+        const response=await fetch(
+          '/api/study-instruction-validate',
+          {
+            method:'POST',
+            headers:{
+              'Content-Type':'application/json'
+            },
+            body:JSON.stringify({
+              path:path,
+              instruction:instruction
+            }),
+            cache:'no-store'
+          }
+        );
+
+        const validation=await response.json();
+
+        if(
+          !response.ok
+          || validation.ok===false
+        ){
+          // Un fallo del validador nunca debe impedir estudiar.
+          if(status){
+            status.hidden=true;
+            status.textContent='';
+          }
+          runStudy(button);
+          return;
+        }
+
+        if(validation.supported){
+          if(status){
+            status.hidden=true;
+            status.textContent='';
+          }
+          runStudy(button);
+          return;
+        }
+
+        showWarning(button,validation);
+
+      }catch(_){
+        // Fail-open: si falla exclusivamente la validación,
+        // conservar el funcionamiento normal de Estudiar archivo.
+        if(status){
+          status.hidden=true;
+          status.textContent='';
+        }
+        runStudy(button);
+      }
+    },
+    true
+  );
+})();
+/* <<< LEXIA STUDY INSTRUCTION VALIDATION UI 1.0 */
+

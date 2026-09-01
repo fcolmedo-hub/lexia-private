@@ -5291,9 +5291,88 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
   async function pollPackage(button){try{const data=await request('/api/research-package-status');const state=data.state||{};showProgress(state);if(state.phase==='completed'){const data2=await request('/api/research-package-result');const result=data2.result||{};lastContent=String(result.content||'');text('investigationOutput',lastContent||'El motor no devolvió el paquete.');text('outputSourceCount',result.source_count||'—');text('outputDocumentCount',result.document_count||'—');text('outputElapsed',Number(result.elapsed_seconds||0).toLocaleString('es-AR',{maximumFractionDigits:1})+' s');text('outputState','Listo');busy(button,false,'Crear paquete con las seleccionadas');openModal(false);return;}if(state.phase==='error'){text('investigationOutput','No se pudo preparar el paquete.\n\n'+(state.error||state.status||''));busy(button,false,'Crear paquete con las seleccionadas');return;}packageTimer=setTimeout(()=>pollPackage(button),500);}catch(error){text('investigationOutput',error.message||String(error));busy(button,false,'Crear paquete con las seleccionadas');}}
   const build=replace('buildResearchPackage',async event=>{event.preventDefault();const selected=selectedIndices();if(!selected.length){text('sourceSelectionHelp','Seleccioná al menos una fuente para continuar.');return;}if(packageTimer)clearTimeout(packageTimer);busy(build,true,'Preparando…');try{await request('/api/research-package-start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates_job_id:model.jobId,selected_indices:selected})});showProgress({phase:'building',status:'Preparando el paquete con las fuentes seleccionadas…'});pollPackage(build);}catch(error){text('sourceSelectionHelp',error.message||String(error));busy(build,false,'Crear paquete con las seleccionadas');}});
   replace('viewSources',()=>{if(!model.sources.length){text('investigationOutput','Primero presioná “Investigar” para recuperar fuentes reales.');return;}openModal(true);});replace('closeSourcesModal',()=>openModal(false));$('researchSourcesModal')?.addEventListener('click',event=>{if(event.target===$('researchSourcesModal'))openModal(false);});
-  function activateInvestigationTab(studyMode){const research=$('researchTab'),study=$('studyTab'),researchPanel=$('researchPanel'),studyPanel=$('studyPanel');if(!research||!study||!researchPanel||!studyPanel)return;research.classList.toggle('active',!studyMode);research.setAttribute('aria-selected',String(!studyMode));study.classList.toggle('active',studyMode);study.setAttribute('aria-selected',String(studyMode));researchPanel.hidden=studyMode;studyPanel.hidden=!studyMode;}
+  function activateInvestigationTab(studyMode){
+    const research=$('researchTab'),study=$('studyTab'),researchPanel=$('researchPanel'),studyPanel=$('studyPanel'),newButton=$('newContext');
+    if(!research||!study||!researchPanel||!studyPanel)return;
+    research.classList.toggle('active',!studyMode);
+    research.setAttribute('aria-selected',String(!studyMode));
+    study.classList.toggle('active',studyMode);
+    study.setAttribute('aria-selected',String(studyMode));
+    researchPanel.hidden=studyMode;
+    studyPanel.hidden=!studyMode;
+
+    if(newButton){
+      newButton.textContent=studyMode?'Nuevo estudio':'Nueva investigación';
+      newButton.classList.toggle('lexia-new-study',studyMode);
+      if(studyMode){
+        newButton.style.setProperty('background','#5146f6','important');
+        newButton.style.setProperty('border-color','#5146f6','important');
+        newButton.style.setProperty('color','#fff','important');
+        newButton.style.setProperty('min-height','40px','important');
+        newButton.style.setProperty('padding','0 18px','important');
+        newButton.style.setProperty('font-size','12px','important');
+        newButton.style.setProperty('font-weight','700','important');
+      }else{
+        ['background','border-color','color','min-height','padding','font-size','font-weight']
+          .forEach(prop=>newButton.style.removeProperty(prop));
+      }
+    }
+  }
   replace('researchTab',event=>{event.preventDefault();activateInvestigationTab(false);});replace('studyTab',event=>{event.preventDefault();activateInvestigationTab(true);});
-  replace('newContext',async event=>{event.preventDefault();if(timer)clearTimeout(timer);if(packageTimer)clearTimeout(packageTimer);try{await request('/api/research-candidates-cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}catch(_){}setResearchControl(investigate,'idle');model.activeSignature='';model.paused=false;model.jobId='';model.sources=[];model.selected=new Set();model.visible=new Set();lastContent='';renderSources();openModal(false);document.querySelectorAll('.research-scope-check').forEach(box=>box.checked=false);updateResearchScopeSummary();['researchQuery','researchFacts','researchObjective','researchInstruction','studyPath','studyInstruction'].forEach(id=>{const field=$(id);if(field)field.value='';});text('investigationOutput','Nueva investigación lista para comenzar.');text('outputSourceCount','—');text('outputDocumentCount','—');text('outputElapsed','—');showProgress({phase:'idle',current_step:0,total_steps:4,percentage:0,status:'Esperando una consulta.'});activateInvestigationTab(false);});
+  replace('newContext',async event=>{
+    event.preventDefault();
+
+    const wasStudyMode=$('studyTab')?.getAttribute('aria-selected')==='true';
+
+    if(timer)clearTimeout(timer);
+    if(packageTimer)clearTimeout(packageTimer);
+
+    try{
+      await request('/api/research-candidates-cancel',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:'{}'
+      });
+    }catch(_){}
+
+    setResearchControl(investigate,'idle');
+    model.activeSignature='';
+    model.paused=false;
+    model.jobId='';
+    model.sources=[];
+    model.selected=new Set();
+    model.visible=new Set();
+    lastContent='';
+    renderSources();
+    openModal(false);
+
+    document.querySelectorAll('.research-scope-check').forEach(box=>box.checked=false);
+    updateResearchScopeSummary();
+
+    ['researchQuery','researchFacts','researchObjective','researchInstruction','studyPath','studyInstruction']
+      .forEach(id=>{
+        const field=$(id);
+        if(field)field.value='';
+      });
+
+    text(
+      'investigationOutput',
+      wasStudyMode?'Nuevo estudio listo para comenzar.':'Nueva investigación lista para comenzar.'
+    );
+    text('outputSourceCount','—');
+    text('outputDocumentCount','—');
+    text('outputElapsed','—');
+
+    showProgress({
+      phase:'idle',
+      current_step:0,
+      total_steps:4,
+      percentage:0,
+      status:wasStudyMode?'Esperando un archivo.':'Esperando una consulta.'
+    });
+
+    activateInvestigationTab(wasStudyMode);
+  });
   const study=replace('startStudy',async event=>{event.preventDefault();const path=value('studyPath'),status=$('studyStatus');if(!path){status.hidden=false;status.textContent='Seleccioná un archivo desde “Fuentes encontradas” o indicá su ruta completa dentro de la biblioteca de LexIA.';return;}if(studyTimer)clearTimeout(studyTimer);busy(study,true,'Estudiando…');status.hidden=false;status.textContent='Analizando el archivo con el motor LexIA…';try{await request('/api/study-start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,objective:$('studyObjective')?.value||'Análisis de jurisprudencia',instruction:value('studyInstruction'),document_type:$('studyType')?.value||'Detección automática'})});const poll=async()=>{try{const d=await request('/api/study-status'),s=d.state||{};status.textContent=s.status||'Estudiando…';if(s.phase==='completed'){const r=await request('/api/study-result');lastContent=String(r.result?.content||'');text('investigationOutput',lastContent);text('outputSourceCount',r.result?.source_count||1);text('outputDocumentCount',r.result?.document_count||1);text('outputState','Listo');busy(study,false,'Estudiar');return;}if(s.phase==='error'){status.textContent='No se pudo estudiar el archivo.\n\n'+(s.error||s.status||'');busy(study,false,'Estudiar');return;}studyTimer=setTimeout(poll,700);}catch(error){status.textContent=error.message||String(error);busy(study,false,'Estudiar');}};poll();}catch(error){status.textContent=error.message||String(error);busy(study,false,'Estudiar');}});
   replace('copyContext',async()=>{if(!lastContent){text('outputState','Sin paquete para copiar');return;}let ok=false;try{await navigator.clipboard.writeText(lastContent);ok=true;}catch(_){const area=document.createElement('textarea');area.value=lastContent;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();ok=document.execCommand('copy');area.remove();}text('outputState',ok?'Copiado':'No se pudo copiar');});
   replace('exportContext',()=>{if(!lastContent){text('outputState','Sin paquete para exportar');return;}const url=URL.createObjectURL(new Blob([lastContent],{type:'text/plain;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='Paquete_investigacion_LexIA.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);text('outputState','Exportado');});

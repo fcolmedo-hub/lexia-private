@@ -36,6 +36,57 @@ LIVE = LiveReadOnlyAdapter()
 SEARCH = None
 
 DELETE_BRIDGE_STATE = RUNTIME_ROOT / "ui2_delete_bridge.json"
+STUDY_HISTORY_PATH = RUNTIME_ROOT / "study_indications_history.json"
+
+
+def _study_history_read():
+    try:
+        raw = json.loads(
+            STUDY_HISTORY_PATH.read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError, TypeError):
+        raw = []
+
+    if not isinstance(raw, list):
+        raw = []
+
+    items = []
+    seen = set()
+
+    for value in raw:
+        text = str(value or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        items.append(text)
+        if len(items) >= 20:
+            break
+
+    return items
+
+
+def _study_history_write(items):
+    cleaned = []
+    seen = set()
+
+    for value in items or []:
+        text = str(value or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+        if len(cleaned) >= 20:
+            break
+
+    temporary = STUDY_HISTORY_PATH.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(cleaned, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    temporary.replace(STUDY_HISTORY_PATH)
+    return cleaned
 
 def get_search():
     global SEARCH
@@ -422,6 +473,211 @@ def _lexia321_norm(value):
     text = text.lower()
     text = _re.sub(r"[^a-z0-9]+", " ", text)
     return " ".join(text.split())
+
+
+
+# >>> LEXIA STUDY INSTRUCTION VALIDATION 1.0
+
+_STUDY_VALIDATION_STOPWORDS = {
+    "analiza", "analizar", "analice", "analisis",
+    "explica", "explicar", "explique",
+    "identifica", "identificar", "indica", "indicar",
+    "busca", "buscar", "encuentra", "encontrar",
+    "resume", "resumir", "resumi",
+    "documento", "archivo", "texto", "fallo", "sentencia",
+    "causa", "caso", "tema", "aspecto", "respecto",
+    "sobre", "acerca", "donde", "cuando", "como",
+    "para", "por", "con", "sin", "del", "los", "las",
+    "una", "uno", "unos", "unas", "que", "qué",
+    "este", "esta", "estos", "estas",
+    "contenido", "menciona", "mencionar",
+}
+
+
+def _study_validation_stem(token):
+    token = str(token or "").strip()
+
+    for suffix in (
+        "amientos", "imiento", "imientos",
+        "aciones", "acion",
+        "uciones", "ucion",
+        "idades", "idad",
+        "mente",
+        "amiento",
+        "ados", "adas", "idos", "idas",
+        "ando", "iendo",
+        "es", "os", "as",
+    ):
+        if (
+            token.endswith(suffix)
+            and len(token) - len(suffix) >= 5
+        ):
+            return token[:-len(suffix)]
+
+    return token
+
+
+def _study_instruction_validation(requested_path, instruction):
+    instruction = str(instruction or "").strip()
+
+    if not instruction:
+        return {
+            "ok": True,
+            "supported": True,
+            "score": 1.0,
+            "reason": "Sin indicación específica.",
+            "matched_terms": [],
+            "missing_terms": [],
+        }
+
+    source = Path(str(requested_path or "")).expanduser().resolve()
+    library_root = Path(SETTINGS.library_path).expanduser().resolve()
+
+    try:
+        source.relative_to(library_root)
+    except ValueError as exc:
+        raise PermissionError(
+            "El archivo debe pertenecer a la biblioteca LexIA."
+        ) from exc
+
+    catalog_path = Path(SETTINGS.catalog_path)
+
+    with sqlite3.connect(catalog_path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            """
+            SELECT text_content
+            FROM documents
+            WHERE path = ?
+              AND is_deleted = 0
+            LIMIT 1
+            """,
+            (str(source),),
+        ).fetchone()
+
+    text = str(row["text_content"] if row else "").strip()
+
+    # Si todavía no hay texto persistido, no bloquear:
+    # el estudio conservará su flujo normal de extracción.
+    if not text:
+        return {
+            "ok": True,
+            "supported": True,
+            "score": 0.0,
+            "reason": (
+                "No hay texto indexado suficiente para validar "
+                "previamente la indicación."
+            ),
+            "matched_terms": [],
+            "missing_terms": [],
+            "validation_available": False,
+        }
+
+    normalized_instruction = _lexia321_norm(instruction)
+    normalized_text = _lexia321_norm(text)
+
+    raw_terms = [
+        token
+        for token in normalized_instruction.split()
+        if len(token) >= 4
+        and token not in _STUDY_VALIDATION_STOPWORDS
+    ]
+
+    # Sin conceptos específicos: instrucciones como
+    # "resumí el documento" deben permitirse normalmente.
+    terms = []
+    seen = set()
+
+    for token in raw_terms:
+        if token not in seen:
+            seen.add(token)
+            terms.append(token)
+
+    if not terms:
+        return {
+            "ok": True,
+            "supported": True,
+            "score": 1.0,
+            "reason": "Indicación general de análisis.",
+            "matched_terms": [],
+            "missing_terms": [],
+            "validation_available": True,
+        }
+
+    text_tokens = set(normalized_text.split())
+    text_stems = {
+        _study_validation_stem(token)
+        for token in text_tokens
+        if len(token) >= 4
+    }
+
+    matched = []
+    missing = []
+
+    for term in terms:
+        stem = _study_validation_stem(term)
+
+        if term in text_tokens or stem in text_stems:
+            matched.append(term)
+        else:
+            missing.append(term)
+
+    coverage = len(matched) / max(1, len(terms))
+
+    bigrams = [
+        f"{terms[i]} {terms[i + 1]}"
+        for i in range(len(terms) - 1)
+    ]
+    bigram_hits = sum(
+        1 for phrase in bigrams
+        if phrase in normalized_text
+    )
+    bigram_coverage = (
+        bigram_hits / len(bigrams)
+        if bigrams else 0.0
+    )
+
+    meaningful_phrase = " ".join(terms)
+    phrase_hit = (
+        len(terms) >= 2
+        and meaningful_phrase in normalized_text
+    )
+
+    score = max(
+        coverage,
+        coverage * 0.70 + bigram_coverage * 0.30,
+    )
+
+    supported = bool(
+        phrase_hit
+        or coverage >= 0.50
+        or (
+            len(matched) >= 2
+            and score >= 0.36
+        )
+        or (
+            bigram_hits >= 1
+            and coverage >= 0.34
+        )
+    )
+
+    return {
+        "ok": True,
+        "supported": supported,
+        "score": round(score, 3),
+        "reason": (
+            "La indicación tiene respaldo en el documento."
+            if supported
+            else
+            "No se encontró respaldo textual suficiente "
+            "para la indicación en este documento."
+        ),
+        "matched_terms": matched[:8],
+        "missing_terms": missing[:8],
+        "validation_available": True,
+    }
+
+# <<< LEXIA STUDY INSTRUCTION VALIDATION 1.0
 
 
 _FILTER_TREE_LOCK = threading.RLock()
@@ -2387,6 +2643,53 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+
+        if path == "/api/study-instruction-validate":
+            try:
+                length = int(
+                    self.headers.get("Content-Length", "0") or 0
+                )
+                raw = (
+                    self.rfile.read(length)
+                    if length else b"{}"
+                )
+                body = json.loads(raw.decode("utf-8"))
+
+                return self._json(
+                    _study_instruction_validation(
+                        body.get("path"),
+                        body.get("instruction"),
+                    )
+                )
+            except Exception as exc:
+                return self._json(
+                    {
+                        "ok": False,
+                        "error": str(exc),
+                    },
+                    500,
+                )
+
+        if path == "/api/study-history":
+            try:
+                length = int(
+                    self.headers.get("Content-Length", "0") or 0
+                )
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                items = _study_history_write(
+                    body.get("items") or []
+                )
+                return self._json({
+                    "ok": True,
+                    "items": items,
+                })
+            except Exception as exc:
+                return self._json(
+                    {"ok": False, "error": str(exc)},
+                    500,
+                )
+
         if path == "/api/maintenance-action":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
@@ -2710,6 +3013,19 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+
+        if path == "/api/study-history":
+            try:
+                return self._json({
+                    "ok": True,
+                    "items": _study_history_read(),
+                })
+            except Exception as exc:
+                return self._json(
+                    {"ok": False, "error": str(exc)},
+                    500,
+                )
+
         if path == "/api/research-history":
             try:
                 return self._json({"ok": True, "items": _research_history_items(12)})

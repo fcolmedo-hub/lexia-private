@@ -334,6 +334,8 @@ class DocumentCatalog:
                     text_content,
                     extraction_error,
                     extraction_method,
+                    ocr_pages,
+                    total_pages,
                     category
                 FROM documents
                 WHERE path = ?

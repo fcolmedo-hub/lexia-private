@@ -384,6 +384,11 @@ class KnowledgeContextPackageBuilder(
 
         normalized = []
 
+        # El catálogo es la fuente de verdad para documentos que ya fueron
+        # extraídos/OCR e indexados. No tiene sentido volver a abrir y extraer
+        # el archivo físico en cada estudio si LexIA ya conserva texto válido.
+        catalog = DocumentCatalog(SETTINGS.catalog_path)
+
         for item in items:
             if isinstance(item, (tuple, list)):
                 path = Path(item[0])
@@ -392,23 +397,60 @@ class KnowledgeContextPackageBuilder(
                 path = Path(item)
                 original_name = path.name
 
-            extraction = self.extractor.extract(path)
-            extracted_text = extraction.text.strip()
+            state = catalog.get_file_state(path)
+            indexed_text = str(
+                (state or {}).get("text_content") or ""
+            ).strip()
+            active_in_catalog = bool(
+                state
+                and not int((state or {}).get("is_deleted", 0) or 0)
+            )
 
-            if not extracted_text:
-                raise RuntimeError(
-                    "No fue posible extraer texto de "
-                    f"'{original_name}'."
+            if active_in_catalog and indexed_text:
+                # Prioridad absoluta al contenido persistido: un error de
+                # extracción histórico no invalida texto obtenido después
+                # mediante OCR y ya incorporado correctamente al catálogo.
+                extracted_text = indexed_text
+                extraction_method = str(
+                    (state or {}).get("extraction_method")
+                    or "catalog"
+                )
+                detected_pages = (
+                    (state or {}).get("total_pages")
+                    or (state or {}).get("ocr_pages")
+                    or "No determinadas"
+                )
+            else:
+                # Fallback para archivos aún no indexados o sin texto
+                # persistido: conservar el comportamiento tradicional.
+                extraction = self.extractor.extract(path)
+                extracted_text = extraction.text.strip()
+
+                if not extracted_text:
+                    catalog_error = str(
+                        (state or {}).get("extraction_error") or ""
+                    ).strip()
+                    detail = (
+                        f" {catalog_error}"
+                        if catalog_error
+                        else ""
+                    )
+                    raise RuntimeError(
+                        "No fue posible extraer texto de "
+                        f"'{original_name}'.{detail}"
+                    )
+
+                extraction_method = extraction.method
+                detected_pages = (
+                    extraction.total_pages
+                    or "No determinadas"
                 )
 
             normalized.append(
                 {
                     "name": original_name,
-                    "method": extraction.method,
-                    "pages": (
-                        extraction.total_pages
-                        or "No determinadas"
-                    ),
+                    "method": extraction_method,
+                    "pages": detected_pages,
                     "text": extracted_text,
                 }
             )
