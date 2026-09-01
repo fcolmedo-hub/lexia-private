@@ -3434,7 +3434,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
       return;
     }
 
-    if(['.doc','.docx','.rtf','.odt'].includes(e)){
+    if(['.doc','.docx','.rtf','.odt','.html','.htm'].includes(e)){
       if(page){
         const requestedPage=Number(page)||1;
         let actualPage=requestedPage;
@@ -3862,7 +3862,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
   };
 
   const lexiaIsOfficeResult = path =>
-    ['.doc','.docx','.rtf','.odt'].includes(lexiaOfficeResultExt(path));
+    ['.doc','.docx','.rtf','.odt','.html','.htm'].includes(lexiaOfficeResultExt(path));
 
   async function lexiaResolveOfficeResultPage(path,snippet){
     // LEXIA_OFFICE_NO_PREFETCH_20260828
@@ -4750,7 +4750,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 
     resolver(card).then(async path=>{
       const ext=(String(path||'').toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
-      const isOffice=['.doc','.docx','.rtf','.odt'].includes(ext);
+      const isOffice=['.doc','.docx','.rtf','.odt','.html','.htm'].includes(ext);
 
       if(isOffice){
         const metaText=String(card?.querySelector?.('.result-meta')?.textContent||'');
@@ -5326,5 +5326,10 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 <link rel="stylesheet" href="assets/maintenance.css?v=phase1">
 <script src="assets/maintenance.js?v=phase2"></script>
 <script src="assets/jurisprudence_search.js?v=juris1"></script>
+
+<script id="LEXIA_HTML_PREVIEW_20260831">
+// HTML/HTM se visualizan mediante el mismo PDF temporal que Office.
+</script>
+<script src="assets/app_runtime.js?v=app-runtime-1"></script>
 </body>
 </html>

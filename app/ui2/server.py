@@ -287,7 +287,7 @@ def _office_preview_pdf(requested_path):
         _resolve_catalog_document(requested_path=requested_path)
     ).expanduser().resolve()
 
-    if source.suffix.lower() not in {".doc", ".docx", ".rtf", ".odt"}:
+    if source.suffix.lower() not in {".doc", ".docx", ".rtf", ".odt", ".html", ".htm"}:
         raise ValueError("El formato no admite conversión de vista previa.")
 
     soffice = _find_soffice()

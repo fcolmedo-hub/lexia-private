@@ -746,7 +746,7 @@
     const snippet=String(document?.text||'').replace(/\s+/g,' ').trim().slice(0,700);
     let page=Number(document?.page_start||0);
     const extension=(path.toLowerCase().match(/(\.[^.\\/]+)$/)||[])[1]||'';
-    if(['.doc','.docx','.rtf','.odt'].includes(extension)&&snippet){
+    if(['.doc','.docx','.rtf','.odt','.html','.htm'].includes(extension)&&snippet){
       try{
         const response=await fetch('/api/office-preview-page?path='+encodeURIComponent(path)+
           '&snippet='+encodeURIComponent(snippet),{cache:'no-store'});
