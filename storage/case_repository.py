@@ -48,6 +48,41 @@ class CaseRepository:
                     content TEXT NOT NULL,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS case_documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_id INTEGER NOT NULL,
+                    document_id INTEGER,
+                    document_name TEXT NOT NULL,
+                    document_path TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT '',
+                    relation_kind TEXT NOT NULL DEFAULT 'vinculado',
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(case_id, document_path)
+                );
+
+                CREATE TABLE IF NOT EXISTS case_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_id INTEGER NOT NULL,
+                    entry_type TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '',
+                    content TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'vigente',
+                    document_id INTEGER,
+                    document_name TEXT NOT NULL DEFAULT '',
+                    document_path TEXT NOT NULL DEFAULT '',
+                    page_start INTEGER,
+                    page_end INTEGER,
+                    source_excerpt TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_case_documents_case
+                    ON case_documents(case_id, category, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_case_entries_case
+                    ON case_entries(case_id, created_at ASC, id ASC);
                 '''
             )
 
@@ -76,6 +111,131 @@ class CaseRepository:
                 ''',
                 (notes, case_id),
             )
+
+    def link_document(
+        self,
+        case_id: int,
+        *,
+        document_name: str,
+        document_path: str,
+        category: str = "",
+        document_id: int | None = None,
+        relation_kind: str = "vinculado",
+        note: str = "",
+    ) -> int:
+        """Link an indexed document to a case without copying its contents."""
+        document_path = str(document_path or "").strip()
+        if not document_path:
+            raise ValueError("El documento vinculado debe conservar su ruta.")
+        with self._connect() as connection:
+            connection.execute(
+                '''
+                INSERT INTO case_documents (
+                    case_id, document_id, document_name, document_path,
+                    category, relation_kind, note
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(case_id, document_path) DO UPDATE SET
+                    document_id = excluded.document_id,
+                    document_name = excluded.document_name,
+                    category = excluded.category,
+                    relation_kind = excluded.relation_kind,
+                    note = excluded.note
+                ''',
+                (
+                    case_id, document_id, document_name.strip(), document_path,
+                    category.strip(), relation_kind.strip() or "vinculado",
+                    note.strip(),
+                ),
+            )
+            row = connection.execute(
+                "SELECT id FROM case_documents WHERE case_id = ? AND document_path = ?",
+                (case_id, document_path),
+            ).fetchone()
+            connection.execute(
+                "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (case_id,),
+            )
+        return int(row["id"])
+
+    def list_documents(self, case_id: int, category: str | None = None) -> list[dict]:
+        query = "SELECT * FROM case_documents WHERE case_id = ?"
+        values: list[object] = [case_id]
+        if category is not None:
+            query += " AND category = ?"
+            values.append(category)
+        query += " ORDER BY category COLLATE NOCASE, created_at DESC, id DESC"
+        with self._connect() as connection:
+            rows = connection.execute(query, values).fetchall()
+        return [dict(row) for row in rows]
+
+    def add_entry(
+        self,
+        case_id: int,
+        *,
+        entry_type: str,
+        content: str,
+        title: str = "",
+        status: str = "vigente",
+        document_id: int | None = None,
+        document_name: str = "",
+        document_path: str = "",
+        page_start: int | None = None,
+        page_end: int | None = None,
+        source_excerpt: str = "",
+    ) -> int:
+        """Append a traceable bitácora entry to a case."""
+        entry_type = entry_type.strip()
+        content = content.strip()
+        if not entry_type:
+            raise ValueError("La entrada debe tener un tipo.")
+        if not content:
+            raise ValueError("La entrada no puede estar vacía.")
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                INSERT INTO case_entries (
+                    case_id, entry_type, title, content, status,
+                    document_id, document_name, document_path,
+                    page_start, page_end, source_excerpt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    case_id, entry_type, title.strip(), content,
+                    status.strip() or "vigente", document_id,
+                    document_name.strip(), document_path.strip(),
+                    page_start, page_end, source_excerpt.strip(),
+                ),
+            )
+            connection.execute(
+                "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (case_id,),
+            )
+            return int(cursor.lastrowid)
+
+    def list_entries(self, case_id: int, limit: int | None = None) -> list[dict]:
+        query = "SELECT * FROM case_entries WHERE case_id = ? ORDER BY created_at ASC, id ASC"
+        values: list[object] = [case_id]
+        if limit is not None:
+            query += " LIMIT ?"
+            values.append(max(1, int(limit)))
+        with self._connect() as connection:
+            rows = connection.execute(query, values).fetchall()
+        return [dict(row) for row in rows]
+
+    def case_snapshot(self, case_id: int) -> dict:
+        """Return the local, auditable package on which an AI opinion may later rely."""
+        with self._connect() as connection:
+            case = connection.execute(
+                "SELECT * FROM cases WHERE id = ?", (case_id,)
+            ).fetchone()
+        if case is None:
+            raise KeyError(f"No existe el caso #{case_id}.")
+        return {
+            "case": dict(case),
+            "documents": self.list_documents(case_id),
+            "entries": self.list_entries(case_id),
+            "outputs": self.list_outputs(case_id),
+        }
 
     def add_source(self, case_id: int, result: SearchResult) -> None:
         with self._connect() as connection:
