@@ -13,6 +13,8 @@ import traceback
 from pathlib import Path
 from urllib import request as urllib_request
 
+import psutil
+
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
 URL = f"http://127.0.0.1:{PORT}"
 BRIDGE_PORT = 8513
@@ -384,25 +386,67 @@ def ensure_docker() -> None:
 
 
 def kill_stale(root: Path) -> None:
-    targets = [
-        str(root / "run_lexia.py"),
-        str(root / "run_lexia_services.py"),
-        str(root / "app" / "ui2" / "server.py"),
-        str(root / "app" / "ui2" / "launch_ui2.py"),
-    ]
-    script = (
-        "$targets=@(" + ",".join("'" + t.replace("'", "''") + "'" for t in targets) + ");"
-        "Get-CimInstance Win32_Process | Where-Object { $c=$_.CommandLine; $c -and ($targets | Where-Object { $c -like ('*'+$_+'*') }) } | "
-        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    """Stop orphaned LexIA source processes and verify that they exited.
+
+    Matching through psutil avoids quoting and path-separator differences in
+    PowerShell/CIM that previously allowed run_lexia_services.py to survive.
+    """
+    root_marker = str(root.resolve()).replace("\\", "/").casefold()
+    script_markers = (
+        "/run_lexia.py",
+        "/run_lexia_services.py",
+        "/app/ui2/server.py",
+        "/app/ui2/launch_ui2.py",
     )
-    subprocess.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-        creationflags=CREATE_NO_WINDOW,
-    )
-    time.sleep(0.5)
+    matched: list[psutil.Process] = []
+
+    for process in psutil.process_iter(["pid", "cmdline"]):
+        if process.pid == os.getpid():
+            continue
+        try:
+            command = " ".join(
+                process.info.get("cmdline") or []
+            ).replace("\\", "/").casefold()
+        except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
+            continue
+        if (
+            root_marker not in command
+            or not any(marker in command for marker in script_markers)
+        ):
+            continue
+        try:
+            process.terminate()
+            matched.append(process)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except psutil.AccessDenied as exc:
+            raise RuntimeError(
+                f"No se pudo cerrar el proceso anterior de LexIA PID {process.pid}."
+            ) from exc
+
+    _gone, alive = psutil.wait_procs(matched, timeout=4.0)
+    for process in alive:
+        try:
+            process.kill()
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            pass
+        except psutil.AccessDenied as exc:
+            raise RuntimeError(
+                f"No se pudo finalizar el proceso anterior de LexIA PID {process.pid}."
+            ) from exc
+
+    _gone, still_alive = psutil.wait_procs(alive, timeout=4.0)
+    if still_alive:
+        pids = ", ".join(str(process.pid) for process in still_alive)
+        raise RuntimeError(
+            "No se pudieron cerrar procesos anteriores de LexIA: PID " + pids
+        )
+
+    if matched:
+        log_startup(
+            "Procesos anteriores cerrados antes del inicio: "
+            + ", ".join(str(process.pid) for process in matched)
+        )
 
 
 def ensure_ui_assets(root: Path) -> str | None:
