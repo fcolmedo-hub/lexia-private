@@ -505,10 +505,16 @@ def catalog_document_count(root: Path, timeout: float = 15.0) -> int:
     while True:
         try:
             uri = catalog.resolve().as_uri() + "?mode=ro"
-            with sqlite3.connect(uri, uri=True, timeout=1.0) as connection:
+            connection = sqlite3.connect(uri, uri=True, timeout=1.0)
+            try:
                 return int(connection.execute(
                     "SELECT COUNT(*) FROM documents WHERE COALESCE(is_deleted, 0)=0"
                 ).fetchone()[0])
+            finally:
+                # El context manager de sqlite3 confirma/revierte, pero no
+                # cierra la conexión. En Windows eso mantiene el archivo
+                # bloqueado hasta que el recolector libera el objeto.
+                connection.close()
         except Exception as exc:
             last_error = exc
         if time.monotonic() >= deadline:
