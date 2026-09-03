@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -18,6 +19,16 @@ class EmbeddingService:
         self.runtime_path = Path(runtime_path)
         self.runtime_path.mkdir(parents=True, exist_ok=True)
         self.model_info_path = self.runtime_path / "embedding_model.json"
+        # En Windows, %TEMP% puede borrar parcialmente la caché de FastEmbed y
+        # dejar snapshots sin model_optimized.onnx. Una caché persistente dentro
+        # del runtime evita que una investigación falle por esa limpieza.
+        self.model_cache_path = (
+            self.runtime_path / "fastembed_cache"
+            if sys.platform == "win32"
+            else None
+        )
+        if self.model_cache_path is not None:
+            self.model_cache_path.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
 
         self.model_name = self._resolve_model_name()
@@ -36,7 +47,10 @@ class EmbeddingService:
     def model(self) -> TextEmbedding:
         if self._model is None:
             self.logger.info("Cargando modelo de embeddings: %s", self.model_name)
-            self._model = TextEmbedding(model_name=self.model_name)
+            kwargs = {"model_name": self.model_name}
+            if self.model_cache_path is not None:
+                kwargs["cache_dir"] = str(self.model_cache_path)
+            self._model = TextEmbedding(**kwargs)
         return self._model
 
     def _resolve_model_name(self) -> str:
