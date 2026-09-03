@@ -33,7 +33,8 @@ class WindowsDesktopStartupTests(unittest.TestCase):
             runtime = root / "runtime"
             runtime.mkdir()
             database = runtime / "lexia_catalog.sqlite3"
-            with sqlite3.connect(database) as connection:
+            connection = sqlite3.connect(database)
+            try:
                 connection.execute(
                     "CREATE TABLE documents (path TEXT PRIMARY KEY, is_deleted INTEGER)"
                 )
@@ -41,6 +42,11 @@ class WindowsDesktopStartupTests(unittest.TestCase):
                     "INSERT INTO documents(path,is_deleted) VALUES (?,?)",
                     [("active-a", 0), ("active-b", 0), ("deleted", 1)],
                 )
+                connection.commit()
+            finally:
+                # sqlite3.Connection.__exit__ no cierra la conexión. Windows
+                # no permite borrar el archivo temporal mientras siga abierto.
+                connection.close()
 
             launcher = _load_launcher()
             self.assertEqual(launcher.catalog_document_count(root, timeout=0.1), 2)
