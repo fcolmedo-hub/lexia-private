@@ -453,8 +453,9 @@ def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
     script = here / "assets" / "jurisprudence_search.js"
+    app_runtime = here / "assets" / "app_runtime.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
-    if not (index.exists() and script.exists()):
+    if not (index.exists() and script.exists() and app_runtime.exists()):
         return None
 
     original = index.read_text(encoding="utf-8")
@@ -468,6 +469,14 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if "assets/jurisprudence_search.js" not in patched:
         tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>\n'
+        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
+        changed = True
+
+    # app_runtime contiene, entre otros ajustes comunes, la eliminación del
+    # antiguo indicador flotante "LIVE - BÚSQUEDA REAL". El lanzador normal ya
+    # lo cargaba; Windows debe registrar el mismo asset.
+    if "assets/app_runtime.js" not in patched:
+        tag = '<script src="assets/app_runtime.js?v=app-runtime-3"></script>\n'
         patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
         changed = True
 
