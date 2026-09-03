@@ -24,6 +24,7 @@ PROJECT_ROOT = ensure_project_on_syspath()
 os.chdir(HERE)
 
 from config.settings import SETTINGS
+from storage.case_repository import CaseRepository
 RUNTIME_ROOT = Path(SETTINGS.runtime_path).expanduser()
 RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
 
@@ -33,6 +34,7 @@ from search.boolean_query import parse_boolean_query, BooleanQuerySyntaxError
 from search.boolean_document_search import search_boolean_documents
 
 LIVE = LiveReadOnlyAdapter()
+CASES = CaseRepository(SETTINGS.cases_path)
 SEARCH = None
 
 DELETE_BRIDGE_STATE = RUNTIME_ROOT / "ui2_delete_bridge.json"
@@ -2645,6 +2647,68 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/api/study-instruction-validate":
+        if path == "/api/cases":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                name = str(body.get("name", "") or "").strip()
+                description = str(body.get("description", "") or "").strip()
+                if not name:
+                    raise ValueError("Indicá el nombre o carátula del caso.")
+                case_id = CASES.create_case(name, description)
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except ValueError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/link-document":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                link_id = CASES.link_document(
+                    case_id,
+                    document_id=body.get("document_id"),
+                    document_name=str(body.get("document_name", "") or ""),
+                    document_path=str(body.get("document_path", "") or ""),
+                    category=str(body.get("category", "") or ""),
+                    relation_kind=str(body.get("relation_kind", "vinculado") or "vinculado"),
+                    note=str(body.get("note", "") or ""),
+                )
+                return self._json({"ok": True, "link_id": link_id, "case": CASES.case_snapshot(case_id)})
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/entry":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                entry_id = CASES.add_entry(
+                    case_id,
+                    entry_type=str(body.get("entry_type", "") or ""),
+                    title=str(body.get("title", "") or ""),
+                    content=str(body.get("content", "") or ""),
+                    status=str(body.get("status", "vigente") or "vigente"),
+                    document_id=body.get("document_id"),
+                    document_name=str(body.get("document_name", "") or ""),
+                    document_path=str(body.get("document_path", "") or ""),
+                    page_start=body.get("page_start"),
+                    page_end=body.get("page_end"),
+                    source_excerpt=str(body.get("source_excerpt", "") or ""),
+                )
+                return self._json({"ok": True, "entry_id": entry_id, "case": CASES.case_snapshot(case_id)})
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
             try:
                 length = int(
                     self.headers.get("Content-Length", "0") or 0
@@ -2671,6 +2735,23 @@ class Handler(SimpleHTTPRequestHandler):
                 )
 
         if path == "/api/study-history":
+        if path == "/api/cases":
+            try:
+                return self._json({"ok": True, "cases": CASES.list_cases()})
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path.startswith("/api/cases/"):
+            try:
+                case_id = int(path.rsplit("/", 1)[-1])
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
             try:
                 length = int(
                     self.headers.get("Content-Length", "0") or 0
