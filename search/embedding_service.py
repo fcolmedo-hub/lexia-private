@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Iterable
 
@@ -47,11 +48,60 @@ class EmbeddingService:
     def model(self) -> TextEmbedding:
         if self._model is None:
             self.logger.info("Cargando modelo de embeddings: %s", self.model_name)
-            kwargs = {"model_name": self.model_name}
-            if self.model_cache_path is not None:
-                kwargs["cache_dir"] = str(self.model_cache_path)
-            self._model = TextEmbedding(**kwargs)
+            self._model = self._load_model()
         return self._model
+
+    def _load_model(self) -> TextEmbedding:
+        kwargs = {"model_name": self.model_name}
+        if self.model_cache_path is not None:
+            kwargs["cache_dir"] = str(self.model_cache_path)
+
+        try:
+            return TextEmbedding(**kwargs)
+        except Exception as exc:
+            if not self._is_recoverable_windows_cache_error(exc):
+                raise
+
+            quarantined = self._quarantine_model_cache()
+            self.logger.warning(
+                "Caché incompleta de FastEmbed apartada en %s; "
+                "se reintentará una descarga limpia.",
+                quarantined,
+            )
+            return TextEmbedding(**kwargs)
+
+    def _is_recoverable_windows_cache_error(self, exc: Exception) -> bool:
+        if self.model_cache_path is None or sys.platform != "win32":
+            return False
+        detail = str(exc).casefold()
+        return any(
+            marker in detail
+            for marker in (
+                "no_suchfile",
+                "file doesn't exist",
+                "local file sizes do not match",
+                "model_optimized.onnx",
+            )
+        )
+
+    def _quarantine_model_cache(self) -> Path:
+        assert self.model_cache_path is not None
+        source = self.model_cache_path
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        target = source.with_name(f"{source.name}.incompleta-{stamp}")
+        suffix = 1
+        while target.exists():
+            target = source.with_name(
+                f"{source.name}.incompleta-{stamp}-{suffix}"
+            )
+            suffix += 1
+
+        if source.exists():
+            source.replace(target)
+        else:
+            target.mkdir(parents=True, exist_ok=True)
+        source.mkdir(parents=True, exist_ok=True)
+        return target
 
     def _resolve_model_name(self) -> str:
         if self.model_info_path.exists():
