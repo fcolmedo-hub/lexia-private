@@ -94,12 +94,12 @@ class LiveReadOnlyAdapter:
                     for row in con.execute('PRAGMA table_info("documents")').fetchall()
                 }
                 result["documents"] = int(con.execute(
-                    "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
+                    "SELECT COUNT(*) FROM documents WHERE COALESCE(is_deleted, 0) = 0"
                 ).fetchone()[0])
                 if "created_at" in document_columns:
                     result["added_today"] = int(con.execute(
                         """SELECT COUNT(*) FROM documents
-                           WHERE is_deleted = 0
+                           WHERE COALESCE(is_deleted, 0) = 0
                              AND created_at IS NOT NULL
                              AND date(created_at, 'localtime') = date('now', 'localtime')"""
                     ).fetchone()[0])
@@ -107,13 +107,13 @@ class LiveReadOnlyAdapter:
                     """SELECT COUNT(*)
                        FROM fragments f
                        JOIN documents d ON d.path=f.document_path
-                       WHERE d.is_deleted=0"""
+                       WHERE COALESCE(d.is_deleted, 0)=0"""
                 ).fetchone()[0])
 
                 rows = con.execute(
                     """SELECT category, COUNT(*) n
                        FROM documents
-                       WHERE is_deleted=0
+                       WHERE COALESCE(is_deleted, 0)=0
                        GROUP BY category
                        ORDER BY n DESC
                        LIMIT 8"""
@@ -126,7 +126,7 @@ class LiveReadOnlyAdapter:
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_method,total_pages
                        FROM documents
-                       WHERE is_deleted=0
+                       WHERE COALESCE(is_deleted, 0)=0
                          AND (extraction_error IS NULL OR extraction_error='')
                        ORDER BY datetime(updated_at) DESC
                        LIMIT 8"""
@@ -146,7 +146,7 @@ class LiveReadOnlyAdapter:
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_error
                        FROM documents
-                       WHERE is_deleted=0
+                       WHERE COALESCE(is_deleted, 0)=0
                          AND extraction_error IS NOT NULL
                          AND extraction_error!=''
                        ORDER BY datetime(updated_at) DESC
@@ -163,7 +163,7 @@ class LiveReadOnlyAdapter:
 
                 try:
                     result["ocr_pages"] = int(con.execute(
-                        "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE is_deleted=0"
+                        "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE COALESCE(is_deleted, 0)=0"
                     ).fetchone()[0])
                 except sqlite3.Error:
                     pass
