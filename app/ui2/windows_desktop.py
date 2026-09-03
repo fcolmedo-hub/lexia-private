@@ -480,7 +480,13 @@ def wait_ui_ready(
     expected_documents: int,
     timeout: float = 60.0,
 ) -> None:
-    """Open the desktop window only after UI, core bridge and catalog agree."""
+    """Wait only for the essential services required to open the desktop UI.
+
+    The full /api/live snapshot includes catalog statistics that can take longer
+    than the HTTP probe on large libraries. A timeout there must not be treated
+    as an empty catalog: catalog_document_count() already validated the real
+    catalog before the services were launched.
+    """
     deadline = time.monotonic() + timeout
     last_detail = "servicios todavía no disponibles"
     while time.monotonic() < deadline:
@@ -488,50 +494,27 @@ def wait_ui_ready(
             raise RuntimeError("El servidor UI2 se cerró durante el arranque.")
 
         health = _http_json(URL + "/api/health", timeout=0.8)
-        live = _http_json(URL + "/api/live", timeout=1.2)
         core = _http_json(URL + "/api/maintenance-live", timeout=1.2)
-        catalog = live.get("catalog", {}) if isinstance(live, dict) else {}
-        try:
-            visible_documents = int(catalog.get("documents", 0) or 0)
-        except (TypeError, ValueError):
-            visible_documents = 0
 
-        if (
-            isinstance(health, dict)
-            and health.get("ok") is True
-            and isinstance(live, dict)
-            and live.get("ok") is True
-            and isinstance(core, dict)
-            and core.get("ok") is True
-            and isinstance(catalog, dict)
-            and not catalog.get("error")
-            and (expected_documents == 0 or visible_documents > 0)
-        ):
+        ui_ready = isinstance(health, dict) and health.get("ok") is True
+        core_ready = isinstance(core, dict) and core.get("ok") is True
+        if ui_ready and core_ready:
             log_startup(
-                "UI2 lista: "
-                f"catálogo={visible_documents}, esperado_antes_de_inicio={expected_documents}"
+                "UI2 lista: servicios esenciales disponibles; "
+                f"catálogo validado antes del inicio={expected_documents}"
             )
             return
 
-        if isinstance(catalog, dict) and catalog.get("error"):
-            last_detail = f"catálogo: {catalog.get('error')}"
-        elif expected_documents > 0 and visible_documents == 0:
-            last_detail = (
-                "la interfaz informó biblioteca en cero mientras el catálogo "
-                f"contiene {expected_documents} documento(s)"
-            )
-        elif not (isinstance(core, dict) and core.get("ok") is True):
-            last_detail = "el puente de servicios centrales todavía no respondió"
+        if not ui_ready:
+            last_detail = "el servidor UI2 todavía no respondió"
         else:
-            last_detail = "el servidor UI2 todavía no confirmó su estado"
+            last_detail = "el puente de servicios centrales todavía no respondió"
         time.sleep(0.30)
 
     raise RuntimeError(
         "LexIA no alcanzó un estado consistente dentro del tiempo esperado; "
-        "la ventana no se abrió para evitar mostrar una biblioteca vacía. "
         + last_detail
     )
-
 
 def stop_process(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
