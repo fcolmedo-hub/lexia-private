@@ -101,6 +101,35 @@ class CaseRepository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def update_case(self, case_id: int, name: str, description: str = "") -> None:
+        name = str(name or "").strip()
+        if not name:
+            raise ValueError("Indicá el nombre o carátula del caso.")
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                UPDATE cases
+                SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                ''',
+                (name, str(description or "").strip(), int(case_id)),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"No existe el caso #{case_id}.")
+
+    def delete_case(self, case_id: int) -> None:
+        """Delete one local case and its local links, never library documents."""
+        case_id = int(case_id)
+        with self._connect() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM cases WHERE id = ?", (case_id,)
+            ).fetchone()
+            if exists is None:
+                raise KeyError(f"No existe el caso #{case_id}.")
+            for table in ("case_documents", "case_entries", "case_sources", "case_outputs"):
+                connection.execute(f"DELETE FROM {table} WHERE case_id = ?", (case_id,))
+            connection.execute("DELETE FROM cases WHERE id = ?", (case_id,))
+
     def update_notes(self, case_id: int, notes: str) -> None:
         with self._connect() as connection:
             connection.execute(
