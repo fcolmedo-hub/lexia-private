@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import json
 import os
+import re
 import shutil
 import socket
 import sqlite3
@@ -453,12 +454,27 @@ def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
     script = here / "assets" / "jurisprudence_search.js"
-    app_runtime = here / "assets" / "app_runtime.js"
+    live_badge_cleanup = (
+        here / "assets" / "windows_live_badge_cleanup.js"
+    )
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
-    if not (index.exists() and script.exists() and app_runtime.exists()):
+    if not (
+        index.exists()
+        and script.exists()
+        and live_badge_cleanup.exists()
+    ):
         return None
 
     original = index.read_text(encoding="utf-8")
+    # Una finalización forzada de una versión anterior pudo dejar esta carga
+    # temporal grabada. En Windows se retira porque app_runtime modifica otras
+    # áreas de la interfaz y no es necesario para ocultar el indicador LIVE.
+    original = re.sub(
+        r'\s*<script[^>]+src=["\\\'][^"\\\']*assets/app_runtime\.js[^"\\\']*["\\\'][^>]*>\s*</script>\s*',
+        "\n",
+        original,
+        flags=re.IGNORECASE,
+    )
     patched = original
     changed = False
 
@@ -472,11 +488,11 @@ def ensure_ui_assets(root: Path) -> str | None:
         patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
         changed = True
 
-    # app_runtime contiene, entre otros ajustes comunes, la eliminación del
-    # antiguo indicador flotante "LIVE - BÚSQUEDA REAL". El lanzador normal ya
-    # lo cargaba; Windows debe registrar el mismo asset.
-    if "assets/app_runtime.js" not in patched:
-        tag = '<script src="assets/app_runtime.js?v=app-runtime-3"></script>\n'
+    if "assets/windows_live_badge_cleanup.js" not in patched:
+        tag = (
+            '<script src="assets/windows_live_badge_cleanup.js'
+            '?v=windows-live-cleanup-1"></script>\n'
+        )
         patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
         changed = True
 
