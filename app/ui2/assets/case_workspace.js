@@ -35,7 +35,7 @@
 
   function installStyle() {
     const style = element('style', {textContent: `
-      #${PAGE_ID}{display:none;min-height:calc(100vh - var(--global-top,0px));background:#f7f8fc;color:#202a48;margin-left:var(--lexia-cases-sidebar-width,0px);width:calc(100% - var(--lexia-cases-sidebar-width,0px));box-sizing:border-box}
+      #${PAGE_ID}{display:none;min-height:100vh;background:#f7f8fc;color:#202a48;margin-left:var(--global-side,0px)!important;width:calc(100vw - var(--global-side,0px))!important;padding-top:var(--global-top,0px)!important;box-sizing:border-box!important;overflow-x:hidden}
       #${PAGE_ID} .cases-main{padding:24px 28px 36px;max-width:1500px;margin:0 auto;width:100%}
       .cases-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px}.cases-head h1{margin:0;font-size:24px}.cases-head p{margin:5px 0 0;color:#697394;font-size:13px}
       .cases-layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px}.cases-card{background:#fff;border:1px solid #e2e5ef;border-radius:13px;padding:15px;box-shadow:0 3px 12px rgba(28,37,71,.04)}
@@ -50,17 +50,15 @@
   }
 
   function page() { return document.getElementById(PAGE_ID); }
-  function alignCasePage() {
-    const sidebar = document.getElementById('globalSidebar');
-    const box = sidebar && sidebar.getBoundingClientRect();
-    const width = box && box.left <= 1 && box.width > 80 ? Math.ceil(box.width) : 0;
-    document.documentElement.style.setProperty('--lexia-cases-sidebar-width', width + 'px');
-  }
   function showCasePage() {
-    alignCasePage();
     const targets = ['home','library','searchpage','contextpage','activitypage','systempage','maintenance', PAGE_ID];
-    targets.forEach(id => { const node = document.getElementById(id); if (node) node.style.display = 'none'; });
-    page().style.display = 'grid';
+    targets.forEach(id => { const node = document.getElementById(id); if (node) node.style.setProperty('display', 'none', 'important'); });
+    page().style.setProperty('display', 'grid', 'important');
+    const nav = document.querySelector('#globalSidebar .nav');
+    if (nav) {
+      nav.querySelectorAll('button').forEach(item => item.classList.remove('active'));
+      nav.querySelector('[data-lexia-cases]')?.classList.add('active');
+    }
     history.replaceState(null, '', '#' + PAGE_ID);
     window.scrollTo(0, 0);
     loadCases();
@@ -81,7 +79,7 @@
       button.classList.add('active');
     });
     button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); showCasePage(); }, true);
-    const context = Array.from(nav.querySelectorAll('button')).find(button => button.textContent.trim() === 'Investigación');
+    const context = nav.querySelector('button[data-route="contextpage"]') || Array.from(nav.querySelectorAll('button')).find(button => button.textContent.trim() === 'Investigación');
     context ? context.insertAdjacentElement('beforebegin', button) : nav.appendChild(button);
   }
 
@@ -317,8 +315,7 @@
   }
 
   function initialize() {
-    installStyle(); createPage(); addNavigation(); alignCasePage();
-    window.addEventListener('resize', alignCasePage);
+    installStyle(); createPage(); addNavigation();
     installCaseActions();
     new MutationObserver(records => records.forEach(record => {
       record.addedNodes.forEach(node => {
