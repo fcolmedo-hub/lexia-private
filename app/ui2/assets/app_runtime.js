@@ -470,4 +470,14 @@
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
   else initialize();
+  // El espacio Casos se mantiene separado de la página principal para que
+  // las actualizaciones del visor y de Windows no alteren su bitácora.
+  if(!document.querySelector('script[data-lexia-case-workspace]')){
+    const caseWorkspace=document.createElement('script');
+    caseWorkspace.src='assets/case_workspace.js?v=case-1';
+    caseWorkspace.async=false;
+    caseWorkspace.dataset.lexiaCaseWorkspace='1';
+    (document.body||document.documentElement).appendChild(caseWorkspace);
+  }
+
 })();
