@@ -459,23 +459,16 @@ def ensure_ui_assets(root: Path) -> str | None:
         here / "assets" / "windows_live_badge_cleanup.js"
     )
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
+    app_runtime = here / "assets" / "app_runtime.js"
     if not (
         index.exists()
         and script.exists()
         and live_badge_cleanup.exists()
+        and app_runtime.exists()
     ):
         return None
 
     original = index.read_text(encoding="utf-8")
-    # Una finalización forzada de una versión anterior pudo dejar esta carga
-    # temporal grabada. En Windows se retira porque app_runtime modifica otras
-    # áreas de la interfaz y no es necesario para ocultar el indicador LIVE.
-    original = re.sub(
-        r'\s*<script[^>]+src=["\\\'][^"\\\']*assets/app_runtime\.js[^"\\\']*["\\\'][^>]*>\s*</script>\s*',
-        "\n",
-        original,
-        flags=re.IGNORECASE,
-    )
     patched = original
     changed = False
 
@@ -486,6 +479,25 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if "assets/jurisprudence_search.js" not in patched:
         tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-7"></script>\n'
+        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
+        changed = True
+
+    # Casos y los ajustes comunes de UI2 se cargan también en Windows.
+    # Reemplazamos la versión temporal para impedir que PyWebView reutilice
+    # un runtime anterior entre aperturas.
+    runtime_tag = '<script src="assets/app_runtime.js?v=app-runtime-3"></script>'
+    if "assets/app_runtime.js" in patched:
+        refreshed = re.sub(
+            r'<script[^>]+src=["\'][^"\']*assets/app_runtime\.js[^"\']*["\'][^>]*>\s*</script>',
+            runtime_tag,
+            patched,
+            flags=re.IGNORECASE,
+        )
+        if refreshed != patched:
+            patched = refreshed
+            changed = True
+    else:
+        tag = runtime_tag + "\n"
         patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
         changed = True
 
