@@ -17,7 +17,8 @@ from urllib import request as urllib_request
 import psutil
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
-URL = f"http://127.0.0.1:{PORT}"
+BASE_URL = f"http://127.0.0.1:{PORT}"
+URL = BASE_URL + "/?lexia_app=1"
 BRIDGE_PORT = 8513
 QDRANT_PORT = 6333
 QDRANT_URL = f"http://127.0.0.1:{QDRANT_PORT}/collections"
@@ -568,8 +569,8 @@ def wait_ui_ready(
         if process.poll() is not None:
             raise RuntimeError("El servidor UI2 se cerró durante el arranque.")
 
-        health = _http_json(URL + "/api/health", timeout=0.8)
-        core = _http_json(URL + "/api/maintenance-live", timeout=1.2)
+        health = _http_json(BASE_URL + "/api/health", timeout=0.8)
+        core = _http_json(BASE_URL + "/api/maintenance-live", timeout=1.2)
 
         ui_ready = isinstance(health, dict) and health.get("ok") is True
         core_ready = isinstance(core, dict) and core.get("ok") is True
