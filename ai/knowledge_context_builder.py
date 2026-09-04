@@ -761,6 +761,84 @@ No preguntes qué debe hacerse con los archivos.
                 raise RuntimeError(
                     "No quedaron fuentes después de aplicar las carpetas excluidas."
                 )
+        # La búsqueda interpretada puede resultar demasiado estricta para
+        # una consulta redactada en lenguaje natural. Antes de declarar que
+        # no hay fuentes, se consulta el FTS5 real con términos significativos
+        # de la consulta; el usuario siempre revisa y confirma las fuentes.
+        if not candidates and depth != "quick":
+            ignored_terms = {
+                "para", "sobre", "desde", "entre", "contra", "cuando",
+                "donde", "como", "cual", "cuáles", "tiene", "tienen",
+                "debe", "deben", "puede", "pueden", "del", "las", "los",
+                "una", "uno", "que", "por", "con", "sin", "ante",
+            }
+            fallback_terms = []
+            seen_terms = set()
+            for raw_term in query.split():
+                term = "".join(
+                    char for char in raw_term
+                    if char.isalnum()
+                ).casefold()
+                if (
+                    len(term) < 3
+                    or term in ignored_terms
+                    or term in seen_terms
+                ):
+                    continue
+                fallback_terms.append(term)
+                seen_terms.add(term)
+                if len(fallback_terms) >= 10:
+                    break
+
+            if fallback_terms:
+                report(
+                    2,
+                    "Ampliando la búsqueda en el índice documental...",
+                    54,
+                )
+                fts_query = " OR ".join(fallback_terms)
+                catalog = DocumentCatalog(
+                    Path(SETTINGS.runtime_path)
+                    / "lexia_catalog.sqlite3"
+                )
+                rows = catalog.lexical_search(
+                    fts_query,
+                    recovered_limit,
+                )
+                candidates = []
+                for rank, row in enumerate(rows, start=1):
+                    start = row.get("page_start")
+                    end = row.get("page_end")
+                    page_label = (
+                        f"Páginas {start}-{end}"
+                        if start and end and start != end
+                        else f"Página {start or end}"
+                        if start or end
+                        else "Ubicación no determinada"
+                    )
+                    candidates.append(SimpleNamespace(
+                        document_name=str(
+                            row.get("document_name", "Fuente sin nombre")
+                            or "Fuente sin nombre"
+                        ),
+                        document_path=Path(
+                            str(row.get("document_path", "") or "")
+                        ),
+                        category=str(
+                            row.get("category", "Sin categoría")
+                            or "Sin categoría"
+                        ),
+                        fragment_index=int(
+                            row.get("fragment_index", 0) or 0
+                        ),
+                        text=str(
+                            row.get("text_content", "") or ""
+                        ),
+                        score=1.0 / rank,
+                        page_label=page_label,
+                        metadata={},
+                    ))
+
         report(3, "Ordenando fuentes por el criterio seleccionado...", 66)
         if depth == "quick":
             selected = candidates[:limit]
@@ -796,8 +874,26 @@ No preguntes qué debe hacerse con los archivos.
                     )
                 selected = [item[1] for item in selected_ranked]
 
+        # Un selector muy conservador no debe transformar resultados reales
+        # en una investigación vacía. Conservamos los primeros candidatos
+        # obtenidos del índice, claramente sujetos a revisión del usuario.
+        if not selected and candidates:
+            selected = candidates[:limit]
+            selected_ranked = [
+                (
+                    position,
+                    source,
+                    [],
+                    "Coincidencia recuperada directamente",
+                )
+                for position, source in enumerate(selected, start=1)
+            ]
+
         if not selected:
-            raise RuntimeError("LexIA no encontró fuentes para esta consulta.")
+            raise RuntimeError(
+                "No se encontraron fuentes en la biblioteca para esta "
+                "consulta. Probá con palabras jurídicas más concretas."
+            )
 
         # Veinte fichas deben entrar completas en el paquete candidato; luego
         # curate_package conserva exactamente las elegidas por el usuario.
