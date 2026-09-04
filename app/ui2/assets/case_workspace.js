@@ -35,7 +35,7 @@
 
   function installStyle() {
     const style = element('style', {textContent: `
-      #${PAGE_ID}{display:none;min-height:calc(100vh - var(--global-top,0px));background:#f7f8fc;color:#202a48}
+      #${PAGE_ID}{display:none;min-height:calc(100vh - var(--global-top,0px));background:#f7f8fc;color:#202a48;margin-left:var(--lexia-cases-sidebar-width,0px);width:calc(100% - var(--lexia-cases-sidebar-width,0px));box-sizing:border-box}
       #${PAGE_ID} .cases-main{padding:24px 28px 36px;max-width:1500px;margin:0 auto;width:100%}
       .cases-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px}.cases-head h1{margin:0;font-size:24px}.cases-head p{margin:5px 0 0;color:#697394;font-size:13px}
       .cases-layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px}.cases-card{background:#fff;border:1px solid #e2e5ef;border-radius:13px;padding:15px;box-shadow:0 3px 12px rgba(28,37,71,.04)}
@@ -50,7 +50,14 @@
   }
 
   function page() { return document.getElementById(PAGE_ID); }
+  function alignCasePage() {
+    const sidebar = document.getElementById('globalSidebar');
+    const box = sidebar && sidebar.getBoundingClientRect();
+    const width = box && box.left <= 1 && box.width > 80 ? Math.ceil(box.width) : 0;
+    document.documentElement.style.setProperty('--lexia-cases-sidebar-width', width + 'px');
+  }
   function showCasePage() {
+    alignCasePage();
     const targets = ['home','library','searchpage','contextpage','activitypage','systempage','maintenance', PAGE_ID];
     targets.forEach(id => { const node = document.getElementById(id); if (node) node.style.display = 'none'; });
     page().style.display = 'grid';
@@ -63,10 +70,19 @@
     const sidebar = document.getElementById('globalSidebar');
     const nav = sidebar && sidebar.querySelector('.nav');
     if (!nav || nav.querySelector('[data-lexia-cases]')) return;
-    const button = element('button', {type: 'button', 'data-lexia-cases': '1', textContent: 'Casos'});
+    const button = element('button', {type: 'button', 'data-lexia-cases': '1'});
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = '<rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M3 12h18"></path><path d="M10 12v2h4v-2"></path>';
+    button.append(icon, document.createTextNode('Casos'));
+    button.addEventListener('click', () => {
+      nav.querySelectorAll('button').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+    });
     button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); showCasePage(); }, true);
     const context = Array.from(nav.querySelectorAll('button')).find(button => button.textContent.trim() === 'Investigación');
-    context ? context.insertAdjacentElement('afterend', button) : nav.appendChild(button);
+    context ? context.insertAdjacentElement('beforebegin', button) : nav.appendChild(button);
   }
 
   function createPage() {
@@ -301,7 +317,8 @@
   }
 
   function initialize() {
-    installStyle(); createPage(); addNavigation();
+    installStyle(); createPage(); addNavigation(); alignCasePage();
+    window.addEventListener('resize', alignCasePage);
     installCaseActions();
     new MutationObserver(records => records.forEach(record => {
       record.addedNodes.forEach(node => {
