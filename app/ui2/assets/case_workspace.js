@@ -103,27 +103,12 @@
   function installNavigationExit() {
     if (window.__lexiaCasesNavigationExitInstalled) return;
     window.__lexiaCasesNavigationExitInstalled = true;
-    document.addEventListener('click', event => {
+    window.addEventListener('click', event => {
       const target = event.target instanceof Element ? event.target : null;
       const destination = target?.closest('#globalSidebar .nav button');
       if (!destination || destination.matches('[data-lexia-cases]')) return;
       deactivateCases();
-      window.setTimeout(deactivateCases, 0);
     }, true);
-  }
-
-  function installNavigationStateObserver() {
-    if (window.__lexiaCasesNavigationStateObserverInstalled) return;
-    const nav = document.querySelector('#globalSidebar .nav');
-    if (!nav) return window.setTimeout(installNavigationStateObserver, 50);
-    window.__lexiaCasesNavigationStateObserverInstalled = true;
-    const sync = () => {
-      if (nav.querySelector('button[data-route].active')) deactivateCases();
-    };
-    new MutationObserver(sync).observe(nav, {
-      subtree: true, attributes: true, attributeFilter: ['class'],
-    });
-    sync();
   }
 
   function createPage() {
@@ -388,7 +373,7 @@
   }
 
   function initialize() {
-    installStyle(); createPage(); addNavigation(); installNavigationExit(); installNavigationStateObserver();
+    installStyle(); createPage(); addNavigation(); installNavigationExit();
     installCaseActions();
     new MutationObserver(records => records.forEach(record => {
       record.addedNodes.forEach(node => {
