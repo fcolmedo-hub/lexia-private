@@ -2683,6 +2683,41 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
 
+        if path == "/api/cases/update":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                CASES.update_case(
+                    case_id,
+                    str(body.get("name", "") or ""),
+                    str(body.get("description", "") or ""),
+                )
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if body.get("confirmed") is not True:
+                    raise ValueError("La eliminación debe confirmarse explícitamente.")
+                CASES.delete_case(int(body.get("case_id")))
+                return self._json({"ok": True})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
         if path == "/api/cases/entry":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
