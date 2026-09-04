@@ -95,6 +95,23 @@
     }, true);
   }
 
+  function deactivateCases() {
+    hideCasePage();
+    document.querySelector('#globalSidebar .nav [data-lexia-cases]')?.classList.remove('active');
+  }
+
+  function installNavigationExit() {
+    if (window.__lexiaCasesNavigationExitInstalled) return;
+    window.__lexiaCasesNavigationExitInstalled = true;
+    document.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const destination = target?.closest('#globalSidebar .nav button');
+      if (!destination || destination.matches('[data-lexia-cases]')) return;
+      deactivateCases();
+      window.setTimeout(deactivateCases, 0);
+    }, true);
+  }
+
   function createPage() {
     const section = element('section', {id: PAGE_ID, className: 'casespage'});
     section.appendChild(element('main', {className: 'cases-main'}));
@@ -357,7 +374,7 @@
   }
 
   function initialize() {
-    installStyle(); createPage(); addNavigation();
+    installStyle(); createPage(); addNavigation(); installNavigationExit();
     installCaseActions();
     new MutationObserver(records => records.forEach(record => {
       record.addedNodes.forEach(node => {
