@@ -484,7 +484,7 @@ def ensure_ui_assets(root: Path) -> str | None:
         changed = True
 
     if "assets/jurisprudence_search.js" not in patched:
-        tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>\n'
+        tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-6"></script>\n'
         patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
         changed = True
 
