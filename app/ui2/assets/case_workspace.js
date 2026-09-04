@@ -35,7 +35,7 @@
 
   function installStyle() {
     const style = element('style', {textContent: `
-      #${PAGE_ID}{display:none;min-height:100vh;background:#f7f8fc;color:#202a48;margin-left:var(--global-side,0px)!important;width:calc(100vw - var(--global-side,0px))!important;padding-top:var(--global-top,0px)!important;box-sizing:border-box!important;overflow-x:hidden}
+      #${PAGE_ID}{display:none;position:fixed;z-index:1;top:0;right:0;bottom:0;left:var(--global-side,0px);min-height:0;background:#f7f8fc;color:#202a48;margin:0!important;width:auto!important;padding-top:var(--global-top,0px)!important;box-sizing:border-box!important;overflow-x:hidden;overflow-y:auto}
       #${PAGE_ID} .cases-main{padding:24px 28px 36px;max-width:1500px;margin:0 auto;width:100%}
       .cases-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px}.cases-head h1{margin:0;font-size:24px}.cases-head p{margin:5px 0 0;color:#697394;font-size:13px}
       .cases-layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px}.cases-card{background:#fff;border:1px solid #e2e5ef;border-radius:13px;padding:15px;box-shadow:0 3px 12px rgba(28,37,71,.04)}
@@ -44,7 +44,8 @@
       .case-overview{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:16px}.case-title{font-size:18px;font-weight:800;margin:0 0 4px}.case-description{margin:0;color:#687394;font-size:12px;white-space:pre-wrap}.case-metric{padding:10px;border:1px solid #e7e9f1;border-radius:9px;margin-bottom:8px}.case-metric b{display:block;font-size:18px;color:#3f34d1}.case-metric small{font-size:10px;color:#71809d}
       .case-bitacora{margin-top:16px}.entry{border-left:3px solid #6558f5;padding:10px 12px;margin:0 0 8px;background:#fbfbff;border-radius:0 8px 8px 0}.entry-head{display:flex;gap:8px;align-items:center;font-size:10px;color:#697394}.entry-type{font-weight:800;color:#5146f6;text-transform:capitalize}.entry h4{font-size:12px;margin:6px 0 4px}.entry p{white-space:pre-wrap;font-size:12px;line-height:1.4;margin:0;color:#333e60}.entry-source{font-size:10px;margin-top:7px;color:#697394}.entry-source button{border:0;background:transparent;padding:0;color:#5146f6;text-decoration:underline;cursor:pointer;font:inherit}
       .case-documents{margin-top:16px}.case-documents ul{padding:0;margin:0;list-style:none}.case-documents li{padding:7px 0;border-top:1px solid #eef0f5;font-size:11px}.case-documents small{color:#74809e}
-      @media(max-width:900px){.cases-main{padding:16px!important}.cases-layout,.case-overview{grid-template-columns:1fr}.cases-list{max-height:190px}.cases-head{align-items:flex-start;flex-direction:column}}
+      @media(max-width:1199px){#${PAGE_ID} .cases-main{padding-top:72px!important}}
+      @media(max-width:900px){.cases-main{padding:16px!important;padding-top:72px!important}.cases-layout,.case-overview{grid-template-columns:1fr}.cases-list{max-height:190px}.cases-head{align-items:flex-start;flex-direction:column}}
     `});
     document.head.appendChild(style);
   }
@@ -60,7 +61,7 @@
       nav.querySelector('[data-lexia-cases]')?.classList.add('active');
     }
     history.replaceState(null, '', '#' + PAGE_ID);
-    window.scrollTo(0, 0);
+    page().scrollTo({top: 0});
     loadCases();
   }
 
