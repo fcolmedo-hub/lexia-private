@@ -112,6 +112,20 @@
     }, true);
   }
 
+  function installNavigationStateObserver() {
+    if (window.__lexiaCasesNavigationStateObserverInstalled) return;
+    const nav = document.querySelector('#globalSidebar .nav');
+    if (!nav) return window.setTimeout(installNavigationStateObserver, 50);
+    window.__lexiaCasesNavigationStateObserverInstalled = true;
+    const sync = () => {
+      if (nav.querySelector('button[data-route].active')) deactivateCases();
+    };
+    new MutationObserver(sync).observe(nav, {
+      subtree: true, attributes: true, attributeFilter: ['class'],
+    });
+    sync();
+  }
+
   function createPage() {
     const section = element('section', {id: PAGE_ID, className: 'casespage'});
     section.appendChild(element('main', {className: 'cases-main'}));
@@ -374,7 +388,7 @@
   }
 
   function initialize() {
-    installStyle(); createPage(); addNavigation(); installNavigationExit();
+    installStyle(); createPage(); addNavigation(); installNavigationExit(); installNavigationStateObserver();
     installCaseActions();
     new MutationObserver(records => records.forEach(record => {
       record.addedNodes.forEach(node => {
