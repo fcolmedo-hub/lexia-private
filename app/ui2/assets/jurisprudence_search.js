@@ -501,10 +501,10 @@
     const key='lexia.research.history';
     const fields=['researchQuery','researchFacts','researchObjective','researchInstruction'];
     let items=[];
-    // La lista remota puede actualizarse mientras el usuario tiene abierto el
-    // selector. Cada render conserva su propia instantánea para que el value
-    // numérico elegido no termine resolviendo otro elemento reordenado.
-    const renderedHistorySnapshots=new WeakMap();
+    // La lista puede volver a renderizarse mientras el selector está abierto.
+    // Cada opción usa una clave efímera única, nunca su índice: un cambio de
+    // orden sólo invalida una selección vieja, jamás carga otra consulta.
+    const renderedHistoryEntries=new WeakMap();
     const localItems=()=>{try{return JSON.parse(localStorage.getItem(key)||'[]').filter(item=>item?.researchQuery);}catch(_){return [];}};
     const signature=item=>JSON.stringify(fields.map(name=>String(item?.[name]||'')));
     const merge=(...groups)=>{
@@ -521,11 +521,25 @@
     const render=()=>{
       const select=document.getElementById('researchHistory');
       if(!select)return;
-      const snapshot=items.slice();
-      select.innerHTML='<option value="">Elegir una consulta anterior…</option>'+snapshot.map((item,index)=>
-        '<option value="'+index+'">'+esc(String(item.researchQuery||'').slice(0,120))+'</option>'
-      ).join('');
-      renderedHistorySnapshots.set(select,snapshot);
+
+      const entries=new Map();
+      const fragment=document.createDocumentFragment();
+      const placeholder=document.createElement('option');
+      placeholder.value='';
+      placeholder.textContent='Elegir una consulta anterior…';
+      fragment.appendChild(placeholder);
+
+      items.forEach((item,index)=>{
+        const token='research-'+Date.now().toString(36)+'-'+index+'-'+Math.random().toString(36).slice(2);
+        entries.set(token,item);
+        const option=document.createElement('option');
+        option.value=token;
+        option.textContent=String(item.researchQuery||'').slice(0,120);
+        fragment.appendChild(option);
+      });
+
+      select.replaceChildren(fragment);
+      renderedHistoryEntries.set(select,entries);
     };
     const refresh=async()=>{
       let remote=[];
@@ -547,8 +561,9 @@
 
     document.addEventListener('change',event=>{
       if(event.target?.id!=='researchHistory'||event.target.value==='')return;
-      const snapshot=renderedHistorySnapshots.get(event.target)||items;
-      const item=snapshot[Number(event.target.value)];
+      const entries=renderedHistoryEntries.get(event.target);
+      const item=entries?.get(String(event.target.value||''));
+      // Si la lista cambió mientras estaba abierta, no adivinar por posición.
       if(!item)return;
       event.stopImmediatePropagation();
       fields.forEach(name=>{
