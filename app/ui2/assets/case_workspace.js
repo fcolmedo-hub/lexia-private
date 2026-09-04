@@ -42,6 +42,7 @@
       .cases-card h2{margin:0 0 12px;font-size:14px}.cases-card h3{margin:0 0 7px;font-size:12px}.cases-list{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto}.case-select{border:1px solid #e1e5ef;background:#fff;text-align:left;border-radius:8px;padding:10px;cursor:pointer}.case-select:hover,.case-select.active{border-color:#5b4cf3;background:#f4f2ff}.case-select b{display:block;font-size:12px;color:#293158}.case-select small{display:block;margin-top:3px;font-size:10px;color:#74809e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .case-form{display:grid;gap:8px}.case-form input,.case-form textarea,.case-form select{box-sizing:border-box;width:100%;border:1px solid #dce1ed;border-radius:8px;padding:9px 10px;font:inherit;font-size:12px;background:#fff}.case-form textarea{min-height:86px;resize:vertical}.case-form label{font-size:10px;font-weight:800;color:#5e6989}.case-form button,.cases-head button{border:0;border-radius:8px;background:#5146f6;color:#fff;padding:9px 12px;font-size:11px;font-weight:800;cursor:pointer}.case-form button:disabled{opacity:.6;cursor:wait}.case-empty{color:#77819f;font-size:12px;padding:12px 0}
       .case-overview{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:16px}.case-title{font-size:18px;font-weight:800;margin:0 0 4px}.case-description{margin:0;color:#687394;font-size:12px;white-space:pre-wrap}.case-metric{padding:10px;border:1px solid #e7e9f1;border-radius:9px;margin-bottom:8px}.case-metric b{display:block;font-size:18px;color:#3f34d1}.case-metric small{font-size:10px;color:#71809d}
+      .case-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.case-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.case-actions button{border:1px solid #d9deec;border-radius:7px;background:#fff;color:#424d70;padding:7px 9px;font-size:10px;font-weight:800;cursor:pointer}.case-actions button:hover{border-color:#685cf5;color:#4d42e8}.case-actions .case-delete{border-color:#f1c9ce;color:#b73b4b}.case-actions .case-delete:hover{border-color:#e07887;background:#fff4f5;color:#a52d3c}
       .case-bitacora{margin-top:16px}.entry{border-left:3px solid #6558f5;padding:10px 12px;margin:0 0 8px;background:#fbfbff;border-radius:0 8px 8px 0}.entry-head{display:flex;gap:8px;align-items:center;font-size:10px;color:#697394}.entry-type{font-weight:800;color:#5146f6;text-transform:capitalize}.entry h4{font-size:12px;margin:6px 0 4px}.entry p{white-space:pre-wrap;font-size:12px;line-height:1.4;margin:0;color:#333e60}.entry-source{font-size:10px;margin-top:7px;color:#697394}.entry-source button{border:0;background:transparent;padding:0;color:#5146f6;text-decoration:underline;cursor:pointer;font:inherit}
       .case-documents{margin-top:16px}.case-documents ul{padding:0;margin:0;list-style:none}.case-documents li{padding:7px 0;border-top:1px solid #eef0f5;font-size:11px}.case-documents small{color:#74809e}
       @media(max-width:1199px){#${PAGE_ID} .cases-main{padding-top:72px!important}}
@@ -51,6 +52,12 @@
   }
 
   function page() { return document.getElementById(PAGE_ID); }
+  function hideCasePage() {
+    const node = page();
+    if (!node) return;
+    node.style.setProperty('display', 'none', 'important');
+    if ((location.hash || '').slice(1) === PAGE_ID) history.replaceState(null, '', location.pathname + location.search);
+  }
   function showCasePage() {
     const targets = ['home','library','searchpage','contextpage','activitypage','systempage','maintenance', PAGE_ID];
     targets.forEach(id => { const node = document.getElementById(id); if (node) node.style.setProperty('display', 'none', 'important'); });
@@ -82,6 +89,10 @@
     button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); showCasePage(); }, true);
     const context = nav.querySelector('button[data-route="contextpage"]') || Array.from(nav.querySelectorAll('button')).find(button => button.textContent.trim() === 'Investigación');
     context ? context.insertAdjacentElement('beforebegin', button) : nav.appendChild(button);
+    nav.addEventListener('click', event => {
+      const destination = event.target.closest('button');
+      if (destination && !destination.matches('[data-lexia-cases]')) hideCasePage();
+    }, true);
   }
 
   function createPage() {
@@ -136,7 +147,7 @@
     const documents = snapshot.documents || [];
     const entries = snapshot.entries || [];
     const overview = element('div', {className: 'cases-card case-overview'},
-      element('div', {}, element('h2', {className: 'case-title', textContent: details.name}), element('p', {className: 'case-description', textContent: details.description || 'Sin descripción aún.'})),
+      element('div', {}, element('div', {className: 'case-title-row'}, element('h2', {className: 'case-title', textContent: details.name}), caseActions(details)), element('p', {className: 'case-description', textContent: details.description || 'Sin descripción aún.'})),
       element('div', {}, element('div', {className: 'case-metric'}, element('b', {textContent: String(documents.length)}), element('small', {textContent: 'documentos vinculados'})), element('div', {className: 'case-metric'}, element('b', {textContent: String(entries.length)}), element('small', {textContent: 'entradas de bitácora'}))),
     );
     target.append(overview, entryForm());
@@ -159,6 +170,36 @@
     if (!entries.length) journal.append(element('p', {className: 'case-empty', textContent: 'Aún no hay entradas. Registrá hechos, ideas, tareas o argumentos para construir la memoria del caso.'}));
     entries.forEach(entry => journal.append(renderEntry(entry)));
     target.append(journal);
+  }
+
+  function caseActions(details) {
+    const actions = element('div', {className: 'case-actions'});
+    const edit = element('button', {type: 'button', textContent: 'Editar nombre'});
+    const remove = element('button', {type: 'button', className: 'case-delete', textContent: 'Eliminar'});
+    edit.addEventListener('click', async () => {
+      const name = window.prompt('Editar nombre o carátula del caso:', details.name);
+      if (name === null) return;
+      const trimmed = name.trim();
+      if (!trimmed) return alert('El nombre del caso no puede quedar vacío.');
+      try {
+        const response = await request('/api/cases/update', {
+          method: 'POST', body: JSON.stringify({case_id: details.id, name: trimmed, description: details.description || ''}),
+        });
+        currentCase = response.case;
+        await loadCases(false);
+      } catch (error) { alert(error.message); }
+    });
+    remove.addEventListener('click', async () => {
+      const accepted = window.confirm(`¿Eliminar el caso “${details.name}”?\n\nSe eliminarán únicamente su bitácora y sus vínculos locales. Los documentos originales de la biblioteca no se borrarán.`);
+      if (!accepted) return;
+      try {
+        await request('/api/cases/delete', {method: 'POST', body: JSON.stringify({case_id: details.id, confirmed: true})});
+        currentCase = null;
+        await loadCases(false);
+      } catch (error) { alert(error.message); }
+    });
+    actions.append(edit, remove);
+    return actions;
   }
 
   function entryForm() {
