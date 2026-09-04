@@ -2655,7 +2655,13 @@ class Handler(SimpleHTTPRequestHandler):
                 description = str(body.get("description", "") or "").strip()
                 if not name:
                     raise ValueError("Indicá el nombre o carátula del caso.")
-                case_id = CASES.create_case(name, description)
+                case_id = CASES.create_case(
+                    name,
+                    description,
+                    authority=str(body.get("authority", "") or ""),
+                    file_number=str(body.get("file_number", "") or ""),
+                    parties=str(body.get("parties", "") or ""),
+                )
                 return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
             except ValueError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 400)
@@ -2693,6 +2699,9 @@ class Handler(SimpleHTTPRequestHandler):
                     case_id,
                     str(body.get("name", "") or ""),
                     str(body.get("description", "") or ""),
+                    authority=str(body.get("authority", "") or ""),
+                    file_number=str(body.get("file_number", "") or ""),
+                    parties=str(body.get("parties", "") or ""),
                 )
                 return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
             except KeyError as exc:
@@ -2738,6 +2747,105 @@ class Handler(SimpleHTTPRequestHandler):
                     source_excerpt=str(body.get("source_excerpt", "") or ""),
                 )
                 return self._json({"ok": True, "entry_id": entry_id, "case": CASES.case_snapshot(case_id)})
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                node_id = CASES.add_node(
+                    case_id,
+                    node_kind=str(body.get("node_kind", "") or ""),
+                    title=str(body.get("title", "") or ""),
+                    parent_id=body.get("parent_id"),
+                    adversary_text=str(body.get("adversary_text", "") or ""),
+                    own_position=str(body.get("own_position", "") or ""),
+                    primary_document_id=body.get("primary_document_id"),
+                )
+                return self._json({"ok": True, "node_id": node_id, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/update":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                CASES.update_node(
+                    case_id, int(body.get("node_id")),
+                    title=str(body.get("title", "") or ""),
+                    adversary_text=str(body.get("adversary_text", "") or ""),
+                    own_position=str(body.get("own_position", "") or ""),
+                    primary_document_id=body.get("primary_document_id"),
+                )
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if body.get("confirmed") is not True:
+                    raise ValueError("La eliminación de la rama debe confirmarse explícitamente.")
+                case_id = int(body.get("case_id"))
+                CASES.delete_node(case_id, int(body.get("node_id")))
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/source":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                source_id = CASES.add_node_source(
+                    case_id, int(body.get("node_id")),
+                    case_document_id=body.get("case_document_id"),
+                    case_entry_id=body.get("case_entry_id"),
+                    stance=str(body.get("stance", "fundamento") or "fundamento"),
+                    note=str(body.get("note", "") or ""),
+                )
+                return self._json({"ok": True, "source_id": source_id, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/source/delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if body.get("confirmed") is not True:
+                    raise ValueError("La eliminación del vínculo debe confirmarse explícitamente.")
+                case_id = int(body.get("case_id"))
+                CASES.delete_node_source(case_id, int(body.get("source_id")))
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
             except (TypeError, ValueError) as exc:
                 return self._json({"ok": False, "error": str(exc)}, 400)
             except Exception as exc:
