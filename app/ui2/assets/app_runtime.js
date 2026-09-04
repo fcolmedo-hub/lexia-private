@@ -474,7 +474,7 @@
   // las actualizaciones del visor y de Windows no alteren su bitácora.
   if(!document.querySelector('script[data-lexia-case-workspace]')){
     const caseWorkspace=document.createElement('script');
-    caseWorkspace.src='assets/case_workspace.js?v=case-3';
+    caseWorkspace.src='assets/case_workspace.js?v=case-4';
     caseWorkspace.async=false;
     caseWorkspace.dataset.lexiaCaseWorkspace='1';
     (document.body||document.documentElement).appendChild(caseWorkspace);
