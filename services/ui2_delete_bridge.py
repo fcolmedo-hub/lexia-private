@@ -1040,13 +1040,53 @@ def _handler_class(application, token):
                     })
             except Exception as exc:
                 elapsed = time.monotonic() - started
+                detail = str(exc).strip()
+                no_sources = (
+                    detail.startswith("No se encontraron fuentes")
+                    or detail.startswith("LexIA no encontró fuentes")
+                    or detail.startswith(
+                        "No quedaron fuentes después de aplicar"
+                    )
+                )
                 with candidates_lock:
                     if not is_current():
                         return
-                    candidates_state.update({
-                        "phase": "error", "status": "La búsqueda de fuentes produjo un error",
-                        "percentage": 100, "current_step": candidates_state.get("current_step", 0), "total_steps": 4, "error": str(exc), "elapsed_seconds": round(elapsed, 3),
-                    })
+                    if no_sources:
+                        # No encontrar coincidencias es un resultado normal,
+                        # no un fallo del servicio. Se mantiene un paquete
+                        # vacío para terminar la investigación sin error.
+                        candidates_package = SimpleNamespace(
+                            sources=[],
+                            document_count=0,
+                            selected_count=0,
+                        )
+                        candidates_state.update({
+                            "phase": "completed",
+                            "status": (
+                                "No se encontraron fuentes para esta "
+                                "consulta. Probá con otros términos o "
+                                "ampliá el alcance."
+                            ),
+                            "percentage": 100,
+                            "current_step": 4,
+                            "total_steps": 4,
+                            "error": None,
+                            "elapsed_seconds": round(elapsed, 3),
+                        })
+                    else:
+                        candidates_state.update({
+                            "phase": "error",
+                            "status": (
+                                "La búsqueda de fuentes produjo un error"
+                            ),
+                            "percentage": 100,
+                            "current_step": candidates_state.get(
+                                "current_step", 0
+                            ),
+                            "total_steps": 4,
+                            "error": detail,
+                            "elapsed_seconds": round(elapsed, 3),
+                        })
 
         threading.Thread(target=worker, name="LexIA-UI2-Candidates-" + job_id[:8], daemon=True).start()
         return {"ok": True, "job_id": job_id, "state": dict(candidates_state)}
