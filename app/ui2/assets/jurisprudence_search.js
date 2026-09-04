@@ -501,6 +501,10 @@
     const key='lexia.research.history';
     const fields=['researchQuery','researchFacts','researchObjective','researchInstruction'];
     let items=[];
+    // La lista remota puede actualizarse mientras el usuario tiene abierto el
+    // selector. Cada render conserva su propia instantánea para que el value
+    // numérico elegido no termine resolviendo otro elemento reordenado.
+    const renderedHistorySnapshots=new WeakMap();
     const localItems=()=>{try{return JSON.parse(localStorage.getItem(key)||'[]').filter(item=>item?.researchQuery);}catch(_){return [];}};
     const signature=item=>JSON.stringify(fields.map(name=>String(item?.[name]||'')));
     const merge=(...groups)=>{
@@ -517,9 +521,11 @@
     const render=()=>{
       const select=document.getElementById('researchHistory');
       if(!select)return;
-      select.innerHTML='<option value="">Elegir una consulta anterior…</option>'+items.map((item,index)=>
+      const snapshot=items.slice();
+      select.innerHTML='<option value="">Elegir una consulta anterior…</option>'+snapshot.map((item,index)=>
         '<option value="'+index+'">'+esc(String(item.researchQuery||'').slice(0,120))+'</option>'
       ).join('');
+      renderedHistorySnapshots.set(select,snapshot);
     };
     const refresh=async()=>{
       let remote=[];
@@ -541,7 +547,8 @@
 
     document.addEventListener('change',event=>{
       if(event.target?.id!=='researchHistory'||event.target.value==='')return;
-      const item=items[Number(event.target.value)];
+      const snapshot=renderedHistorySnapshots.get(event.target)||items;
+      const item=snapshot[Number(event.target.value)];
       if(!item)return;
       event.stopImmediatePropagation();
       fields.forEach(name=>{
