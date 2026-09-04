@@ -56,3 +56,70 @@ def test_linking_the_same_document_updates_the_link_instead_of_copying_it(tmp_pa
     documents = repository.list_documents(case_id)
     assert len(documents) == 1
     assert documents[0]["relation_kind"] == "norma aplicable"
+
+
+def test_case_keeps_principal_branches_questions_and_their_sources(tmp_path) -> None:
+    repository = CaseRepository(tmp_path / "cases.sqlite3")
+    case_id = repository.create_case(
+        "Pérez c/ Empresa X",
+        "Diferencias salariales.",
+        authority="Juzgado Laboral N.º 2",
+        file_number="12345/2026",
+    )
+    document_id = repository.link_document(
+        case_id,
+        document_name="Demanda.pdf",
+        document_path="/Biblioteca/Escritos/demanda.pdf",
+        category="Escritos",
+    )
+    demand_id = repository.add_node(
+        case_id,
+        node_kind="hito",
+        title="Demanda",
+        primary_document_id=document_id,
+    )
+    question_id = repository.add_node(
+        case_id,
+        node_kind="cuestion",
+        parent_id=demand_id,
+        title="Fecha de ingreso",
+        adversary_text="La actora denuncia ingreso el 1/11/2022.",
+        own_position="La fecha no se encuentra acreditada.",
+    )
+    repository.add_node_source(
+        case_id,
+        question_id,
+        case_document_id=document_id,
+        stance="fundamento",
+    )
+
+    snapshot = repository.case_snapshot(case_id)
+
+    assert snapshot["case"]["authority"] == "Juzgado Laboral N.º 2"
+    assert snapshot["nodes"][0]["title"] == "Demanda"
+    assert snapshot["nodes"][0]["primary_document_name"] == "Demanda.pdf"
+    question = snapshot["nodes"][0]["children"][0]
+    assert question["adversary_text"] == "La actora denuncia ingreso el 1/11/2022."
+    assert question["own_position"] == "La fecha no se encuentra acreditada."
+    assert question["sources"][0]["document_name"] == "Demanda.pdf"
+
+
+def test_deleting_principal_branch_removes_its_questions_but_not_documents(tmp_path) -> None:
+    repository = CaseRepository(tmp_path / "cases.sqlite3")
+    case_id = repository.create_case("Prueba")
+    document_id = repository.link_document(
+        case_id,
+        document_name="Demanda.pdf",
+        document_path="/Biblioteca/Escritos/demanda.pdf",
+    )
+    branch_id = repository.add_node(case_id, node_kind="hito", title="Demanda")
+    question_id = repository.add_node(
+        case_id, node_kind="cuestion", parent_id=branch_id, title="Cuestión"
+    )
+    repository.add_node_source(case_id, question_id, case_document_id=document_id)
+
+    repository.delete_node(case_id, branch_id)
+
+    snapshot = repository.case_snapshot(case_id)
+    assert snapshot["nodes"] == []
+    assert len(snapshot["documents"]) == 1
