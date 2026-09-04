@@ -2646,7 +2646,6 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
 
-        if path == "/api/study-instruction-validate":
         if path == "/api/cases":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
@@ -2709,6 +2708,7 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
 
+        if path == "/api/study-instruction-validate":
             try:
                 length = int(
                     self.headers.get("Content-Length", "0") or 0
@@ -2735,23 +2735,6 @@ class Handler(SimpleHTTPRequestHandler):
                 )
 
         if path == "/api/study-history":
-        if path == "/api/cases":
-            try:
-                return self._json({"ok": True, "cases": CASES.list_cases()})
-            except Exception as exc:
-                return self._json({"ok": False, "error": str(exc)}, 500)
-
-        if path.startswith("/api/cases/"):
-            try:
-                case_id = int(path.rsplit("/", 1)[-1])
-                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
-            except KeyError as exc:
-                return self._json({"ok": False, "error": str(exc)}, 404)
-            except (TypeError, ValueError) as exc:
-                return self._json({"ok": False, "error": str(exc)}, 400)
-            except Exception as exc:
-                return self._json({"ok": False, "error": str(exc)}, 500)
-
             try:
                 length = int(
                     self.headers.get("Content-Length", "0") or 0
@@ -3094,6 +3077,23 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+
+        if path == "/api/cases":
+            try:
+                return self._json({"ok": True, "cases": CASES.list_cases()})
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path.startswith("/api/cases/"):
+            try:
+                case_id = int(path.rsplit("/", 1)[-1])
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
 
         if path == "/api/study-history":
             try:
