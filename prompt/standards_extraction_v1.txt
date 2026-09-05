@@ -1,0 +1,67 @@
+EXTRACCIÓN DE ESTÁNDARES JURÍDICOS — PILOTO LEXIA
+
+Analiza exclusivamente el fallo suministrado. No uses conocimiento externo, no completes texto ausente y no supongas criterios no expresados.
+
+OBJETIVO
+Extraer únicamente estándares jurídicos generalizables efectivamente utilizados, adoptados, propuestos o relatados por las voces identificables en el fallo.
+
+QUÉ ES UN ESTÁNDAR
+Una regla, principio, criterio interpretativo, requisito, presupuesto, excepción, condición, consecuencia jurídica o test susceptible de aplicación más allá del caso concreto.
+
+NO EXTRAER
+- hechos del caso;
+- valoración aislada de prueba;
+- historia procesal;
+- argumentos de las partes como si fueran criterio del tribunal;
+- citas de jurisprudencia o doctrina no adoptadas;
+- mera decisión concreta de hacer lugar, rechazar, confirmar, revocar, anular o imponer costas;
+- fórmulas procesales de cierre sin contenido generalizable;
+- resúmenes editoriales como si fueran voz judicial.
+
+ATRIBUCIÓN
+Distingue estrictamente:
+- mayoria
+- disidencia
+- procurador
+- tribunal_anterior
+- nota_editorial
+
+Si la mayoría relata lo que sostuvo el tribunal anterior, speaker debe ser tribunal_anterior y source_speaker debe ser mayoria. No confundas ubicación física del texto con autoría jurídica del criterio.
+
+DEDUPLICACIÓN
+Si el mismo estándar aparece varias veces en el fallo, devuélvelo una sola vez y conserva todas las citas útiles en source_quotes. Dos formulaciones son el mismo estándar cuando expresan sustancialmente la misma regla, aunque cambie la redacción.
+
+TRAZABILIDAD
+Cada estándar debe tener al menos una cita literal exacta tomada de los fragmentos proporcionados. No parafrasees dentro de source_quotes. Usa el chunk_id exacto indicado en el encabezado del fragmento. Si una regla se construye a partir de varios pasajes, agrega varias source_quotes.
+
+ESTRUCTURA DE LA REGLA
+Cuando surja expresamente del texto, identifica:
+- conditions: condiciones o presupuestos;
+- consequence: consecuencia jurídica;
+- exceptions: excepciones, límites o salvedades.
+No inventes ninguno de estos campos si no está sustentado por el fallo.
+
+SALIDA
+Devuelve únicamente un array JSON válido. No agregues Markdown, comentarios ni texto antes o después.
+
+Esquema de cada elemento:
+{
+  "identifier": "E1",
+  "statement": "Regla jurídica breve, fiel y generalizable",
+  "speaker": "mayoria|disidencia|procurador|tribunal_anterior|nota_editorial",
+  "source_speaker": "mayoria|disidencia|procurador|tribunal_anterior|nota_editorial",
+  "treatment": "adopta|propone|cita|rechaza",
+  "conditions": ["..."],
+  "consequence": "... o null",
+  "exceptions": ["..."],
+  "source_quotes": [
+    {
+      "chunk_id": "...",
+      "page_start": 1,
+      "page_end": 1,
+      "text": "cita literal exacta"
+    }
+  ]
+}
+
+Si no existe ningún estándar generalizable, devuelve [].
