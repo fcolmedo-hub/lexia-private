@@ -2105,6 +2105,67 @@ def _read_navigator_import(handler):
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
         raise
+
+
+def _read_case_import(handler):
+    """Read files dropped on one case branch into a short-lived staging area."""
+    content_type = str(handler.headers.get("Content-Type", "") or "")
+    length = int(handler.headers.get("Content-Length", "0") or 0)
+    if "multipart/form-data" not in content_type.lower():
+        raise ValueError("La importación requiere archivos multipart.")
+    if length <= 0 or length > 268435456:
+        raise ValueError("La importación supera el límite de 256 MB.")
+    raw = handler.rfile.read(length)
+    message = BytesParser(policy=email_policy).parsebytes(
+        ("Content-Type: " + content_type + "\r\nMIME-Version: 1.0\r\n\r\n").encode("utf-8") + raw
+    )
+    case_id = None
+    node_id = None
+    uploads = []
+    staging = RUNTIME_ROOT / "ui2_case_import_staging" / uuid.uuid4().hex
+    staging.mkdir(parents=True, exist_ok=False)
+    allowed = {
+        ".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm",
+        ".rtf", ".xls", ".ods",
+    }
+    try:
+        for part in message.iter_parts():
+            field = str(part.get_param("name", header="content-disposition") or "")
+            value = part.get_payload(decode=True) or b""
+            if field == "case_id":
+                case_id = int(value.decode("utf-8").strip())
+            elif field == "node_id":
+                node_id = int(value.decode("utf-8").strip())
+            elif field == "files":
+                supplied = str(part.get_filename() or "")
+                clean_name = Path(supplied).name
+                extension = Path(clean_name).suffix.lower()
+                if not clean_name or clean_name != supplied or extension not in allowed:
+                    raise ValueError("Nombre o extensión no admitidos: " + supplied)
+                target = staging / (uuid.uuid4().hex + "_" + clean_name)
+                target.write_bytes(value)
+                uploads.append({"path": str(target), "name": clean_name})
+        if case_id is None or node_id is None or not uploads:
+            raise ValueError("Falta la rama del caso o los archivos.")
+        return case_id, node_id, uploads, staging
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
+def _case_import_destination(case_id):
+    snapshot = CASES.case_snapshot(int(case_id))
+    folder_name = _navigator_clean_folder_name(snapshot["case"]["name"])
+    category_root = Path(_navigator_mutation_folder("Escritos", "", True)).resolve()
+    destination = (category_root / folder_name).resolve()
+    try:
+        destination.relative_to(category_root)
+    except ValueError as exc:
+        raise ValueError("La carpeta del caso no pertenece a Escritos.") from exc
+    destination.mkdir(parents=False, exist_ok=True)
+    if not destination.is_dir():
+        raise ValueError("No se pudo crear la carpeta Escritos del caso.")
+    return snapshot, destination
 # <<< LEXIA UI2 3.2.4o CLASSIC CORE DELETE BRIDGE
 
 
@@ -2751,6 +2812,59 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json({"ok": False, "error": str(exc)}, 400)
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/import":
+            staging = None
+            try:
+                case_id, node_id, uploads, staging = _read_case_import(self)
+                snapshot, destination = _case_import_destination(case_id)
+                try:
+                    payload = _core_import_files(str(destination), uploads)
+                except _DeleteBridgeError as exc:
+                    if exc.status != 404:
+                        raise
+                    payload = _direct_import_files("Escritos", str(destination), uploads)
+
+                linked = []
+                for raw_path in payload.get("imported", []) or []:
+                    path_value = str(raw_path or "").strip()
+                    if not path_value:
+                        continue
+                    link_id = CASES.link_document(
+                        case_id,
+                        document_name=Path(path_value).name,
+                        document_path=path_value,
+                        category="Escritos",
+                        relation_kind="archivo de rama",
+                    )
+                    try:
+                        CASES.add_node_source(
+                            case_id,
+                            node_id,
+                            case_document_id=link_id,
+                            stance="archivo de rama",
+                        )
+                    except ValueError as exc:
+                        if "ya está vinculada" not in str(exc):
+                            raise
+                    linked.append(path_value)
+                payload.update({
+                    "case_folder": str(destination),
+                    "linked": linked,
+                    "case": CASES.case_snapshot(case_id),
+                })
+                return self._json(payload)
+            except _DeleteBridgeError as exc:
+                return self._json({"ok": False, "error": str(exc)}, exc.status)
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError, FileNotFoundError, PermissionError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 409)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+            finally:
+                if staging is not None:
+                    shutil.rmtree(staging, ignore_errors=True)
 
         if path == "/api/cases/node":
             try:
