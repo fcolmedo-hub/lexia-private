@@ -29,6 +29,7 @@
       files: '<path d="M4 5h6l2 2h8v12H4z"></path><path d="M4 10h16"></path>',
       add: '<path d="M12 5v14M5 12h14"></path>',
       edit: '<path d="m5 19 3.5-.8L18 8.7 15.3 6 5.8 15.5z"></path><path d="m14.8 6.5 2.7 2.7"></path>',
+      replace: '<path d="M7 7h10l-3-3"></path><path d="M17 7l-3 3"></path><path d="M17 17H7l3 3"></path><path d="M7 17l3-3"></path>',
       remove: '<path d="M5 7h14M10 7V5h4v2M8 7l.7 12h6.6L16 7M10 11v5M14 11v5"></path>',
     };
     const button = el('button', {
@@ -252,16 +253,18 @@
     const isOpen = openPrimaryIds.has(node.id);
     const toggle = actionIcon(isOpen ? 'hide' : 'show', isOpen ? 'Ocultar rama' : 'Mostrar rama');
     const upload = actionIcon('files', 'Cargar archivos en esta rama');
+    const replace = node.primary_document_id ? actionIcon('replace', 'Reemplazar documento inicial') : null;
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
     const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
     addQuestion.disabled = !canAddQuestion;
     toggle.addEventListener('click', () => { if (isOpen) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); });
     upload.addEventListener('click', () => input.click());
+    if (replace) replace.addEventListener('click', () => replacePrimaryDocument(snapshot, node));
     input.addEventListener('change', () => { if (input.files?.length) importBranchFiles(snapshot, node, input.files, upload); input.value = ''; });
     addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); questionParentId = node.id; showNewBranch = false; render({cases: caseList}); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
-    article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, addQuestion, edit, remove)));
+    article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, addQuestion, edit, remove)));
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
     if (questionParentId === node.id) questions.append(questionForm(snapshot, node.id));
@@ -326,6 +329,36 @@
     });
     all.forEach(item => include(item.id)); return result;
   }
+  function primaryDocumentIds(nodes, result) {
+    const ids = result || new Set();
+    (nodes || []).forEach(item => { if (item.primary_document_id) ids.add(Number(item.primary_document_id)); primaryDocumentIds(item.children || [], ids); });
+    return ids;
+  }
+  async function deleteCaseDocument(snapshot, document) {
+    if (!confirm('¿Eliminar “' + document.document_name + '” del caso?\n\nSe quitarán también sus resaltados y referencias locales. Si fue cargado en Escritos\\Casos, se eliminará el archivo físico.')) return;
+    try {
+      const response = await api('/api/cases/document/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, case_document_id: document.id, confirmed: true})});
+      currentCase = response.case; await loadCases(false);
+      if ((response.pending_cleanup || []).length) alert('El archivo fue quitado del caso, pero su eliminación física quedó pendiente porque LexIA estaba ocupada.');
+    } catch (error) { alert(error.message); }
+  }
+  function replacePrimaryDocument(snapshot, node) {
+    const choices = (snapshot.documents || []).filter(document => Number(document.id) !== Number(node.primary_document_id));
+    if (!choices.length) return alert('Primero cargá otro archivo en el caso y luego elegilo como reemplazo.');
+    const dialog = el('dialog', {className: 'lexia-evidence-dialog'}), select = el('select', {className: 'workspace-enunciado'});
+    choices.forEach(document => select.append(el('option', {value: String(document.id), textContent: document.document_name + ' · ' + (document.category || 'Documento')})));
+    const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cancelar'}), confirmReplace = el('button', {type: 'button', className: 'cases-button', textContent: 'Reemplazar'});
+    close.addEventListener('click', () => { dialog.close(); dialog.remove(); });
+    confirmReplace.addEventListener('click', async () => {
+      confirmReplace.disabled = true;
+      try {
+        const response = await api('/api/cases/node/replace-primary-document', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, replacement_document_id: Number(select.value)})});
+        currentCase = response.case; dialog.close(); dialog.remove(); await loadCases(false);
+        if ((response.pending_cleanup || []).length) alert('El documento inicial fue reemplazado; el archivo anterior quedó pendiente de limpieza porque LexIA estaba ocupada.');
+      } catch (error) { alert(error.message); confirmReplace.disabled = false; }
+    });
+    dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Reemplazar documento inicial'}), close), el('div', {className: 'evidence-dialog-body'}, el('p', {className: 'source-help', textContent: 'Elegí el archivo que pasará a ser el documento inicial de esta rama. El anterior se conserva sólo si todavía se usa en otra parte del caso.'}), select, el('div', {className: 'evidence-dialog-actions'}, confirmReplace))); document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
+  }
   function compactSection(label, open, content) {
     const details = el('details', {className: 'argument-section'}); details.open = !!open;
     details.append(el('summary', {textContent: label}), el('div', {className: 'argument-section-body'}, content));
@@ -385,15 +418,21 @@
   function sources(snapshot, node, side) {
     const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Archivos del caso'}), el('p', {className: 'source-help', textContent: 'Elegí un archivo para seleccionar el pasaje que querés incorporar al párrafo activo. Los resaltados ya incorporados se editan directamente desde el párrafo.'}));
     const blocks = ((node.blocks && node.blocks[side]) || []), candidates = availableDocuments(snapshot, node);
+    const protectedDocuments = primaryDocumentIds(snapshot.nodes || []);
     if (!candidates.length) panel.append(el('p', {className: 'sources-empty', textContent: 'Cargá un archivo en la rama para poder crear una cuestión respaldada.'}));
-    candidates.slice(0, 8).forEach(doc => {
+    candidates.forEach(doc => {
       const choose = actionIcon('add', 'Seleccionar un pasaje de este archivo');
       choose.addEventListener('click', () => {
         const block = blocks.find(item => item.id === activeEvidenceBlockId);
         if (!block) return alert('Primero hacé clic dentro del párrafo al que querés vincular este pasaje.');
         openEvidenceDialog(snapshot, node, block, [doc]);
       });
-      panel.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name}), choose));
+      const actions = [choose];
+      if (!protectedDocuments.has(Number(doc.id))) {
+        const remove = actionIcon('remove', 'Eliminar archivo del caso', 'cases-danger');
+        remove.addEventListener('click', () => deleteCaseDocument(snapshot, doc)); actions.push(remove);
+      }
+      panel.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name, title: protectedDocuments.has(Number(doc.id)) ? 'Documento inicial de una rama: se reemplaza desde su cabecera.' : ''}), ...actions));
     });
     panel.append(el('p', {className: 'sources-drop-help', textContent: 'Para incorporar un archivo nuevo, seleccioná primero el bloque y arrastrá aquí el archivo.'}));
     panel.addEventListener('dragover', event => { event.preventDefault(); panel.classList.add('drop-target'); });
