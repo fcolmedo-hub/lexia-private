@@ -15,8 +15,14 @@ class ContextSelectionStats:
 
 
 class IntelligentContextSelector:
-    def __init__(self, max_per_document=2, similarity_threshold=0.88):
-        self.max_per_document = max(1, int(max_per_document))
+    def __init__(self, max_per_document=None, similarity_threshold=0.88):
+        # El límite por documento es opcional. Investigaciones no lo usa:
+        # manda el ranking de cada fragmento y sólo se eliminan duplicados.
+        self.max_per_document = (
+            None
+            if max_per_document in (None, 0)
+            else max(1, int(max_per_document))
+        )
         self.similarity_threshold = float(similarity_threshold)
         self.last_stats = ContextSelectionStats(0, 0, 0, 0, 0, 0)
 
@@ -32,42 +38,8 @@ class IntelligentContextSelector:
         near_duplicates = 0
         same_document_skipped = 0
 
-        # Pase 1: documentos distintos, primero categorías nuevas.
-        for require_new_category in (True, False):
-            for item in ranked:
-                if len(selected) >= limit:
-                    break
-
-                result = item[1]
-                key = self._fragment_key(result)
-                if key in selected_keys:
-                    continue
-
-                path = self._path_key(result)
-                if per_document.get(path, 0) >= 1:
-                    continue
-
-                category = self._category_key(result)
-                if require_new_category and category and category in categories:
-                    continue
-
-                signature = self._signature(getattr(result, "text", ""))
-                if self._is_near_duplicate(signature, signatures):
-                    near_duplicates += 1
-                    continue
-
-                selected.append(item)
-                selected_keys.add(key)
-                per_document[path] = 1
-                if category:
-                    categories.add(category)
-                signatures.append(signature)
-
-            if len(selected) >= limit:
-                break
-
-        # Pase 2: admite un segundo fragmento por documento,
-        # evitando fragmentos contiguos si existen alternativas.
+        # La relevancia del fragmento gobierna el orden. La diversidad
+        # documental no desplaza un fragmento mejor puntuado por otro peor.
         for item in ranked:
             if len(selected) >= limit:
                 break
@@ -78,11 +50,10 @@ class IntelligentContextSelector:
                 continue
 
             path = self._path_key(result)
-            if per_document.get(path, 0) >= self.max_per_document:
-                same_document_skipped += 1
-                continue
-
-            if self._is_adjacent_to_selected(result, selected):
+            if (
+                self.max_per_document is not None
+                and per_document.get(path, 0) >= self.max_per_document
+            ):
                 same_document_skipped += 1
                 continue
 
@@ -99,33 +70,7 @@ class IntelligentContextSelector:
                 categories.add(category)
             signatures.append(signature)
 
-        # Pase 3: fallback para completar el límite sin perder cobertura.
-        for item in ranked:
-            if len(selected) >= limit:
-                break
-
-            result = item[1]
-            key = self._fragment_key(result)
-            if key in selected_keys:
-                continue
-
-            path = self._path_key(result)
-            if per_document.get(path, 0) >= self.max_per_document:
-                continue
-
-            selected.append(item)
-            selected_keys.add(key)
-            per_document[path] = per_document.get(path, 0) + 1
-            category = self._category_key(result)
-            if category:
-                categories.add(category)
-
         documents = {self._path_key(item[1]) for item in selected}
-        categories = {
-            self._category_key(item[1])
-            for item in selected
-            if self._category_key(item[1])
-        }
 
         self.last_stats = ContextSelectionStats(
             ranked_candidates=len(ranked),
