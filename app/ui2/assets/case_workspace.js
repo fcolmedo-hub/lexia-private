@@ -530,9 +530,19 @@
         });
       } catch (error) { preview = null; reader.textContent = ''; status.textContent = 'No se pudo cargar texto seleccionable: ' + error.message; }
     };
-    const capture = () => { selected = selectionOffsets(reader); if (selected) status.textContent = selected.text.length + ' caracteres seleccionados. Se guardará exactamente ese texto.'; };
+    // La selección nativa suele desaparecer cuando el usuario activa el botón
+    // con Enter o con el mouse. Se conserva su último rango válido antes de que
+    // el foco abandone el lector.
+    const capture = () => {
+      const range = selectionOffsets(reader);
+      if (range) { selected = range; status.textContent = selected.text.length + ' caracteres seleccionados. Se guardará exactamente ese texto.'; }
+    };
+    const stopSelectionTracking = () => document.removeEventListener('selectionchange', capture);
+    document.addEventListener('selectionchange', capture);
     reader.addEventListener('mouseup', capture); reader.addEventListener('keyup', capture); select.addEventListener('change', load);
-    close.addEventListener('click', () => { dialog.close(); dialog.remove(); });
+    save.addEventListener('pointerdown', capture); save.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') capture(); });
+    close.addEventListener('click', () => { stopSelectionTracking(); dialog.close(); dialog.remove(); });
+    dialog.addEventListener('close', stopSelectionTracking, {once: true});
     save.addEventListener('click', async () => {
       selected = selectionOffsets(reader) || selected;
       if (!selected || !selected.text) return alert('Seleccioná un pasaje del documento antes de incorporarlo.');
@@ -542,7 +552,7 @@
         let response;
         if (existing) response = await api('/api/cases/block/highlight/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {highlight_id: existing.id}))});
         else response = await api('/api/cases/block/highlight', {method: 'POST', body: JSON.stringify(Object.assign(payload, {block_id: block.id, case_document_id: doc.id}))});
-        currentCase = response.case; dialog.close(); dialog.remove(); await loadCases(false);
+        stopSelectionTracking(); currentCase = response.case; dialog.close(); dialog.remove(); await loadCases(false);
       } catch (error) { alert(error.message); } finally { save.disabled = false; }
     });
     dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Seleccionar evidencia para el bloque'}), close), el('div', {className: 'evidence-dialog-body'}, field('Documento del caso', select), reader, status, el('div', {className: 'evidence-dialog-actions'}, save)));
