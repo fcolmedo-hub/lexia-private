@@ -2153,19 +2153,39 @@ def _read_case_import(handler):
         raise
 
 
-def _case_import_destination(case_id):
+def _case_node_address(nodes, target_id, trail=None):
+    """Return stable human-readable branch numbers for a Case import."""
+    trail = list(trail or [])
+    for index, node in enumerate(nodes or [], start=1):
+        current = trail + [index]
+        if int(node.get("id", 0) or 0) == int(target_id):
+            return current
+        found = _case_node_address(node.get("children") or [], target_id, current)
+        if found:
+            return found
+    return []
+
+
+def _case_import_destination(case_id, node_id=None):
     snapshot = CASES.case_snapshot(int(case_id))
     folder_name = _navigator_clean_folder_name(snapshot["case"]["name"])
     category_root = Path(_navigator_mutation_folder("Escritos", "", True)).resolve()
-    destination = (category_root / folder_name).resolve()
+    destination = (category_root / "Casos" / folder_name).resolve()
     try:
         destination.relative_to(category_root)
     except ValueError as exc:
         raise ValueError("La carpeta del caso no pertenece a Escritos.") from exc
-    destination.mkdir(parents=False, exist_ok=True)
+    destination.mkdir(parents=True, exist_ok=True)
     if not destination.is_dir():
         raise ValueError("No se pudo crear la carpeta Escritos del caso.")
-    return snapshot, destination
+    address = _case_node_address(snapshot.get("nodes") or [], node_id) if node_id else []
+    prefix = folder_name
+    if address:
+        prefix += "." + ".".join(
+            ("rama" if index == 0 else "cuestion") + f"-{number:02d}"
+            for index, number in enumerate(address)
+        )
+    return snapshot, destination, prefix
 # <<< LEXIA UI2 3.2.4o CLASSIC CORE DELETE BRIDGE
 
 
@@ -2817,7 +2837,10 @@ class Handler(SimpleHTTPRequestHandler):
             staging = None
             try:
                 case_id, node_id, uploads, staging = _read_case_import(self)
-                snapshot, destination = _case_import_destination(case_id)
+                snapshot, destination, prefix = _case_import_destination(case_id, node_id)
+                for upload in uploads:
+                    original_name = Path(str(upload.get("name", "") or "")).name
+                    upload["name"] = prefix + "." + original_name
                 try:
                     payload = _core_import_files(str(destination), uploads)
                 except _DeleteBridgeError as exc:
@@ -2850,6 +2873,7 @@ class Handler(SimpleHTTPRequestHandler):
                     linked.append(path_value)
                 payload.update({
                     "case_folder": str(destination),
+                    "file_prefix": prefix,
                     "linked": linked,
                     "case": CASES.case_snapshot(case_id),
                 })
@@ -2865,6 +2889,158 @@ class Handler(SimpleHTTPRequestHandler):
             finally:
                 if staging is not None:
                     shutil.rmtree(staging, ignore_errors=True)
+
+        if path == "/api/cases/block":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                block_id = CASES.add_argument_block(
+                    case_id, int(body.get("node_id")),
+                    side=str(body.get("side", "") or ""),
+                    title=str(body.get("title", "") or ""),
+                    content=str(body.get("content", "") or ""),
+                )
+                return self._json({"ok": True, "block_id": block_id, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/block/update":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                CASES.update_argument_block(
+                    case_id, int(body.get("block_id")),
+                    title=str(body.get("title", "") or ""),
+                    content=str(body.get("content", "") or ""),
+                )
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/block/delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if body.get("confirmed") is not True:
+                    raise ValueError("La eliminación del bloque debe confirmarse explícitamente.")
+                case_id = int(body.get("case_id"))
+                CASES.delete_argument_block(case_id, int(body.get("block_id")))
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/block/highlight":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                highlight_id = CASES.add_block_highlight(
+                    case_id, int(body.get("block_id")),
+                    case_document_id=int(body.get("case_document_id")),
+                    selected_text=str(body.get("selected_text", "") or ""),
+                    page_start=body.get("page_start"), page_end=body.get("page_end"),
+                    anchor_data=str(body.get("anchor_data", "") or ""),
+                )
+                return self._json({"ok": True, "highlight_id": highlight_id, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/block/highlight/update":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                CASES.update_block_highlight(
+                    case_id, int(body.get("highlight_id")),
+                    selected_text=str(body.get("selected_text", "") or ""),
+                    page_start=body.get("page_start"), page_end=body.get("page_end"),
+                    anchor_data=str(body.get("anchor_data", "") or ""),
+                )
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/block/highlight/delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if body.get("confirmed") is not True:
+                    raise ValueError("La eliminación del resaltado debe confirmarse explícitamente.")
+                case_id = int(body.get("case_id"))
+                CASES.delete_block_highlight(case_id, int(body.get("highlight_id")))
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/ai-output":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                output_id = CASES.save_ai_output(
+                    case_id, int(body.get("node_id")),
+                    prompt=str(body.get("prompt", "") or ""),
+                    source_package=str(body.get("source_package", "") or ""),
+                    content=str(body.get("content", "") or ""),
+                    status=str(body.get("status", "borrador") or "borrador"),
+                )
+                return self._json({"ok": True, "output_id": output_id, "case": CASES.case_snapshot(case_id)})
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/ai-output/update":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                CASES.update_ai_output(
+                    case_id, int(body.get("output_id")),
+                    content=str(body.get("content", "") or ""),
+                    status=str(body.get("status", "borrador") or "borrador"),
+                )
+                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
 
         if path == "/api/cases/node":
             try:
@@ -3457,6 +3633,18 @@ class Handler(SimpleHTTPRequestHandler):
                         "WHERE path=? AND COALESCE(is_deleted,0)=0 LIMIT 1",
                         (str(file_path),),
                     ).fetchone()
+                    try:
+                        segment_rows = con.execute(
+                            '''
+                            SELECT start_char, end_char, page_start, page_end
+                            FROM fragments
+                            WHERE document_path = ?
+                            ORDER BY fragment_index
+                            ''',
+                            (str(file_path),),
+                        ).fetchall()
+                    except sqlite3.OperationalError:
+                        segment_rows = []
                 finally:
                     con.close()
 
@@ -3478,6 +3666,15 @@ class Handler(SimpleHTTPRequestHandler):
                     "name": str(row["name"] or file_path.name),
                     "path": str(file_path),
                     "text": text[:600000],
+                    "segments": [
+                        {
+                            "start_char": int(item["start_char"] or 0),
+                            "end_char": int(item["end_char"] or 0),
+                            "page_start": item["page_start"],
+                            "page_end": item["page_end"],
+                        }
+                        for item in segment_rows
+                    ],
                 })
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
