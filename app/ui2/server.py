@@ -3051,6 +3051,29 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
 
+        if path == "/api/cases/document/delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if body.get("confirmed") is not True:
+                    raise ValueError("La eliminación del archivo debe confirmarse explícitamente.")
+                case_id = int(body.get("case_id"))
+                document = CASES.delete_case_document(case_id, int(body.get("case_document_id")))
+                removed_files, pending_cleanup = _delete_orphan_case_files(case_id, [document])
+                return self._json({
+                    "ok": True,
+                    "removed_files": removed_files,
+                    "pending_cleanup": pending_cleanup,
+                    "case": CASES.case_snapshot(case_id),
+                })
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
         if path == "/api/cases/node/ai-output":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
@@ -3126,6 +3149,31 @@ class Handler(SimpleHTTPRequestHandler):
                     primary_document_id=body.get("primary_document_id"),
                 )
                 return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/replace-primary-document":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                orphaned = CASES.replace_primary_document(
+                    case_id,
+                    int(body.get("node_id")),
+                    int(body.get("replacement_document_id")),
+                )
+                removed_files, pending_cleanup = _delete_orphan_case_files(case_id, orphaned)
+                return self._json({
+                    "ok": True,
+                    "removed_files": removed_files,
+                    "pending_cleanup": pending_cleanup,
+                    "case": CASES.case_snapshot(case_id),
+                })
             except KeyError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 404)
             except (TypeError, ValueError) as exc:
