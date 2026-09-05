@@ -185,3 +185,54 @@ def test_deleting_block_keeps_an_imported_document_used_by_another_block(tmp_pat
 
     assert orphaned == []
     assert {item["id"] for item in repository.list_documents(case_id)} == {document_id, foundation_id}
+
+
+def test_deleting_case_document_removes_its_local_highlights_and_links(tmp_path) -> None:
+    repository = CaseRepository(tmp_path / "cases.sqlite3")
+    case_id = repository.create_case("Prueba")
+    foundation_id = repository.link_document(
+        case_id, document_name="demanda.pdf", document_path="/Biblioteca/demanda.pdf"
+    )
+    removable_id = repository.link_document(
+        case_id,
+        document_name="anexo.docx",
+        document_path="/Biblioteca/Escritos/Casos/Prueba/anexo.docx",
+        relation_kind="archivo de rama",
+    )
+    root_id = repository.add_node(case_id, node_kind="hito", title="Demanda", primary_document_id=foundation_id)
+    question_id = repository.add_node(case_id, node_kind="cuestion", parent_id=root_id, title="Cuestión")
+    block_id = repository.add_argument_block(case_id, question_id, side="contraparte")
+    repository.add_block_highlight(case_id, block_id, case_document_id=removable_id, selected_text="Pasaje")
+
+    removed = repository.delete_case_document(case_id, removable_id)
+
+    assert removed["id"] == removable_id
+    snapshot = repository.case_snapshot(case_id)
+    assert [item["id"] for item in snapshot["documents"]] == [foundation_id]
+    assert snapshot["nodes"][0]["children"][0]["blocks"]["contraparte"][0]["highlights"] == []
+
+
+def test_primary_document_is_replaced_without_leaving_its_technical_link(tmp_path) -> None:
+    repository = CaseRepository(tmp_path / "cases.sqlite3")
+    case_id = repository.create_case("Prueba")
+    old_id = repository.link_document(
+        case_id,
+        document_name="demanda-vieja.pdf",
+        document_path="/Biblioteca/Escritos/Casos/Prueba/demanda-vieja.pdf",
+        relation_kind="archivo de rama",
+    )
+    replacement_id = repository.link_document(
+        case_id,
+        document_name="demanda-nueva.pdf",
+        document_path="/Biblioteca/Escritos/Casos/Prueba/demanda-nueva.pdf",
+        relation_kind="archivo de rama",
+    )
+    root_id = repository.add_node(case_id, node_kind="hito", title="Demanda", primary_document_id=old_id)
+    repository.add_node_source(case_id, root_id, case_document_id=old_id, stance="archivo de rama")
+
+    orphaned = repository.replace_primary_document(case_id, root_id, replacement_id)
+
+    assert [item["id"] for item in orphaned] == [old_id]
+    snapshot = repository.case_snapshot(case_id)
+    assert snapshot["nodes"][0]["primary_document_id"] == replacement_id
+    assert [item["id"] for item in snapshot["documents"]] == [replacement_id]
