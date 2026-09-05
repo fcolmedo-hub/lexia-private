@@ -2189,6 +2189,43 @@ def _case_import_destination(case_id, node_id=None):
             for index, number in enumerate(address)
         )
     return snapshot, destination, prefix
+
+
+def _delete_orphan_case_files(case_id, documents):
+    """Request deletion only for files created inside this Case's folder.
+
+    CaseRepository already proved that these documents have no references left
+    in the case.  This additional path check prevents a block operation from
+    ever deleting a general document from the LexIA library.
+    """
+    try:
+        _, case_folder, _ = _case_import_destination(case_id)
+    except Exception:
+        return [], []
+    removed, pending = [], []
+    for document in documents or []:
+        if str(document.get("relation_kind", "") or "") != "archivo de rama":
+            continue
+        raw_path = str(document.get("document_path", "") or "").strip()
+        if not raw_path:
+            continue
+        try:
+            source = Path(raw_path).expanduser().resolve()
+            source.relative_to(case_folder)
+        except (OSError, ValueError):
+            continue
+        if not source.is_file():
+            removed.append(raw_path)
+            continue
+        try:
+            payload = _start_core_document_delete(str(source), source.name)
+            if payload.get("ok") and payload.get("started"):
+                removed.append(str(source))
+            else:
+                pending.append({"path": str(source), "error": str(payload.get("error") or "No se pudo iniciar la eliminación.")})
+        except Exception as exc:
+            pending.append({"path": str(source), "error": str(exc)})
+    return removed, pending
 # <<< LEXIA UI2 3.2.4o CLASSIC CORE DELETE BRIDGE
 
 
@@ -2940,8 +2977,15 @@ class Handler(SimpleHTTPRequestHandler):
                 if body.get("confirmed") is not True:
                     raise ValueError("La eliminación del bloque debe confirmarse explícitamente.")
                 case_id = int(body.get("case_id"))
-                CASES.delete_argument_block(case_id, int(body.get("block_id")))
-                return self._json({"ok": True, "case": CASES.case_snapshot(case_id)})
+                orphaned = CASES.delete_argument_block(case_id, int(body.get("block_id")))
+                removed_files, pending_cleanup = _delete_orphan_case_files(case_id, orphaned)
+                return self._json({
+                    "ok": True,
+                    "removed_case_documents": len(orphaned),
+                    "removed_files": removed_files,
+                    "pending_cleanup": pending_cleanup,
+                    "case": CASES.case_snapshot(case_id),
+                })
             except KeyError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 404)
             except (TypeError, ValueError) as exc:
