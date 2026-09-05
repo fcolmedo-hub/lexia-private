@@ -332,6 +332,56 @@ class CaseRepository:
             rows = connection.execute(query, values).fetchall()
         return [dict(row) for row in rows]
 
+    def delete_case_document(self, case_id: int, case_document_id: int) -> dict:
+        """Remove one document from this Case and all of its local references.
+
+        A document that begins a branch is intentionally protected.  It must be
+        replaced first so the branch never loses its originating document.
+        """
+        case_id, case_document_id = int(case_id), int(case_document_id)
+        with self._connect() as connection:
+            document = connection.execute(
+                "SELECT * FROM case_documents WHERE id = ? AND case_id = ?",
+                (case_document_id, case_id),
+            ).fetchone()
+            if document is None:
+                raise KeyError(f"No existe el archivo #{case_document_id} en este caso.")
+            primary = connection.execute(
+                "SELECT title FROM case_nodes WHERE case_id = ? AND primary_document_id = ? LIMIT 1",
+                (case_id, case_document_id),
+            ).fetchone()
+            if primary is not None:
+                raise ValueError(
+                    "Este es el documento inicial de la rama “"
+                    + str(primary["title"])
+                    + "”. No se puede eliminar: usá Reemplazar documento inicial."
+                )
+            path = str(document["document_path"])
+            connection.execute(
+                "DELETE FROM case_block_highlights WHERE case_id = ? AND case_document_id = ?",
+                (case_id, case_document_id),
+            )
+            connection.execute(
+                "DELETE FROM case_node_sources WHERE case_id = ? AND case_document_id = ?",
+                (case_id, case_document_id),
+            )
+            connection.execute(
+                "DELETE FROM case_entries WHERE case_id = ? AND document_path = ?",
+                (case_id, path),
+            )
+            connection.execute(
+                "DELETE FROM case_sources WHERE case_id = ? AND document_path = ?",
+                (case_id, path),
+            )
+            connection.execute(
+                "DELETE FROM case_documents WHERE id = ? AND case_id = ?",
+                (case_document_id, case_id),
+            )
+            connection.execute(
+                "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (case_id,)
+            )
+            return dict(document)
+
     def add_entry(
         self,
         case_id: int,
@@ -502,6 +552,91 @@ class CaseRepository:
             connection.execute(
                 "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),)
             )
+
+    def replace_primary_document(
+        self, case_id: int, node_id: int, replacement_document_id: int
+    ) -> list[dict]:
+        """Replace a principal branch's initial document and release the old link.
+
+        The old file is returned only if it no longer appears anywhere else in
+        the Case.  The caller decides whether a Case-managed physical file must
+        also be removed.
+        """
+        case_id, node_id, replacement_document_id = (
+            int(case_id), int(node_id), int(replacement_document_id)
+        )
+        with self._connect() as connection:
+            node = connection.execute(
+                "SELECT * FROM case_nodes WHERE id = ? AND case_id = ?",
+                (node_id, case_id),
+            ).fetchone()
+            if node is None:
+                raise KeyError(f"No existe la rama #{node_id} en este caso.")
+            if str(node["node_kind"]) != "hito":
+                raise ValueError("Sólo una rama principal puede cambiar su documento inicial.")
+            replacement = connection.execute(
+                "SELECT 1 FROM case_documents WHERE id = ? AND case_id = ?",
+                (replacement_document_id, case_id),
+            ).fetchone()
+            if replacement is None:
+                raise ValueError("El documento de reemplazo no pertenece a este caso.")
+            old_id = node["primary_document_id"]
+            if old_id is None:
+                raise ValueError("La rama no tiene un documento inicial para reemplazar.")
+            if int(old_id) == replacement_document_id:
+                raise ValueError("Elegí un documento distinto para reemplazarlo.")
+            old_document = connection.execute(
+                "SELECT * FROM case_documents WHERE id = ? AND case_id = ?",
+                (int(old_id), case_id),
+            ).fetchone()
+            connection.execute(
+                "UPDATE case_nodes SET primary_document_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (replacement_document_id, node_id),
+            )
+            orphaned: list[dict] = []
+            if old_document is not None:
+                old_document_id = int(old_document["id"])
+                old_path = str(old_document["document_path"])
+                connection.execute(
+                    '''
+                    DELETE FROM case_node_sources
+                    WHERE case_id = ? AND node_id = ? AND case_document_id = ?
+                      AND stance = 'archivo de rama'
+                    ''',
+                    (case_id, node_id, old_document_id),
+                )
+                still_used = any((
+                    connection.execute(
+                        "SELECT 1 FROM case_nodes WHERE case_id = ? AND primary_document_id = ? LIMIT 1",
+                        (case_id, old_document_id),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_node_sources WHERE case_id = ? AND case_document_id = ? LIMIT 1",
+                        (case_id, old_document_id),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_block_highlights WHERE case_id = ? AND case_document_id = ? LIMIT 1",
+                        (case_id, old_document_id),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_entries WHERE case_id = ? AND document_path = ? LIMIT 1",
+                        (case_id, old_path),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_sources WHERE case_id = ? AND document_path = ? LIMIT 1",
+                        (case_id, old_path),
+                    ).fetchone(),
+                ))
+                if not still_used:
+                    connection.execute(
+                        "DELETE FROM case_documents WHERE id = ? AND case_id = ?",
+                        (old_document_id, case_id),
+                    )
+                    orphaned.append(dict(old_document))
+            connection.execute(
+                "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (case_id,)
+            )
+            return orphaned
 
     def add_argument_block(
         self,
