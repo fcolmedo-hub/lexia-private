@@ -4,6 +4,7 @@
   const PAGE_ID = 'casespage';
   let currentCase = null, caseList = [], expandedNodeId = null;
   const openPrimaryIds = new Set();
+  let activeEvidenceBlockId = null;
   let showNewCase = false, showNewBranch = false, questionParentId = null, editingCase = false;
   let activeWorkspaceSide = 'contraparte';
   const autosaveTimers = new Map();
@@ -38,6 +39,7 @@
       '.case-tree{padding:13px 16px}.case-tree-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.case-tree-head h2{font-size:13px;margin:0}.case-tree-head p{font-size:10px;color:#74809d;margin:2px 0 0}.branch-form{margin:0 0 9px;padding:10px;background:#f8f8fd;border:1px dashed #cbd2e6;border-radius:8px}.branch-form h3{font-size:11px;margin:0 0 8px}.branch-list{display:grid;gap:7px}.primary-branch{border:1px solid #dce2f0;border-radius:9px;overflow:hidden}.primary-branch.drop-target{border-color:#6558f5;box-shadow:0 0 0 3px rgba(101,88,245,.14)}.primary-head{display:flex;align-items:center;gap:7px;padding:7px 9px;background:#fbfbff}.branch-mark{display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#eeeaff;color:#5548ef;font-size:11px;font-weight:900}.branch-title{flex:1;min-width:0}.branch-title b{display:block;font-size:11px;color:#283257}.branch-title small{display:block;margin-top:1px;color:#75809b;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.branch-actions{display:flex;gap:1px;align-items:center}.branch-questions{padding:6px 8px 8px;border-top:1px solid #edf0f6}.question-row{display:flex;align-items:center;gap:7px;border:1px solid #e4e8f2;border-radius:7px;padding:6px 7px;margin-top:5px;background:#fff}.question-row:first-child{margin-top:0}.question-row:hover{border-color:#bcb5ff;background:#fcfbff}.question-row strong{display:block;font-size:10px;color:#303a60;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.question-row small{display:block;margin-top:1px;max-width:580px;font-size:9px;color:#78839e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.question-row .cases-icon{border:1px solid #dbe0ee;padding:4px 6px!important;font-size:9px!important}.question-add{margin-top:6px;background:transparent;border:0;color:#5146f6;font-size:9px;font-weight:800;cursor:pointer;padding:3px 1px}.question-add:hover{text-decoration:underline}',
       '.case-workspace{margin-top:16px;min-height:520px;overflow:hidden}.workspace-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #e6eaf2}.workspace-head small{display:block;color:#78829c;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}.workspace-head h2{margin:0;font-size:16px;color:#263156}.workspace-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(285px,.42fr);min-height:460px}.workspace-editor{padding:18px;border-right:1px solid #e8ebf3}.workspace-sources{padding:16px;background:#fbfbfe}.workspace-section{margin-bottom:16px}.workspace-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.035em;color:#687492;margin:0 0 7px}.workspace-section textarea,.workspace-section input{box-sizing:border-box;width:100%;font:inherit;font-size:13px;line-height:1.5;color:#293357;border:1px solid #dce2ee;border-radius:9px;padding:10px;background:#fff}.workspace-section textarea{min-height:112px;resize:vertical}.workspace-section textarea.own-position{min-height:180px}.workspace-save{display:flex;justify-content:flex-end}.source-title{font-size:13px;margin:0 0 8px;color:#2b3559}.source-help{font-size:11px;line-height:1.4;color:#74809d;margin:0 0 10px}.source-accordion{border:1px solid #e0e5ef;border-radius:9px;background:#fff;margin:8px 0}.source-accordion summary{cursor:pointer;list-style:none;padding:9px 10px;font-size:11px;font-weight:800;color:#354064}.source-accordion summary::-webkit-details-marker{display:none}.source-accordion summary:before{content:"▸";display:inline-block;color:#5b4ff1;margin-right:7px}.source-accordion[open] summary:before{transform:rotate(90deg)}.source-body{border-top:1px solid #edf0f5;padding:9px 10px}.source-body p{white-space:pre-wrap;font-size:11px;line-height:1.45;color:#56617e;margin:0 0 9px}.source-actions{display:flex;gap:7px;justify-content:flex-end}.source-link-form{margin-top:13px;padding-top:13px;border-top:1px solid #e4e8f1}.source-link-form select{margin-bottom:7px}.source-link-form .cases-button{width:100%;margin-top:7px}.sources-empty{padding:13px 4px;color:#7b85a1;font-size:11px;line-height:1.4}',
       '#' + PAGE_ID + ' .case-workspace{margin:5px 0 7px;min-height:0;overflow:hidden;border-color:#d6dcef}#' + PAGE_ID + ' .workspace-head{padding:9px 11px}#' + PAGE_ID + ' .workspace-head h2{font-size:13px}#' + PAGE_ID + ' .workspace-layout{grid-template-columns:minmax(0,1fr) 300px;min-height:0}#' + PAGE_ID + ' .workspace-editor{padding:8px 10px;border-right:1px solid #e8ebf3}#' + PAGE_ID + ' .workspace-sources{padding:10px;background:#fbfbfe}#' + PAGE_ID + ' .argument-section{border-bottom:1px solid #e7eaf2}#' + PAGE_ID + ' .argument-section:last-child{border-bottom:0}#' + PAGE_ID + ' .argument-section summary{cursor:pointer;list-style:none;padding:8px 2px;font-size:10px;font-weight:800;color:#344064}#' + PAGE_ID + ' .argument-section summary::-webkit-details-marker{display:none}#' + PAGE_ID + ' .argument-section summary:before{content:"▸";display:inline-block;color:#5b4ff1;margin-right:6px}#' + PAGE_ID + ' .argument-section[open] summary:before{transform:rotate(90deg)}#' + PAGE_ID + ' .argument-section-body{padding:0 2px 9px}#' + PAGE_ID + ' .argument-block{margin:5px 0;padding:7px;border:1px solid #e2e6f0;border-radius:7px;background:#fff}#' + PAGE_ID + ' .argument-block-head{display:flex;justify-content:space-between;gap:6px;align-items:center;margin-bottom:5px;color:#697594;font-size:9px;font-weight:800}#' + PAGE_ID + ' .argument-block textarea{box-sizing:border-box;width:100%;min-height:64px;resize:vertical;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;line-height:1.35;color:#293357}#' + PAGE_ID + ' .argument-block-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:5px}#' + PAGE_ID + ' .workspace-enunciado{box-sizing:border-box;width:100%;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;color:#293357}#' + PAGE_ID + ' .workspace-ai{margin-top:4px;padding-top:4px}#' + PAGE_ID + ' .source-title{font-size:11px;margin:0 0 5px}#' + PAGE_ID + ' .source-help{font-size:9px;line-height:1.35;margin:0 0 7px}#' + PAGE_ID + ' .source-accordion{margin:5px 0;border-radius:7px}#' + PAGE_ID + ' .source-accordion summary{padding:7px 8px;font-size:9px}#' + PAGE_ID + ' .source-body{padding:7px 8px}#' + PAGE_ID + ' .source-body p{font-size:9px;line-height:1.35;margin:0 0 6px}#' + PAGE_ID + ' .evidence-candidate{display:flex;align-items:center;gap:5px;padding:6px 0;border-bottom:1px solid #edf0f5;font-size:9px;color:#465176}#' + PAGE_ID + ' .evidence-candidate:last-child{border-bottom:0}#' + PAGE_ID + ' .evidence-candidate b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#' + PAGE_ID + ' .lexia-evidence-dialog{width:min(940px,92vw);max-width:940px;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28)}#' + PAGE_ID + ' .lexia-evidence-dialog::backdrop{background:rgba(24,31,56,.34)}#' + PAGE_ID + ' .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}#' + PAGE_ID + ' .evidence-dialog-head b{font-size:12px}#' + PAGE_ID + ' .evidence-dialog-body{padding:11px 13px}#' + PAGE_ID + ' .evidence-reader{height:min(52vh,520px);overflow:auto;white-space:pre-wrap;user-select:text;padding:10px;border:1px solid #dce2ee;border-radius:7px;background:#fcfcff;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#283254}#' + PAGE_ID + ' .evidence-selection-status{margin:7px 0;color:#687492;font-size:10px}#' + PAGE_ID + ' .evidence-dialog-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}',
+      '#' + PAGE_ID + ' .argument-block{margin:3px 0;padding:4px 0;border:0;border-radius:0;background:transparent}#' + PAGE_ID + ' .argument-block + .argument-block{border-top:1px solid #edf0f5;padding-top:7px}#' + PAGE_ID + ' .argument-block-head{margin:0 0 3px;font-size:8px}#' + PAGE_ID + ' .argument-block textarea{min-height:56px;border-color:transparent;background:#fcfcff;padding:5px 6px}#' + PAGE_ID + ' .argument-block textarea:focus{border-color:#b9b3ff;background:#fff}#' + PAGE_ID + ' .workspace-sources.drop-target{outline:2px dashed #6558f5;outline-offset:-5px;background:#f3f1ff}#' + PAGE_ID + ' .sources-drop-help{margin:7px 0 0;padding:8px;border:1px dashed #c9c3ff;border-radius:7px;color:#6257db;font-size:9px;text-align:center}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
@@ -188,10 +190,10 @@
     const article = el('article', {className: 'primary-branch'}), title = el('div', {className: 'branch-title'}, el('b', {textContent: node.title}), el('small', {textContent: sourceLabel}));
     const input = el('input', {type: 'file', multiple: 'multiple', accept: '.pdf,.doc,.docx,.odt,.txt,.html,.htm,.rtf,.xls,.ods', hidden: 'hidden'});
     const isOpen = openPrimaryIds.has(node.id);
-    const toggle = el('button', {type: 'button', className: 'cases-icon', textContent: isOpen ? 'Reducir' : 'Abrir', title: isOpen ? 'Ocultar las cuestiones de esta rama' : 'Mostrar las cuestiones de esta rama'});
+    const toggle = el('button', {type: 'button', className: 'cases-icon', textContent: isOpen ? 'Ocultar' : 'Mostrar', title: isOpen ? 'Ocultar las cuestiones de esta rama' : 'Mostrar las cuestiones de esta rama'});
     const upload = el('button', {type: 'button', className: 'cases-icon', textContent: 'Archivos', title: 'Elegir archivos o arrastrarlos sobre esta rama'});
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
-    const addQuestion = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node), title: canAddQuestion ? 'Crear cuestión' : 'Cargá primero un archivo en esta rama'}), edit = el('button', {type: 'button', className: 'cases-icon', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-icon cases-danger', textContent: 'Eliminar'});
+    const addQuestion = el('button', {type: 'button', className: 'cases-icon', textContent: '+ Cuestión', title: canAddQuestion ? 'Crear cuestión' : 'Cargá primero un archivo en esta rama'}), edit = el('button', {type: 'button', className: 'cases-icon', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-icon cases-danger', textContent: 'Eliminar'});
     addQuestion.disabled = !canAddQuestion;
     toggle.addEventListener('click', () => { if (isOpen) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); });
     upload.addEventListener('click', () => input.click());
@@ -199,14 +201,11 @@
     addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); questionParentId = node.id; showNewBranch = false; render({cases: caseList}); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
-    article.addEventListener('dragover', event => { event.preventDefault(); article.classList.add('drop-target'); });
-    article.addEventListener('dragleave', event => { if (!article.contains(event.relatedTarget)) article.classList.remove('drop-target'); });
-    article.addEventListener('drop', event => { event.preventDefault(); article.classList.remove('drop-target'); if (event.dataTransfer?.files?.length) importBranchFiles(snapshot, node, event.dataTransfer.files, upload); });
     article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, addQuestion, edit, remove)));
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
     if (questionParentId === node.id) questions.append(questionForm(snapshot, node.id));
-    const add = el('button', {type: 'button', className: 'question-add', textContent: nextQuestionLabel(node)}); add.addEventListener('click', () => { openPrimaryIds.add(node.id); questionParentId = node.id; showNewBranch = false; render({cases: caseList}); }); questions.append(add); article.append(questions);
+    article.append(questions);
     return article;
   }
   function findNode(nodes, id) {
@@ -219,10 +218,10 @@
   }
   function questionRow(snapshot, node) {
     const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
-    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = el('button', {type: 'button', className: 'cases-icon', textContent: expandedNodeId === node.id ? 'Reducir' : 'Abrir'});
+    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = el('button', {type: 'button', className: 'cases-icon', textContent: expandedNodeId === node.id ? 'Ocultar' : 'Mostrar'});
     open.addEventListener('click', () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.case-workspace'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); });
     const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
-    const addChild = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node), title: canAddChild ? 'Crear subcuestión' : 'Agregá primero un resaltado a esta cuestión'});
+    const addChild = el('button', {type: 'button', className: 'cases-icon', textContent: '+ Subcuestión', title: canAddChild ? 'Crear subcuestión' : 'Agregá primero un resaltado a esta cuestión'});
     addChild.disabled = !canAddChild;
     addChild.addEventListener('click', () => { questionParentId = node.id; render({cases: caseList}); });
     const row = el('div', {className: 'question-row'}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), addChild, open);
@@ -273,15 +272,11 @@
     return details;
   }
   function workspace(snapshot, node) {
-    const box = el('section', {className: 'cases-card case-workspace'}), reduce = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Reducir'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
-    reduce.addEventListener('click', () => { expandedNodeId = null; render({cases: caseList}); }); remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también sus bloques, resaltados y resultado de IA.'));
-    box.append(el('header', {className: 'workspace-head'}, el('div', {}, el('small', {textContent: 'Cuestión jurídica'}), el('h2', {textContent: node.title})), el('div', {className: 'case-actions'}, reduce, remove)));
-    const title = el('input', {className: 'workspace-enunciado', value: node.title, placeholder: 'Enunciado de la cuestión'});
-    title.addEventListener('input', () => scheduleAutosave('node:' + node.id, async () => {
-      await updateNode(Object.assign({}, node, {title: title.value, adversary_text: node.adversary_text || '', own_position: node.own_position || ''}));
-    }));
+    const box = el('section', {className: 'cases-card case-workspace'}), edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'}), hide = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Ocultar'});
+    edit.addEventListener('click', async () => { const title = prompt('Nombre de la cuestión jurídica:', node.title); if (title === null) return; try { await updateNode(Object.assign({}, node, {title, adversary_text: node.adversary_text || '', own_position: node.own_position || ''})); } catch (error) { alert(error.message); } });
+    remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también sus bloques, resaltados y resultado de IA.')); hide.addEventListener('click', () => { expandedNodeId = null; render({cases: caseList}); });
+    box.append(el('header', {className: 'workspace-head'}, el('div', {}, el('small', {textContent: 'Cuestión jurídica'}), el('h2', {textContent: node.title})), el('div', {className: 'case-actions'}, edit, remove, hide)));
     const editor = el('section', {className: 'workspace-editor'});
-    editor.append(compactSection('Enunciado de la cuestión', activeWorkspaceSide === 'enunciado', title));
     editor.append(argumentSection(snapshot, node, 'contraparte', 'Planteo de la contraparte'));
     editor.append(argumentSection(snapshot, node, 'propia', 'Nuestra postura y fundamentos'));
     editor.append(aiSection(snapshot, node));
@@ -299,14 +294,16 @@
   }
   function argumentBlock(snapshot, node, side, block, number) {
     const text = el('textarea', {value: block.content || '', placeholder: side === 'contraparte' ? 'Desarrollá este planteo de la contraparte.' : 'Desarrollá este fundamento propio.'});
+    const selectBlock = () => { activeEvidenceBlockId = block.id; };
+    text.addEventListener('focus', selectBlock); text.addEventListener('pointerdown', selectBlock);
     text.addEventListener('input', () => scheduleAutosave('block:' + block.id, async () => {
       const response = await api('/api/cases/block/update', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, content: text.value, title: block.title || ''})}); currentCase = response.case;
     }));
     const evidence = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Fuente'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
-    evidence.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node)));
+    evidence.addEventListener('click', () => { selectBlock(); openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node)); });
     remove.addEventListener('click', async () => { if (!confirm('¿Eliminar este bloque y sus resaltados?')) return; try { const response = await api('/api/cases/block/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, confirmed: true})}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } });
     const count = (block.highlights || []).length;
-    return el('article', {className: 'argument-block'}, el('div', {className: 'argument-block-head'}, el('span', {textContent: 'Bloque ' + number + ' · ' + count + ' fuente(s)'}), el('span', {textContent: count ? 'resaltados guardados' : 'sin fuente todavía'})), text, el('div', {className: 'argument-block-actions'}, evidence, remove));
+    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('div', {className: 'argument-block-head'}, el('span', {textContent: 'Bloque ' + number + ' · ' + count + ' fuente(s)'}), el('span', {textContent: count ? 'resaltados guardados' : 'sin fuente todavía'})), text, el('div', {className: 'argument-block-actions'}, evidence, remove)); return article;
   }
   function sources(snapshot, node, side) {
     const sideLabel = side === 'propia' ? 'nuestra postura' : side === 'contraparte' ? 'el planteo de la contraparte' : 'la cuestión';
@@ -323,6 +320,15 @@
         const open = el('button', {type: 'button', className: 'cases-icon', textContent: 'Abrir'}); open.addEventListener('click', () => openSource(doc));
         candidateBox.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name}), open));
       }); panel.append(candidateBox);
+      panel.append(el('p', {className: 'sources-drop-help', textContent: 'Para incorporar un archivo nuevo, seleccioná primero el bloque y arrastrá aquí el archivo.'}));
+      panel.addEventListener('dragover', event => { event.preventDefault(); panel.classList.add('drop-target'); });
+      panel.addEventListener('dragleave', event => { if (!panel.contains(event.relatedTarget)) panel.classList.remove('drop-target'); });
+      panel.addEventListener('drop', event => {
+        event.preventDefault(); panel.classList.remove('drop-target');
+        const block = blocks.find(item => item.id === activeEvidenceBlockId);
+        if (!block) return alert('Primero hacé clic dentro del bloque al que querés vincular el archivo.');
+        if (event.dataTransfer?.files?.length) importBlockFiles(snapshot, node, block, event.dataTransfer.files, panel);
+      });
     }
     return panel;
   }
@@ -408,6 +414,22 @@
     close.addEventListener('click', () => { dialog.close(); dialog.remove(); }); copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(packageText); copy.textContent = 'Copiado'; } catch (_) { area.select(); document.execCommand('copy'); copy.textContent = 'Copiado'; } });
     dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Paquete cerrado para IA'}), close), el('div', {className: 'evidence-dialog-body'}, area, el('div', {className: 'evidence-dialog-actions'}, copy))); document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
   }
+  async function importBlockFiles(snapshot, node, block, fileList, target) {
+    const files = Array.from(fileList || []); if (!files.length) return;
+    const help = target.querySelector('.sources-drop-help'), previous = help ? help.textContent : '';
+    if (help) help.textContent = 'Incorporando e indexando archivo…';
+    try {
+      const form = new FormData(); form.append('case_id', String(snapshot.case.id)); form.append('node_id', String(node.id)); files.forEach(file => form.append('files', file, file.name));
+      const response = await fetch('/api/cases/import', {method: 'POST', body: form}), data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + response.status));
+      currentCase = data.case;
+      const refreshedNode = findNode(data.case.nodes || [], node.id), allBlocks = Object.values(refreshedNode?.blocks || {}).flat(), refreshedBlock = allBlocks.find(item => item.id === block.id), importedPath = (data.linked || [])[0], document = (data.case.documents || []).find(item => item.document_path === importedPath);
+      await loadCases(false);
+      if (refreshedNode && refreshedBlock && document) openEvidenceDialog(data.case, refreshedNode, refreshedBlock, availableDocuments(data.case, refreshedNode));
+      else alert('El archivo fue incorporado. Seleccionalo con “+ Fuente” para elegir el pasaje que respaldará este bloque.');
+    } catch (error) { alert('No se pudo incorporar el archivo a este bloque.\n\n' + error.message); }
+    finally { if (help) help.textContent = previous; }
+  }
   async function importBranchFiles(snapshot, node, fileList, button) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
@@ -425,7 +447,7 @@
       await loadCases(false);
       const imported = (data.imported || []).length, skipped = (data.skipped || []).length;
       const suffix = skipped ? (' · ' + skipped + ' ya existía(n)') : '';
-      alert(imported + ' archivo(s) incorporado(s) en Escritos\\' + snapshot.case.name + suffix + '.');
+      alert(imported + ' archivo(s) incorporado(s) en Escritos\\Casos\\' + snapshot.case.name + suffix + '.');
     } catch (error) {
       alert('No se pudieron cargar los archivos en esta rama.\n\n' + error.message);
     } finally {
