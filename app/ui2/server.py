@@ -2122,7 +2122,10 @@ def _read_case_import(handler):
     case_id = None
     node_id = None
     uploads = []
-    staging = RUNTIME_ROOT / "ui2_case_import_staging" / uuid.uuid4().hex
+    # El puente clásico acepta exclusivamente archivos provenientes de su staging
+    # de importación. Usar el mismo origen permite que una carga desde Casos se
+    # copie, se reconcilie e indexe antes de vincularse al bloque.
+    staging = RUNTIME_ROOT / "ui2_import_staging" / uuid.uuid4().hex
     staging.mkdir(parents=True, exist_ok=False)
     allowed = {
         ".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm",
