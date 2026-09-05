@@ -4,6 +4,8 @@
   const PAGE_ID = 'casespage';
   let currentCase = null, caseList = [], expandedNodeId = null;
   let showNewCase = false, showNewBranch = false, questionParentId = null, editingCase = false;
+  let activeWorkspaceSide = 'contraparte';
+  const autosaveTimers = new Map();
 
   function el(tag, props, ...children) {
     const node = document.createElement(tag);
@@ -34,6 +36,7 @@
       '.case-identification{padding:14px 16px;margin-bottom:12px}.case-identification-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.case-identification h1{margin:0;font-size:18px}.case-summary{margin:6px 0 0;max-width:930px;white-space:pre-wrap;color:#5f6b8c;font-size:11px;line-height:1.4}.case-actions{display:flex;gap:5px;flex-wrap:wrap}.case-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #edf0f5}.case-fact small{display:block;font-size:9px;font-weight:800;color:#7a84a0;text-transform:uppercase;letter-spacing:.035em;margin-bottom:2px}.case-fact span{display:block;font-size:11px;color:#313b5e;overflow-wrap:anywhere}',
       '.case-tree{padding:13px 16px}.case-tree-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.case-tree-head h2{font-size:13px;margin:0}.case-tree-head p{font-size:10px;color:#74809d;margin:2px 0 0}.branch-form{margin:0 0 9px;padding:10px;background:#f8f8fd;border:1px dashed #cbd2e6;border-radius:8px}.branch-form h3{font-size:11px;margin:0 0 8px}.branch-list{display:grid;gap:7px}.primary-branch{border:1px solid #dce2f0;border-radius:9px;overflow:hidden}.primary-branch.drop-target{border-color:#6558f5;box-shadow:0 0 0 3px rgba(101,88,245,.14)}.primary-head{display:flex;align-items:center;gap:7px;padding:7px 9px;background:#fbfbff}.branch-mark{display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#eeeaff;color:#5548ef;font-size:11px;font-weight:900}.branch-title{flex:1;min-width:0}.branch-title b{display:block;font-size:11px;color:#283257}.branch-title small{display:block;margin-top:1px;color:#75809b;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.branch-actions{display:flex;gap:1px;align-items:center}.branch-questions{padding:6px 8px 8px;border-top:1px solid #edf0f6}.question-row{display:flex;align-items:center;gap:7px;border:1px solid #e4e8f2;border-radius:7px;padding:6px 7px;margin-top:5px;background:#fff}.question-row:first-child{margin-top:0}.question-row:hover{border-color:#bcb5ff;background:#fcfbff}.question-row strong{display:block;font-size:10px;color:#303a60;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.question-row small{display:block;margin-top:1px;max-width:580px;font-size:9px;color:#78839e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.question-row .cases-icon{border:1px solid #dbe0ee;padding:4px 6px!important;font-size:9px!important}.question-add{margin-top:6px;background:transparent;border:0;color:#5146f6;font-size:9px;font-weight:800;cursor:pointer;padding:3px 1px}.question-add:hover{text-decoration:underline}',
       '.case-workspace{margin-top:16px;min-height:520px;overflow:hidden}.workspace-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #e6eaf2}.workspace-head small{display:block;color:#78829c;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}.workspace-head h2{margin:0;font-size:16px;color:#263156}.workspace-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(285px,.42fr);min-height:460px}.workspace-editor{padding:18px;border-right:1px solid #e8ebf3}.workspace-sources{padding:16px;background:#fbfbfe}.workspace-section{margin-bottom:16px}.workspace-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.035em;color:#687492;margin:0 0 7px}.workspace-section textarea,.workspace-section input{box-sizing:border-box;width:100%;font:inherit;font-size:13px;line-height:1.5;color:#293357;border:1px solid #dce2ee;border-radius:9px;padding:10px;background:#fff}.workspace-section textarea{min-height:112px;resize:vertical}.workspace-section textarea.own-position{min-height:180px}.workspace-save{display:flex;justify-content:flex-end}.source-title{font-size:13px;margin:0 0 8px;color:#2b3559}.source-help{font-size:11px;line-height:1.4;color:#74809d;margin:0 0 10px}.source-accordion{border:1px solid #e0e5ef;border-radius:9px;background:#fff;margin:8px 0}.source-accordion summary{cursor:pointer;list-style:none;padding:9px 10px;font-size:11px;font-weight:800;color:#354064}.source-accordion summary::-webkit-details-marker{display:none}.source-accordion summary:before{content:"▸";display:inline-block;color:#5b4ff1;margin-right:7px}.source-accordion[open] summary:before{transform:rotate(90deg)}.source-body{border-top:1px solid #edf0f5;padding:9px 10px}.source-body p{white-space:pre-wrap;font-size:11px;line-height:1.45;color:#56617e;margin:0 0 9px}.source-actions{display:flex;gap:7px;justify-content:flex-end}.source-link-form{margin-top:13px;padding-top:13px;border-top:1px solid #e4e8f1}.source-link-form select{margin-bottom:7px}.source-link-form .cases-button{width:100%;margin-top:7px}.sources-empty{padding:13px 4px;color:#7b85a1;font-size:11px;line-height:1.4}',
+      '#' + PAGE_ID + ' .case-workspace{margin:5px 0 7px;min-height:0;overflow:hidden;border-color:#d6dcef}#' + PAGE_ID + ' .workspace-head{padding:9px 11px}#' + PAGE_ID + ' .workspace-head h2{font-size:13px}#' + PAGE_ID + ' .workspace-layout{grid-template-columns:minmax(0,1fr) 300px;min-height:0}#' + PAGE_ID + ' .workspace-editor{padding:8px 10px;border-right:1px solid #e8ebf3}#' + PAGE_ID + ' .workspace-sources{padding:10px;background:#fbfbfe}#' + PAGE_ID + ' .argument-section{border-bottom:1px solid #e7eaf2}#' + PAGE_ID + ' .argument-section:last-child{border-bottom:0}#' + PAGE_ID + ' .argument-section summary{cursor:pointer;list-style:none;padding:8px 2px;font-size:10px;font-weight:800;color:#344064}#' + PAGE_ID + ' .argument-section summary::-webkit-details-marker{display:none}#' + PAGE_ID + ' .argument-section summary:before{content:"▸";display:inline-block;color:#5b4ff1;margin-right:6px}#' + PAGE_ID + ' .argument-section[open] summary:before{transform:rotate(90deg)}#' + PAGE_ID + ' .argument-section-body{padding:0 2px 9px}#' + PAGE_ID + ' .argument-block{margin:5px 0;padding:7px;border:1px solid #e2e6f0;border-radius:7px;background:#fff}#' + PAGE_ID + ' .argument-block-head{display:flex;justify-content:space-between;gap:6px;align-items:center;margin-bottom:5px;color:#697594;font-size:9px;font-weight:800}#' + PAGE_ID + ' .argument-block textarea{box-sizing:border-box;width:100%;min-height:64px;resize:vertical;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;line-height:1.35;color:#293357}#' + PAGE_ID + ' .argument-block-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:5px}#' + PAGE_ID + ' .workspace-enunciado{box-sizing:border-box;width:100%;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;color:#293357}#' + PAGE_ID + ' .workspace-ai{margin-top:4px;padding-top:4px}#' + PAGE_ID + ' .source-title{font-size:11px;margin:0 0 5px}#' + PAGE_ID + ' .source-help{font-size:9px;line-height:1.35;margin:0 0 7px}#' + PAGE_ID + ' .source-accordion{margin:5px 0;border-radius:7px}#' + PAGE_ID + ' .source-accordion summary{padding:7px 8px;font-size:9px}#' + PAGE_ID + ' .source-body{padding:7px 8px}#' + PAGE_ID + ' .source-body p{font-size:9px;line-height:1.35;margin:0 0 6px}#' + PAGE_ID + ' .evidence-candidate{display:flex;align-items:center;gap:5px;padding:6px 0;border-bottom:1px solid #edf0f5;font-size:9px;color:#465176}#' + PAGE_ID + ' .evidence-candidate:last-child{border-bottom:0}#' + PAGE_ID + ' .evidence-candidate b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#' + PAGE_ID + ' .lexia-evidence-dialog{width:min(940px,92vw);max-width:940px;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28)}#' + PAGE_ID + ' .lexia-evidence-dialog::backdrop{background:rgba(24,31,56,.34)}#' + PAGE_ID + ' .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}#' + PAGE_ID + ' .evidence-dialog-head b{font-size:12px}#' + PAGE_ID + ' .evidence-dialog-body{padding:11px 13px}#' + PAGE_ID + ' .evidence-reader{height:min(52vh,520px);overflow:auto;white-space:pre-wrap;user-select:text;padding:10px;border:1px solid #dce2ee;border-radius:7px;background:#fcfcff;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#283254}#' + PAGE_ID + ' .evidence-selection-status{margin:7px 0;color:#687492;font-size:10px}#' + PAGE_ID + ' .evidence-dialog-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
@@ -169,7 +172,6 @@
     const roots = snapshot.nodes || [];
     if (!roots.length) card.append(el('p', {className: 'cases-empty', textContent: 'Agregá la primera rama principal: por ejemplo, Demanda, Actuación administrativa o Sentencia.'}));
     const list = el('div', {className: 'branch-list'}); roots.forEach(node => list.append(primary(snapshot, node))); card.append(list);
-    if (expandedNodeId) { const node = findNode(roots, expandedNodeId); if (node) card.append(workspace(snapshot, node)); }
     return card;
   }
   function branchForm(snapshot) {
@@ -185,7 +187,9 @@
     const article = el('article', {className: 'primary-branch'}), title = el('div', {className: 'branch-title'}, el('b', {textContent: node.title}), el('small', {textContent: sourceLabel}));
     const input = el('input', {type: 'file', multiple: 'multiple', accept: '.pdf,.doc,.docx,.odt,.txt,.html,.htm,.rtf,.xls,.ods', hidden: 'hidden'});
     const upload = el('button', {type: 'button', className: 'cases-icon', textContent: 'Archivos', title: 'Elegir archivos o arrastrarlos sobre esta rama'});
-    const addQuestion = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node)}), edit = el('button', {type: 'button', className: 'cases-icon', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-icon cases-danger', textContent: 'Eliminar'});
+    const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
+    const addQuestion = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node), title: canAddQuestion ? 'Crear cuestión' : 'Cargá primero un archivo en esta rama'}), edit = el('button', {type: 'button', className: 'cases-icon', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-icon cases-danger', textContent: 'Eliminar'});
+    addQuestion.disabled = !canAddQuestion;
     upload.addEventListener('click', () => input.click());
     input.addEventListener('change', () => { if (input.files?.length) importBranchFiles(snapshot, node, input.files, upload); input.value = ''; });
     addQuestion.addEventListener('click', () => { questionParentId = node.id; showNewBranch = false; render({cases: caseList}); });
@@ -209,13 +213,17 @@
     return null;
   }
   function questionRow(snapshot, node) {
-    const preview = node.adversary_text || node.own_position || 'Sin desarrollo todavía', open = el('button', {type: 'button', className: 'cases-icon', textContent: expandedNodeId === node.id ? 'Reducir' : 'Abrir'});
+    const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
+    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = el('button', {type: 'button', className: 'cases-icon', textContent: expandedNodeId === node.id ? 'Reducir' : 'Abrir'});
     open.addEventListener('click', () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.case-workspace'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); });
-    const addChild = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node)});
+    const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
+    const addChild = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node), title: canAddChild ? 'Crear subcuestión' : 'Agregá primero un resaltado a esta cuestión'});
+    addChild.disabled = !canAddChild;
     addChild.addEventListener('click', () => { questionParentId = node.id; render({cases: caseList}); });
     const row = el('div', {className: 'question-row'}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), addChild, open);
     const article = el('article', {});
     article.append(row);
+    if (expandedNodeId === node.id) article.append(workspace(snapshot, node));
     const children = el('div', {style: 'margin-left:22px'});
     (node.children || []).forEach(child => children.append(questionRow(snapshot, child)));
     if (questionParentId === node.id) children.append(questionForm(snapshot, node.id));
@@ -230,39 +238,170 @@
     form.addEventListener('submit', async event => { event.preventDefault(); submit.disabled = true; try { await createNode({case_id: snapshot.case.id, node_kind: 'cuestion', parent_id: parentId, title: title.value, adversary_text: adversary.value, own_position: position.value}); questionParentId = null; } finally { submit.disabled = false; } });
     return form;
   }
-  function workspaceField(label, control) { return el('div', {className: 'workspace-section'}, el('h3', {textContent: label}), control); }
+  function scheduleAutosave(key, action) {
+    clearTimeout(autosaveTimers.get(key));
+    autosaveTimers.set(key, setTimeout(async () => {
+      try { await action(); } catch (error) { alert('No se pudo guardar automáticamente.\n\n' + error.message); }
+    }, 650));
+  }
+  function nodeTrail(nodes, targetId, trail) {
+    const prior = trail || [];
+    for (const item of nodes || []) {
+      const next = prior.concat(item);
+      if (item.id === targetId) return next;
+      const found = nodeTrail(item.children || [], targetId, next); if (found.length) return found;
+    }
+    return [];
+  }
+  function availableDocuments(snapshot, node) {
+    const all = snapshot.documents || [], byId = new Map(all.map(item => [item.id, item])), result = [], seen = new Set();
+    const include = documentId => { const item = byId.get(Number(documentId)); if (item && !seen.has(item.id)) { seen.add(item.id); result.push(item); } };
+    nodeTrail(snapshot.nodes || [], node.id).forEach(item => {
+      include(item.primary_document_id);
+      (item.sources || []).forEach(source => include(source.document_id));
+    });
+    all.forEach(item => include(item.id)); return result;
+  }
+  function compactSection(label, open, content) {
+    const details = el('details', {className: 'argument-section'}); details.open = !!open;
+    details.append(el('summary', {textContent: label}), el('div', {className: 'argument-section-body'}, content));
+    return details;
+  }
   function workspace(snapshot, node) {
-    const box = el('section', {className: 'cases-card case-workspace'}), reduce = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Reducir'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar cuestión'});
-    reduce.addEventListener('click', () => { expandedNodeId = null; render({cases: caseList}); }); remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también los vínculos de fuentes de esta cuestión.'));
+    const box = el('section', {className: 'cases-card case-workspace'}), reduce = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Reducir'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
+    reduce.addEventListener('click', () => { expandedNodeId = null; render({cases: caseList}); }); remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también sus bloques, resaltados y resultado de IA.'));
     box.append(el('header', {className: 'workspace-head'}, el('div', {}, el('small', {textContent: 'Cuestión jurídica'}), el('h2', {textContent: node.title})), el('div', {className: 'case-actions'}, reduce, remove)));
-    const title = el('input', {value: node.title}), adversary = el('textarea', {value: node.adversary_text || '', placeholder: 'Describí la cuestión, pretensión o afirmación de la contraparte.'}), position = el('textarea', {className: 'own-position', value: node.own_position || '', placeholder: 'Desarrollá nuestra postura, argumentos y estrategia.'});
-    const save = el('button', {type: 'button', className: 'cases-button', textContent: 'Guardar cambios'});
-    save.addEventListener('click', async () => { save.disabled = true; try { await updateNode(Object.assign({}, node, {title: title.value, adversary_text: adversary.value, own_position: position.value})); } catch (error) { alert(error.message); } finally { save.disabled = false; } });
-    const editor = el('section', {className: 'workspace-editor'}, workspaceField('Enunciado de la cuestión', title), workspaceField('Planteo de la contraparte', adversary), workspaceField('Nuestra postura y fundamentos', position), el('div', {className: 'workspace-save'}, save));
-    box.append(el('div', {className: 'workspace-layout'}, editor, sources(snapshot, node))); return box;
+    const title = el('input', {className: 'workspace-enunciado', value: node.title, placeholder: 'Enunciado de la cuestión'});
+    title.addEventListener('input', () => scheduleAutosave('node:' + node.id, async () => {
+      await updateNode(Object.assign({}, node, {title: title.value, adversary_text: node.adversary_text || '', own_position: node.own_position || ''}));
+    }));
+    const editor = el('section', {className: 'workspace-editor'});
+    editor.append(compactSection('Enunciado de la cuestión', activeWorkspaceSide === 'enunciado', title));
+    editor.append(argumentSection(snapshot, node, 'contraparte', 'Planteo de la contraparte'));
+    editor.append(argumentSection(snapshot, node, 'propia', 'Nuestra postura y fundamentos'));
+    editor.append(aiSection(snapshot, node));
+    box.append(el('div', {className: 'workspace-layout'}, editor, sources(snapshot, node, activeWorkspaceSide))); return box;
   }
-  function sources(snapshot, node) {
-    const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Fuentes vinculadas'}), el('p', {className: 'source-help', textContent: 'Documentos y fragmentos que respaldan o deben ser analizados dentro de esta cuestión.'}));
-    const current = node.sources || []; if (!current.length) panel.append(el('p', {className: 'sources-empty', textContent: 'Todavía no hay fuentes vinculadas a esta cuestión.'})); current.forEach(source => panel.append(sourceItem(snapshot.case.id, source)));
-    const form = el('form', {className: 'source-link-form'}), source = evidenceSelect(snapshot), stance = el('select');
-    ['fundamento', 'postura contraria', 'a verificar', 'contexto'].forEach(value => stance.append(el('option', {value, textContent: value[0].toUpperCase() + value.slice(1)})));
-    const submit = el('button', {type: 'submit', className: 'cases-button', textContent: '+ Vincular fuente'}); form.append(field('Fuente del caso', source), field('Uso', stance), submit);
-    form.addEventListener('submit', async event => {
-      event.preventDefault(); if (!source.value) return alert('Elegí un documento o fragmento.'); submit.disabled = true;
-      try { const pieces = source.value.split(':'), payload = {case_id: snapshot.case.id, node_id: node.id, stance: stance.value}; if (pieces[0] === 'document') payload.case_document_id = Number(pieces[1]); else payload.case_entry_id = Number(pieces[1]); const response = await api('/api/cases/node/source', {method: 'POST', body: JSON.stringify(payload)}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } finally { submit.disabled = false; }
-    }); panel.append(form); return panel;
+  function argumentSection(snapshot, node, side, label) {
+    const blocks = (node.blocks && node.blocks[side]) || [], body = el('div', {});
+    blocks.forEach((block, index) => body.append(argumentBlock(snapshot, node, side, block, index + 1)));
+    const add = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Bloque'});
+    add.addEventListener('click', async () => {
+      try { const response = await api('/api/cases/block', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, side})}); currentCase = response.case; activeWorkspaceSide = side; await loadCases(false); } catch (error) { alert(error.message); }
+    }); body.append(add);
+    const details = compactSection(label + ' · ' + blocks.length + ' bloque(s)', activeWorkspaceSide === side, body);
+    details.addEventListener('toggle', () => { if (details.open && activeWorkspaceSide !== side) { activeWorkspaceSide = side; render({cases: caseList}); } }); return details;
   }
-  function sourceItem(caseId, source) {
-    const name = source.document_name || source.entry_document_name || source.entry_title || 'Fuente vinculada', text = source.source_excerpt || source.entry_content || source.note || 'Sin extracto guardado. Abrí el documento para consultarlo.', details = el('details', {className: 'source-accordion'});
-    const open = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Abrir'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Quitar'});
-    open.addEventListener('click', () => openSource(source)); remove.addEventListener('click', async () => { if (!confirm('¿Quitar esta fuente de la cuestión? El documento o fragmento seguirá existiendo en el caso.')) return; try { const response = await api('/api/cases/node/source/delete', {method: 'POST', body: JSON.stringify({case_id: caseId, source_id: source.id, confirmed: true})}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } });
-    details.append(el('summary', {textContent: name + ' · ' + (source.stance || 'fundamento')}), el('div', {className: 'source-body'}, el('p', {textContent: text}), el('div', {className: 'source-actions'}, open, remove))); return details;
+  function argumentBlock(snapshot, node, side, block, number) {
+    const text = el('textarea', {value: block.content || '', placeholder: side === 'contraparte' ? 'Desarrollá este planteo de la contraparte.' : 'Desarrollá este fundamento propio.'});
+    text.addEventListener('input', () => scheduleAutosave('block:' + block.id, async () => {
+      const response = await api('/api/cases/block/update', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, content: text.value, title: block.title || ''})}); currentCase = response.case;
+    }));
+    const evidence = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Fuente'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
+    evidence.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node)));
+    remove.addEventListener('click', async () => { if (!confirm('¿Eliminar este bloque y sus resaltados?')) return; try { const response = await api('/api/cases/block/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, confirmed: true})}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } });
+    const count = (block.highlights || []).length;
+    return el('article', {className: 'argument-block'}, el('div', {className: 'argument-block-head'}, el('span', {textContent: 'Bloque ' + number + ' · ' + count + ' fuente(s)'}), el('span', {textContent: count ? 'resaltados guardados' : 'sin fuente todavía'})), text, el('div', {className: 'argument-block-actions'}, evidence, remove));
+  }
+  function sources(snapshot, node, side) {
+    const sideLabel = side === 'propia' ? 'nuestra postura' : side === 'contraparte' ? 'el planteo de la contraparte' : 'la cuestión';
+    const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Fuentes vinculadas'}), el('p', {className: 'source-help', textContent: 'Fuentes de ' + sideLabel + '. Los resaltados se guardan literalmente como los elegiste.'}));
+    const blocks = side === 'enunciado' ? [] : ((node.blocks && node.blocks[side]) || []), highlights = [];
+    blocks.forEach(block => (block.highlights || []).forEach(highlight => highlights.push({block, highlight})));
+    if (side === 'enunciado') panel.append(el('p', {className: 'sources-empty', textContent: 'El enunciado no lleva fuentes. Abrí el planteo de la contraparte o nuestra postura.'}));
+    else if (!highlights.length) panel.append(el('p', {className: 'sources-empty', textContent: 'Todavía no hay resaltados en estos bloques.'}));
+    highlights.forEach(item => panel.append(highlightItem(snapshot, node, item.block, item.highlight)));
+    if (side !== 'enunciado') {
+      const candidates = availableDocuments(snapshot, node), candidateBox = el('div', {className: 'source-link-form'}, el('h3', {className: 'source-title', textContent: 'Documentos disponibles'}));
+      if (!candidates.length) candidateBox.append(el('p', {className: 'sources-empty', textContent: 'Cargá un archivo en la rama para poder crear una cuestión respaldada.'}));
+      candidates.slice(0, 8).forEach(doc => {
+        const open = el('button', {type: 'button', className: 'cases-icon', textContent: 'Abrir'}); open.addEventListener('click', () => openSource(doc));
+        candidateBox.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name}), open));
+      }); panel.append(candidateBox);
+    }
+    return panel;
+  }
+  function highlightItem(snapshot, node, block, highlight) {
+    const details = el('details', {className: 'source-accordion'}), open = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Abrir'}), edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Quitar'});
+    open.addEventListener('click', () => openSource(highlight)); edit.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node), highlight));
+    remove.addEventListener('click', async () => { if (!confirm('¿Quitar este resaltado del bloque?')) return; try { const response = await api('/api/cases/block/highlight/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, highlight_id: highlight.id, confirmed: true})}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } });
+    details.append(el('summary', {textContent: highlight.document_name + (highlight.page_start ? ' · pág. ' + highlight.page_start : '')}), el('div', {className: 'source-body'}, el('p', {textContent: highlight.selected_text}), el('div', {className: 'source-actions'}, open, edit, remove))); return details;
   }
   function openSource(source) {
-    const path = String(source.document_path || source.entry_document_path || '').trim(); if (!path) return alert('Esta fuente no conserva una ruta local.');
-    const pageNumber = Number(source.page_start || 0) || 1, snippet = String(source.source_excerpt || source.entry_content || '').trim();
+    const path = String(source.document_path || '').trim(); if (!path) return alert('Esta fuente no conserva una ruta local.');
+    const pageNumber = Number(source.page_start || 0) || 1, snippet = String(source.selected_text || '').trim();
     if (typeof window.lexiaQuickViewerOpen === 'function') return window.lexiaQuickViewerOpen(path, pageNumber, snippet);
     window.open('/api/file-preview?path=' + encodeURIComponent(path), '_blank', 'noopener');
+  }
+  function selectionOffsets(reader) {
+    const selection = window.getSelection(); if (!selection || !selection.rangeCount || !selection.toString().trim()) return null;
+    const range = selection.getRangeAt(0); if (!reader.contains(range.commonAncestorContainer)) return null;
+    const prefix = range.cloneRange(); prefix.selectNodeContents(reader); prefix.setEnd(range.startContainer, range.startOffset);
+    const selected = selection.toString().trim(), start = prefix.toString().length;
+    return {text: selected, start, end: start + selected.length};
+  }
+  function openEvidenceDialog(snapshot, node, block, documents, existing) {
+    if (!documents.length) return alert('Primero cargá o vinculá un archivo a la rama del caso.');
+    const dialog = el('dialog', {className: 'lexia-evidence-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('pre', {className: 'evidence-reader', textContent: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar.'});
+    documents.forEach(doc => select.append(el('option', {value: String(doc.id), textContent: doc.document_name})));
+    if (existing) select.value = String(existing.case_document_id);
+    const cancel = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cancelar'}), save = el('button', {type: 'button', className: 'cases-button', textContent: existing ? 'Reemplazar resaltado' : 'Incorporar resaltado'});
+    let selected = null, preview = null;
+    const selectedDocument = () => documents.find(item => String(item.id) === select.value);
+    const load = async () => {
+      selected = null; status.textContent = 'Cargando el texto indexado de LexIA…'; reader.textContent = '';
+      try {
+        const doc = selectedDocument(), data = await api('/api/catalog-text-preview?path=' + encodeURIComponent(doc.document_path));
+        preview = data; reader.textContent = data.text || '';
+        status.textContent = 'Seleccioná con el mouse el pasaje exacto que querés conservar.';
+      } catch (error) { preview = null; reader.textContent = ''; status.textContent = 'No se pudo cargar texto seleccionable: ' + error.message; }
+    };
+    const capture = () => { selected = selectionOffsets(reader); if (selected) status.textContent = selected.text.length + ' caracteres seleccionados. Se guardará exactamente ese texto.'; };
+    reader.addEventListener('mouseup', capture); reader.addEventListener('keyup', capture); select.addEventListener('change', load);
+    cancel.addEventListener('click', () => { dialog.close(); dialog.remove(); });
+    save.addEventListener('click', async () => {
+      selected = selectionOffsets(reader) || selected;
+      if (!selected || !selected.text) return alert('Seleccioná un pasaje del documento antes de incorporarlo.');
+      const doc = selectedDocument(), segment = (preview?.segments || []).find(item => selected.start < Number(item.end_char || 0) && selected.end > Number(item.start_char || 0)), payload = {case_id: snapshot.case.id, selected_text: selected.text, page_start: segment?.page_start || null, page_end: segment?.page_end || null, anchor_data: JSON.stringify({start_char: selected.start, end_char: selected.end})};
+      save.disabled = true;
+      try {
+        let response;
+        if (existing) response = await api('/api/cases/block/highlight/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {highlight_id: existing.id}))});
+        else response = await api('/api/cases/block/highlight', {method: 'POST', body: JSON.stringify(Object.assign(payload, {block_id: block.id, case_document_id: doc.id}))});
+        currentCase = response.case; dialog.close(); dialog.remove(); await loadCases(false);
+      } catch (error) { alert(error.message); } finally { save.disabled = false; }
+    });
+    dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Seleccionar evidencia para el bloque'}), cancel), el('div', {className: 'evidence-dialog-body'}, field('Documento del caso', select), reader, status, el('div', {className: 'evidence-dialog-actions'}, save)));
+    document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open'); load();
+  }
+  function buildAiPackage(snapshot, node) {
+    const side = name => ((node.blocks && node.blocks[name]) || []).map((block, index) => {
+      const evidence = (block.highlights || []).map((item, itemIndex) => '[Fuente ' + (index + 1) + '.' + (itemIndex + 1) + ' · ' + item.document_name + (item.page_start ? ' · pág. ' + item.page_start : '') + ']\n' + item.selected_text).join('\n\n');
+      return 'BLOQUE ' + (index + 1) + '\n' + (block.content || '(sin desarrollo)') + (evidence ? '\n\n' + evidence : '');
+    }).join('\n\n') || '(sin bloques)';
+    return 'INSTRUCCIÓN ESTRICTA\nRedactá exclusivamente sobre el material incluido abajo. No uses conocimiento externo, no completes datos ausentes, no inventes hechos, normas, antecedentes ni citas. Si una conclusión no surge de las fuentes, indicá expresamente: "No surge de las fuentes aportadas". Diferenciá con claridad el planteo contrario y nuestra postura.\n\nCUESTIÓN\n' + node.title + '\n\nPLANTEO DE LA CONTRAPARTE\n' + side('contraparte') + '\n\nNUESTRA POSTURA Y FUNDAMENTOS\n' + side('propia');
+  }
+  function aiSection(snapshot, node) {
+    const output = node.ai_output, text = el('textarea', {value: output ? output.content : '', placeholder: 'El resultado de la IA aparecerá aquí. También podés pegar una respuesta obtenida con el paquete preparado.'});
+    text.addEventListener('input', () => scheduleAutosave('ai:' + node.id, async () => {
+      if (!text.value.trim() && !output) return;
+      const payload = {case_id: snapshot.case.id, content: text.value, status: 'borrador'};
+      const response = output ? await api('/api/cases/node/ai-output/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {output_id: output.id}))}) : await api('/api/cases/node/ai-output', {method: 'POST', body: JSON.stringify(Object.assign(payload, {node_id: node.id, prompt: buildAiPackage(snapshot, node), source_package: buildAiPackage(snapshot, node)}))});
+      currentCase = response.case;
+    }));
+    const prepare = el('button', {type: 'button', className: 'cases-button', textContent: 'Preparar consulta IA'}); prepare.addEventListener('click', () => {
+      const adverse = (node.blocks && node.blocks.contraparte) || [];
+      if (!adverse.length || adverse.some(block => !(block.highlights || []).length)) return alert('Cada bloque del planteo de la contraparte debe contener al menos un pasaje resaltado antes de consultar a la IA.');
+      showAiPackage(buildAiPackage(snapshot, node));
+    });
+    const body = el('div', {className: 'workspace-ai'}, text, el('div', {className: 'argument-block-actions'}, prepare));
+    return compactSection('Resultado de la IA' + (output ? ' · guardado' : ''), activeWorkspaceSide === 'ia', body);
+  }
+  function showAiPackage(packageText) {
+    const dialog = el('dialog', {className: 'lexia-evidence-dialog'}), area = el('textarea', {className: 'evidence-reader', value: packageText}); area.style.height = '52vh';
+    const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'}), copy = el('button', {type: 'button', className: 'cases-button', textContent: 'Copiar'});
+    close.addEventListener('click', () => { dialog.close(); dialog.remove(); }); copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(packageText); copy.textContent = 'Copiado'; } catch (_) { area.select(); document.execCommand('copy'); copy.textContent = 'Copiado'; } });
+    dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Paquete cerrado para IA'}), close), el('div', {className: 'evidence-dialog-body'}, area, el('div', {className: 'evidence-dialog-actions'}, copy))); document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
   }
   async function importBranchFiles(snapshot, node, fileList, button) {
     const files = Array.from(fileList || []);
