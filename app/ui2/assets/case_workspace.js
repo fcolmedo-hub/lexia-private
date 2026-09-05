@@ -3,6 +3,7 @@
   'use strict';
   const PAGE_ID = 'casespage';
   let currentCase = null, caseList = [], expandedNodeId = null;
+  const openPrimaryIds = new Set();
   let showNewCase = false, showNewBranch = false, questionParentId = null, editingCase = false;
   let activeWorkspaceSide = 'contraparte';
   const autosaveTimers = new Map();
@@ -186,22 +187,26 @@
     const sourceLabel = node.primary_document_name || ((node.sources || []).length ? ((node.sources || []).length + ' archivo(s) vinculado(s)') : 'Hito sin documento inicial');
     const article = el('article', {className: 'primary-branch'}), title = el('div', {className: 'branch-title'}, el('b', {textContent: node.title}), el('small', {textContent: sourceLabel}));
     const input = el('input', {type: 'file', multiple: 'multiple', accept: '.pdf,.doc,.docx,.odt,.txt,.html,.htm,.rtf,.xls,.ods', hidden: 'hidden'});
+    const isOpen = openPrimaryIds.has(node.id);
+    const toggle = el('button', {type: 'button', className: 'cases-icon', textContent: isOpen ? 'Reducir' : 'Abrir', title: isOpen ? 'Ocultar las cuestiones de esta rama' : 'Mostrar las cuestiones de esta rama'});
     const upload = el('button', {type: 'button', className: 'cases-icon', textContent: 'Archivos', title: 'Elegir archivos o arrastrarlos sobre esta rama'});
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
     const addQuestion = el('button', {type: 'button', className: 'cases-icon', textContent: nextQuestionLabel(node), title: canAddQuestion ? 'Crear cuestión' : 'Cargá primero un archivo en esta rama'}), edit = el('button', {type: 'button', className: 'cases-icon', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-icon cases-danger', textContent: 'Eliminar'});
     addQuestion.disabled = !canAddQuestion;
+    toggle.addEventListener('click', () => { if (isOpen) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); });
     upload.addEventListener('click', () => input.click());
     input.addEventListener('change', () => { if (input.files?.length) importBranchFiles(snapshot, node, input.files, upload); input.value = ''; });
-    addQuestion.addEventListener('click', () => { questionParentId = node.id; showNewBranch = false; render({cases: caseList}); });
+    addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); questionParentId = node.id; showNewBranch = false; render({cases: caseList}); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
     article.addEventListener('dragover', event => { event.preventDefault(); article.classList.add('drop-target'); });
     article.addEventListener('dragleave', event => { if (!article.contains(event.relatedTarget)) article.classList.remove('drop-target'); });
     article.addEventListener('drop', event => { event.preventDefault(); article.classList.remove('drop-target'); if (event.dataTransfer?.files?.length) importBranchFiles(snapshot, node, event.dataTransfer.files, upload); });
-    article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, upload, addQuestion, edit, remove)));
+    article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, addQuestion, edit, remove)));
+    if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
     if (questionParentId === node.id) questions.append(questionForm(snapshot, node.id));
-    const add = el('button', {type: 'button', className: 'question-add', textContent: nextQuestionLabel(node)}); add.addEventListener('click', () => { questionParentId = node.id; showNewBranch = false; render({cases: caseList}); }); questions.append(add); article.append(questions);
+    const add = el('button', {type: 'button', className: 'question-add', textContent: nextQuestionLabel(node)}); add.addEventListener('click', () => { openPrimaryIds.add(node.id); questionParentId = node.id; showNewBranch = false; render({cases: caseList}); }); questions.append(add); article.append(questions);
     return article;
   }
   function findNode(nodes, id) {
