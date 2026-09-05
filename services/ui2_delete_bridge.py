@@ -1508,7 +1508,10 @@ def _handler_class(application, token):
                     if len(sources) > 100:
                         raise ValueError("Se pueden importar hasta 100 archivos por operación.")
 
-                    allowed = {".pdf", ".doc", ".docx", ".odt", ".txt"}
+                    allowed = {
+                        ".pdf", ".doc", ".docx", ".odt", ".txt", ".html", ".htm",
+                        ".rtf", ".xls", ".ods",
+                    }
                     imported, skipped, errors = [], [], []
                     for item in sources:
                         try:
