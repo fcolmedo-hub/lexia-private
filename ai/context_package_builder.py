@@ -231,7 +231,7 @@ Comenzá directamente con el análisis jurídico.
             facts=facts.strip(),
             interpretation=interpretation_dict,
             document_count=len(results),
-            selected_count=len(selected),
+            selected_count=self._document_source_count(selected),
         )
 
     def build_document_package(
@@ -399,7 +399,7 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
             content=curated_content,
             sources=selected_sources,
             character_count=len(curated_content),
-            selected_count=len(selected_sources),
+            selected_count=self._document_source_count(selected_sources),
         )
 
     def _curate_source_section(
@@ -408,6 +408,10 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
         selected_indices: list[int],
         selected_sources: list[SearchResult],
     ) -> str:
+        # Las fichas se eligen por fragmento en la interfaz, pero el paquete
+        # final agrupa todos los fragmentos del mismo archivo bajo una sola
+        # referencia [FUENTE N].
+        rendered = self._render_sources(selected_sources)
         formats = (
             (
                 "\nFUENTES\n\n",
@@ -427,63 +431,12 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
             end = content.find(end_marker, section_start)
             if end < 0:
                 continue
-
-            section = content[section_start:end].strip()
-            block_matches = list(
-                re.finditer(
-                    r"(?m)^\[FUENTE\s+\d+\]\s*$",
-                    section,
-                )
-            )
-            if not block_matches:
-                continue
-
-            blocks: list[str] = []
-            for position, match in enumerate(block_matches):
-                block_end = (
-                    block_matches[position + 1].start()
-                    if position + 1 < len(block_matches)
-                    else len(section)
-                )
-                blocks.append(section[match.start():block_end].strip())
-
-            if max(selected_indices) >= len(blocks):
-                continue
-
-            curated_blocks = []
-            for new_number, original_index in enumerate(
-                selected_indices,
-                start=1,
-            ):
-                block = re.sub(
-                    r"^\[FUENTE\s+\d+\]",
-                    f"[FUENTE {new_number}]",
-                    blocks[original_index],
-                    count=1,
-                )
-                curated_blocks.append(block)
-
-            return (
-                content[:section_start]
-                + "\n\n".join(curated_blocks)
-                + content[end:]
-            )
-
-        # Compatibilidad con paquetes históricos que no tenían marcadores
-        # de sección inequívocos.
-        rendered = self._render_sources(selected_sources)
-        if "## FUENTES SELECCIONADAS POR LEXIA" in content:
-            start_marker = "\n## FUENTES SELECCIONADAS POR LEXIA\n\n"
-            end_marker = "\n\n## CONTROL FINAL\n"
-            start = content.find(start_marker)
-            end = content.find(end_marker, start + len(start_marker))
-            if start >= 0 and end >= 0:
-                section_start = start + len(start_marker)
-                return content[:section_start] + rendered + content[end:]
+            return content[:section_start] + rendered + content[end:]
 
         raise ValueError(
             "El contexto no contiene una sección de fuentes compatible."
         )
+
 
     def _select_sources(
         self,
@@ -492,25 +445,40 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
     ) -> list[SearchResult]:
         selected: list[SearchResult] = []
         seen_fragments: set[tuple[str, int]] = set()
-        per_document: dict[str, int] = {}
 
         for result in results:
-            path_key = str(result.document_path).lower()
+            path_key = str(result.document_path).casefold()
             key = (path_key, result.fragment_index)
-
             if key in seen_fragments:
-                continue
-            if per_document.get(path_key, 0) >= 2:
                 continue
 
             selected.append(result)
             seen_fragments.add(key)
-            per_document[path_key] = per_document.get(path_key, 0) + 1
 
             if len(selected) >= limit:
                 break
 
         return selected
+
+    @staticmethod
+    def _document_groups(results):
+        groups = []
+        positions = {}
+
+        for result in results or []:
+            key = str(result.document_path).casefold()
+            position = positions.get(key)
+            if position is None:
+                positions[key] = len(groups)
+                groups.append([result])
+            else:
+                groups[position].append(result)
+
+        return groups
+
+    @classmethod
+    def _document_source_count(cls, results) -> int:
+        return len(cls._document_groups(results))
 
     def _render_sources(
         self,
@@ -519,20 +487,32 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
         blocks: list[str] = []
         total_chars = 0
 
-        for number, result in enumerate(results, start=1):
-            metadata = result.metadata or {}
-            text = " ".join(result.text.split())
-            text = text[: SETTINGS.context_builder_max_chars_per_source]
+        for number, fragments in enumerate(
+            self._document_groups(results),
+            start=1,
+        ):
+            first = fragments[0]
+            metadata = first.metadata or {}
+            excerpts = []
+
+            for fragment_number, result in enumerate(fragments, start=1):
+                text = " ".join(result.text.split())
+                text = text[: SETTINGS.context_builder_max_chars_per_source]
+                excerpts.append(
+                    f"FRAGMENTO {fragment_number}\n"
+                    f"Ubicación: {result.page_label}\n"
+                    f"Contenido: {text}"
+                )
 
             block = (
                 f"[FUENTE {number}]\n"
-                f"Documento: {result.document_name}\n"
-                f"Categoría: {result.category}\n"
-                f"Ubicación: {result.page_label}\n"
+                f"Documento: {first.document_name}\n"
+                f"Categoría: {first.category}\n"
                 f"Tribunal: {metadata.get('court', 'No detectado')}\n"
                 f"Fecha: {metadata.get('date', 'No detectada')}\n"
-                f"Ruta local: {result.document_path}\n"
-                f"Contenido: {text}"
+                f"Ruta local: {first.document_path}\n"
+                f"Fragmentos seleccionados: {len(fragments)}\n\n"
+                + "\n\n".join(excerpts)
             )
 
             if (
@@ -546,6 +526,7 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
             total_chars += len(block)
 
         return "\n\n".join(blocks)
+
 
     def _safe_title(self, text: str) -> str:
         clean = re.sub(
