@@ -330,25 +330,32 @@
         textContent: highlight.selected_text,
         title: highlight.document_name + (highlight.page_start ? ' · pág. ' + highlight.page_start : ''),
       });
-      excerpt.addEventListener('click', () => openSource(highlight));
+      // El texto insertado en el párrafo representa un resaltado guardado: el
+      // clic principal debe abrir su editor, no el visor de sólo lectura.
+      excerpt.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node), highlight));
       body.append(excerpt);
     });
     const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove)); return article;
   }
   function sources(snapshot, node, side) {
     const sideLabel = side === 'propia' ? 'nuestra postura' : side === 'contraparte' ? 'el planteo de la contraparte' : 'la cuestión';
-    const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Fuentes vinculadas'}), el('p', {className: 'source-help', textContent: 'Fuentes de ' + sideLabel + '. Los resaltados se guardan literalmente como los elegiste.'}));
+    const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Resaltados incorporados'}), el('p', {className: 'source-help', textContent: 'Pasajes que ya integran ' + sideLabel + '. Podés editarlos o quitarlos; se guardan literalmente como los elegiste.'}));
     const blocks = side === 'enunciado' ? [] : ((node.blocks && node.blocks[side]) || []), highlights = [];
     blocks.forEach(block => (block.highlights || []).forEach(highlight => highlights.push({block, highlight})));
     if (side === 'enunciado') panel.append(el('p', {className: 'sources-empty', textContent: 'El enunciado no lleva fuentes. Abrí el planteo de la contraparte o nuestra postura.'}));
     else if (!highlights.length) panel.append(el('p', {className: 'sources-empty', textContent: 'Todavía no hay resaltados en estos bloques.'}));
     highlights.forEach(item => panel.append(highlightItem(snapshot, node, item.block, item.highlight)));
     if (side !== 'enunciado') {
-      const candidates = availableDocuments(snapshot, node), candidateBox = el('div', {className: 'source-link-form'}, el('h3', {className: 'source-title', textContent: 'Documentos disponibles'}));
+      const candidates = availableDocuments(snapshot, node), candidateBox = el('div', {className: 'source-link-form'}, el('h3', {className: 'source-title', textContent: 'Archivos del caso'}), el('p', {className: 'source-help', textContent: 'Todavía no son fundamento: elegí uno para seleccionar el pasaje que querés incorporar al párrafo activo.'}));
       if (!candidates.length) candidateBox.append(el('p', {className: 'sources-empty', textContent: 'Cargá un archivo en la rama para poder crear una cuestión respaldada.'}));
       candidates.slice(0, 8).forEach(doc => {
-        const open = el('button', {type: 'button', className: 'cases-icon', textContent: 'Abrir'}); open.addEventListener('click', () => openSource(doc));
-        candidateBox.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name}), open));
+        const choose = actionIcon('add', 'Seleccionar un pasaje de este archivo');
+        choose.addEventListener('click', () => {
+          const block = blocks.find(item => item.id === activeEvidenceBlockId);
+          if (!block) return alert('Primero hacé clic dentro del párrafo al que querés vincular este pasaje.');
+          openEvidenceDialog(snapshot, node, block, [doc]);
+        });
+        candidateBox.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name}), choose));
       }); panel.append(candidateBox);
       panel.append(el('p', {className: 'sources-drop-help', textContent: 'Para incorporar un archivo nuevo, seleccioná primero el bloque y arrastrá aquí el archivo.'}));
       panel.addEventListener('dragover', event => { event.preventDefault(); panel.classList.add('drop-target'); });
@@ -363,7 +370,7 @@
     return panel;
   }
   function highlightItem(snapshot, node, block, highlight) {
-    const details = el('details', {className: 'source-accordion'}), open = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Abrir'}), edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Quitar'});
+    const details = el('details', {className: 'source-accordion'}), open = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Ver documento'}), edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar resaltado'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Quitar'});
     open.addEventListener('click', () => openSource(highlight)); edit.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node), highlight));
     remove.addEventListener('click', async () => { if (!confirm('¿Quitar este resaltado del bloque?')) return; try { const response = await api('/api/cases/block/highlight/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, highlight_id: highlight.id, confirmed: true})}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } });
     details.append(el('summary', {textContent: highlight.document_name + (highlight.page_start ? ' · pág. ' + highlight.page_start : '')}), el('div', {className: 'source-body'}, el('p', {textContent: highlight.selected_text}), el('div', {className: 'source-actions'}, open, edit, remove))); return details;
