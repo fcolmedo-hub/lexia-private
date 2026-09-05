@@ -123,3 +123,65 @@ def test_deleting_principal_branch_removes_its_questions_but_not_documents(tmp_p
     snapshot = repository.case_snapshot(case_id)
     assert snapshot["nodes"] == []
     assert len(snapshot["documents"]) == 1
+
+
+def test_deleting_block_releases_only_its_unreferenced_imported_document(tmp_path) -> None:
+    repository = CaseRepository(tmp_path / "cases.sqlite3")
+    case_id = repository.create_case("Prueba")
+    imported_id = repository.link_document(
+        case_id,
+        document_name="escrito.docx",
+        document_path="/Biblioteca/Escritos/Casos/Prueba/escrito.docx",
+        category="Escritos",
+        relation_kind="archivo de rama",
+    )
+    library_id = repository.link_document(
+        case_id,
+        document_name="fallo.pdf",
+        document_path="/Biblioteca/Jurisprudencia/fallo.pdf",
+        category="Jurisprudencia",
+    )
+    root_id = repository.add_node(
+        case_id, node_kind="hito", title="Demanda", primary_document_id=library_id
+    )
+    question_id = repository.add_node(case_id, node_kind="cuestion", parent_id=root_id, title="Cuestión")
+    repository.add_node_source(case_id, question_id, case_document_id=imported_id, stance="archivo de rama")
+    block_id = repository.add_argument_block(case_id, question_id, side="contraparte")
+    repository.add_block_highlight(case_id, block_id, case_document_id=imported_id, selected_text="Texto elegido")
+    repository.add_node_source(case_id, root_id, case_document_id=library_id, stance="fundamento")
+
+    orphaned = repository.delete_argument_block(case_id, block_id)
+
+    assert [item["id"] for item in orphaned] == [imported_id]
+    assert [item["id"] for item in repository.list_documents(case_id)] == [library_id]
+
+
+def test_deleting_block_keeps_an_imported_document_used_by_another_block(tmp_path) -> None:
+    repository = CaseRepository(tmp_path / "cases.sqlite3")
+    case_id = repository.create_case("Prueba")
+    document_id = repository.link_document(
+        case_id,
+        document_name="escrito.docx",
+        document_path="/Biblioteca/Escritos/Casos/Prueba/escrito.docx",
+        category="Escritos",
+        relation_kind="archivo de rama",
+    )
+    foundation_id = repository.link_document(
+        case_id,
+        document_name="demanda.pdf",
+        document_path="/Biblioteca/Escritos/demanda.pdf",
+        category="Escritos",
+    )
+    root_id = repository.add_node(
+        case_id, node_kind="hito", title="Demanda", primary_document_id=foundation_id
+    )
+    question_id = repository.add_node(case_id, node_kind="cuestion", parent_id=root_id, title="Cuestión")
+    first_block = repository.add_argument_block(case_id, question_id, side="contraparte")
+    second_block = repository.add_argument_block(case_id, question_id, side="contraparte")
+    repository.add_block_highlight(case_id, first_block, case_document_id=document_id, selected_text="Primer pasaje")
+    repository.add_block_highlight(case_id, second_block, case_document_id=document_id, selected_text="Segundo pasaje")
+
+    orphaned = repository.delete_argument_block(case_id, first_block)
+
+    assert orphaned == []
+    assert {item["id"] for item in repository.list_documents(case_id)} == {document_id, foundation_id}
