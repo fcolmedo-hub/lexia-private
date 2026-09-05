@@ -553,17 +553,85 @@ class CaseRepository:
                 raise KeyError(f"No existe el bloque #{block_id} en este caso.")
             connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
 
-    def delete_argument_block(self, case_id: int, block_id: int) -> None:
+    def delete_argument_block(self, case_id: int, block_id: int) -> list[dict]:
+        """Delete a block and return imported files no longer used by the case.
+
+        A document linked from the general library is deliberately never removed
+        here.  Only the local Case link is removed, and only when no other part
+        of this same case still refers to it.  The HTTP layer may then remove a
+        managed file from ``Escritos/Casos`` when appropriate.
+        """
+        case_id, block_id = int(case_id), int(block_id)
         with self._connect() as connection:
             existing = connection.execute(
-                "SELECT id FROM case_argument_blocks WHERE id = ? AND case_id = ?",
-                (int(block_id), int(case_id)),
+                "SELECT id, node_id FROM case_argument_blocks WHERE id = ? AND case_id = ?",
+                (block_id, case_id),
             ).fetchone()
             if existing is None:
                 raise KeyError(f"No existe el bloque #{block_id} en este caso.")
-            connection.execute("DELETE FROM case_block_highlights WHERE block_id = ?", (int(block_id),))
-            connection.execute("DELETE FROM case_argument_blocks WHERE id = ?", (int(block_id),))
-            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+            node_id = int(existing["node_id"])
+            documents = connection.execute(
+                '''
+                SELECT DISTINCT d.*
+                FROM case_block_highlights h
+                JOIN case_documents d ON d.id = h.case_document_id
+                WHERE h.case_id = ? AND h.block_id = ?
+                ''',
+                (case_id, block_id),
+            ).fetchall()
+            connection.execute("DELETE FROM case_block_highlights WHERE block_id = ?", (block_id,))
+            connection.execute("DELETE FROM case_argument_blocks WHERE id = ?", (block_id,))
+
+            orphaned: list[dict] = []
+            for document in documents:
+                document_id = int(document["id"])
+                # Las cargas hechas desde el panel del bloque crean este vínculo
+                # técnico de la rama. Al desaparecer su último resaltado, ya no
+                # debe impedir que se libere el archivo del caso.
+                connection.execute(
+                    '''
+                    DELETE FROM case_node_sources
+                    WHERE case_id = ? AND node_id = ? AND case_document_id = ?
+                      AND stance = 'archivo de rama'
+                    ''',
+                    (case_id, node_id, document_id),
+                )
+                still_used = any((
+                    connection.execute(
+                        "SELECT 1 FROM case_block_highlights WHERE case_id = ? AND case_document_id = ? LIMIT 1",
+                        (case_id, document_id),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_nodes WHERE case_id = ? AND primary_document_id = ? LIMIT 1",
+                        (case_id, document_id),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_node_sources WHERE case_id = ? AND case_document_id = ? LIMIT 1",
+                        (case_id, document_id),
+                    ).fetchone(),
+                    connection.execute(
+                        '''
+                        SELECT 1 FROM case_entries
+                        WHERE case_id = ? AND (document_id = ? OR document_path = ?)
+                        LIMIT 1
+                        ''',
+                        (case_id, document_id, str(document["document_path"])),
+                    ).fetchone(),
+                    connection.execute(
+                        "SELECT 1 FROM case_sources WHERE case_id = ? AND document_path = ? LIMIT 1",
+                        (case_id, str(document["document_path"])),
+                    ).fetchone(),
+                ))
+                if still_used:
+                    continue
+                connection.execute(
+                    "DELETE FROM case_documents WHERE id = ? AND case_id = ?",
+                    (document_id, case_id),
+                )
+                orphaned.append(dict(document))
+
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (case_id,))
+            return orphaned
 
     def add_block_highlight(
         self,
