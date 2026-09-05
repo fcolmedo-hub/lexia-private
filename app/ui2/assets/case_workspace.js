@@ -5,6 +5,7 @@
   let currentCase = null, caseList = [], expandedNodeId = null;
   const openPrimaryIds = new Set();
   let activeEvidenceBlockId = null;
+  const selectedQuestionIdsByRoot = new Map();
   let showNewCase = false, showNewBranch = false, questionParentId = null, editingCase = false;
   let activeWorkspaceSide = 'contraparte';
   const autosaveTimers = new Map();
@@ -20,6 +21,27 @@
     });
     children.flat().filter(Boolean).forEach(child => node.append(child));
     return node;
+  }
+  function actionIcon(kind, label, extraClass) {
+    const paths = {
+      show: '<path d="m9 5 7 7-7 7"></path>',
+      hide: '<path d="m5 9 7 7 7-7"></path>',
+      files: '<path d="M4 5h6l2 2h8v12H4z"></path><path d="M4 10h16"></path>',
+      add: '<path d="M12 5v14M5 12h14"></path>',
+      edit: '<path d="m5 19 3.5-.8L18 8.7 15.3 6 5.8 15.5z"></path><path d="m14.8 6.5 2.7 2.7"></path>',
+      remove: '<path d="M5 7h14M10 7V5h4v2M8 7l.7 12h6.6L16 7M10 11v5M14 11v5"></path>',
+    };
+    const button = el('button', {
+      type: 'button',
+      className: 'cases-icon' + (extraClass ? ' ' + extraClass : ''),
+      title: label,
+      'aria-label': label,
+    });
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = paths[kind] || paths.add;
+    button.append(icon);
+    return button;
   }
   async function api(url, options) {
     const response = await fetch(url, Object.assign({cache: 'no-store', headers: {'Content-Type': 'application/json'}}, options || {}));
@@ -39,7 +61,7 @@
       '.case-tree{padding:13px 16px}.case-tree-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.case-tree-head h2{font-size:13px;margin:0}.case-tree-head p{font-size:10px;color:#74809d;margin:2px 0 0}.branch-form{margin:0 0 9px;padding:10px;background:#f8f8fd;border:1px dashed #cbd2e6;border-radius:8px}.branch-form h3{font-size:11px;margin:0 0 8px}.branch-list{display:grid;gap:7px}.primary-branch{border:1px solid #dce2f0;border-radius:9px;overflow:hidden}.primary-branch.drop-target{border-color:#6558f5;box-shadow:0 0 0 3px rgba(101,88,245,.14)}.primary-head{display:flex;align-items:center;gap:7px;padding:7px 9px;background:#fbfbff}.branch-mark{display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#eeeaff;color:#5548ef;font-size:11px;font-weight:900}.branch-title{flex:1;min-width:0}.branch-title b{display:block;font-size:11px;color:#283257}.branch-title small{display:block;margin-top:1px;color:#75809b;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.branch-actions{display:flex;gap:1px;align-items:center}.branch-questions{padding:6px 8px 8px;border-top:1px solid #edf0f6}.question-row{display:flex;align-items:center;gap:7px;border:1px solid #e4e8f2;border-radius:7px;padding:6px 7px;margin-top:5px;background:#fff}.question-row:first-child{margin-top:0}.question-row:hover{border-color:#bcb5ff;background:#fcfbff}.question-row strong{display:block;font-size:10px;color:#303a60;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.question-row small{display:block;margin-top:1px;max-width:580px;font-size:9px;color:#78839e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.question-row .cases-icon{border:1px solid #dbe0ee;padding:4px 6px!important;font-size:9px!important}.question-add{margin-top:6px;background:transparent;border:0;color:#5146f6;font-size:9px;font-weight:800;cursor:pointer;padding:3px 1px}.question-add:hover{text-decoration:underline}',
       '.case-workspace{margin-top:16px;min-height:520px;overflow:hidden}.workspace-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #e6eaf2}.workspace-head small{display:block;color:#78829c;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}.workspace-head h2{margin:0;font-size:16px;color:#263156}.workspace-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(285px,.42fr);min-height:460px}.workspace-editor{padding:18px;border-right:1px solid #e8ebf3}.workspace-sources{padding:16px;background:#fbfbfe}.workspace-section{margin-bottom:16px}.workspace-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.035em;color:#687492;margin:0 0 7px}.workspace-section textarea,.workspace-section input{box-sizing:border-box;width:100%;font:inherit;font-size:13px;line-height:1.5;color:#293357;border:1px solid #dce2ee;border-radius:9px;padding:10px;background:#fff}.workspace-section textarea{min-height:112px;resize:vertical}.workspace-section textarea.own-position{min-height:180px}.workspace-save{display:flex;justify-content:flex-end}.source-title{font-size:13px;margin:0 0 8px;color:#2b3559}.source-help{font-size:11px;line-height:1.4;color:#74809d;margin:0 0 10px}.source-accordion{border:1px solid #e0e5ef;border-radius:9px;background:#fff;margin:8px 0}.source-accordion summary{cursor:pointer;list-style:none;padding:9px 10px;font-size:11px;font-weight:800;color:#354064}.source-accordion summary::-webkit-details-marker{display:none}.source-accordion summary:before{content:"▸";display:inline-block;color:#5b4ff1;margin-right:7px}.source-accordion[open] summary:before{transform:rotate(90deg)}.source-body{border-top:1px solid #edf0f5;padding:9px 10px}.source-body p{white-space:pre-wrap;font-size:11px;line-height:1.45;color:#56617e;margin:0 0 9px}.source-actions{display:flex;gap:7px;justify-content:flex-end}.source-link-form{margin-top:13px;padding-top:13px;border-top:1px solid #e4e8f1}.source-link-form select{margin-bottom:7px}.source-link-form .cases-button{width:100%;margin-top:7px}.sources-empty{padding:13px 4px;color:#7b85a1;font-size:11px;line-height:1.4}',
       '#' + PAGE_ID + ' .case-workspace{margin:5px 0 7px;min-height:0;overflow:hidden;border-color:#d6dcef}#' + PAGE_ID + ' .workspace-head{padding:9px 11px}#' + PAGE_ID + ' .workspace-head h2{font-size:13px}#' + PAGE_ID + ' .workspace-layout{grid-template-columns:minmax(0,1fr) 300px;min-height:0}#' + PAGE_ID + ' .workspace-editor{padding:8px 10px;border-right:1px solid #e8ebf3}#' + PAGE_ID + ' .workspace-sources{padding:10px;background:#fbfbfe}#' + PAGE_ID + ' .argument-section{border-bottom:1px solid #e7eaf2}#' + PAGE_ID + ' .argument-section:last-child{border-bottom:0}#' + PAGE_ID + ' .argument-section summary{cursor:pointer;list-style:none;padding:8px 2px;font-size:10px;font-weight:800;color:#344064}#' + PAGE_ID + ' .argument-section summary::-webkit-details-marker{display:none}#' + PAGE_ID + ' .argument-section summary:before{content:"▸";display:inline-block;color:#5b4ff1;margin-right:6px}#' + PAGE_ID + ' .argument-section[open] summary:before{transform:rotate(90deg)}#' + PAGE_ID + ' .argument-section-body{padding:0 2px 9px}#' + PAGE_ID + ' .argument-block{margin:5px 0;padding:7px;border:1px solid #e2e6f0;border-radius:7px;background:#fff}#' + PAGE_ID + ' .argument-block-head{display:flex;justify-content:space-between;gap:6px;align-items:center;margin-bottom:5px;color:#697594;font-size:9px;font-weight:800}#' + PAGE_ID + ' .argument-block textarea{box-sizing:border-box;width:100%;min-height:64px;resize:vertical;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;line-height:1.35;color:#293357}#' + PAGE_ID + ' .argument-block-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:5px}#' + PAGE_ID + ' .workspace-enunciado{box-sizing:border-box;width:100%;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;color:#293357}#' + PAGE_ID + ' .workspace-ai{margin-top:4px;padding-top:4px}#' + PAGE_ID + ' .source-title{font-size:11px;margin:0 0 5px}#' + PAGE_ID + ' .source-help{font-size:9px;line-height:1.35;margin:0 0 7px}#' + PAGE_ID + ' .source-accordion{margin:5px 0;border-radius:7px}#' + PAGE_ID + ' .source-accordion summary{padding:7px 8px;font-size:9px}#' + PAGE_ID + ' .source-body{padding:7px 8px}#' + PAGE_ID + ' .source-body p{font-size:9px;line-height:1.35;margin:0 0 6px}#' + PAGE_ID + ' .evidence-candidate{display:flex;align-items:center;gap:5px;padding:6px 0;border-bottom:1px solid #edf0f5;font-size:9px;color:#465176}#' + PAGE_ID + ' .evidence-candidate:last-child{border-bottom:0}#' + PAGE_ID + ' .evidence-candidate b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#' + PAGE_ID + ' .lexia-evidence-dialog{width:min(940px,92vw);max-width:940px;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28)}#' + PAGE_ID + ' .lexia-evidence-dialog::backdrop{background:rgba(24,31,56,.34)}#' + PAGE_ID + ' .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}#' + PAGE_ID + ' .evidence-dialog-head b{font-size:12px}#' + PAGE_ID + ' .evidence-dialog-body{padding:11px 13px}#' + PAGE_ID + ' .evidence-reader{height:min(52vh,520px);overflow:auto;white-space:pre-wrap;user-select:text;padding:10px;border:1px solid #dce2ee;border-radius:7px;background:#fcfcff;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#283254}#' + PAGE_ID + ' .evidence-selection-status{margin:7px 0;color:#687492;font-size:10px}#' + PAGE_ID + ' .evidence-dialog-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}',
-      '#' + PAGE_ID + ' .argument-block{margin:3px 0;padding:4px 0;border:0;border-radius:0;background:transparent}#' + PAGE_ID + ' .argument-block + .argument-block{border-top:1px solid #edf0f5;padding-top:7px}#' + PAGE_ID + ' .argument-block-head{margin:0 0 3px;font-size:8px}#' + PAGE_ID + ' .argument-block textarea{min-height:56px;border-color:transparent;background:#fcfcff;padding:5px 6px}#' + PAGE_ID + ' .argument-block textarea:focus{border-color:#b9b3ff;background:#fff}#' + PAGE_ID + ' .workspace-sources.drop-target{outline:2px dashed #6558f5;outline-offset:-5px;background:#f3f1ff}#' + PAGE_ID + ' .sources-drop-help{margin:7px 0 0;padding:8px;border:1px dashed #c9c3ff;border-radius:7px;color:#6257db;font-size:9px;text-align:center}',
+      '#' + PAGE_ID + ' .argument-block{display:grid;grid-template-columns:17px minmax(0,1fr) auto;column-gap:5px;align-items:start;margin:2px 0;padding:4px 0;border:0;border-radius:0;background:transparent}#' + PAGE_ID + ' .argument-block + .argument-block{border-top:1px solid #edf0f5;padding-top:6px}#' + PAGE_ID + ' .argument-paragraph-number{display:grid;place-items:center;width:16px;height:16px;margin-top:5px;border-radius:50%;background:#eeeaff;color:#5648ed;font-size:8px;font-weight:800}#' + PAGE_ID + ' .argument-block-body{min-width:0}#' + PAGE_ID + ' .argument-block textarea{min-height:44px;border-color:transparent;background:#fcfcff;padding:5px 6px}#' + PAGE_ID + ' .argument-block textarea:focus{border-color:#b9b3ff;background:#fff}#' + PAGE_ID + ' .argument-block-actions{margin:3px 0 0;display:flex;gap:2px;align-items:flex-start}#' + PAGE_ID + ' .argument-evidence{margin:4px 0 0;padding:5px 7px;border-left:2px solid #8075fa;background:#f8f7ff;white-space:pre-wrap;font-size:10px;line-height:1.35;color:#4e5878}#' + PAGE_ID + ' .argument-evidence:first-of-type{margin-top:3px}#' + PAGE_ID + ' .workspace-sources.drop-target{outline:2px dashed #6558f5;outline-offset:-5px;background:#f3f1ff}#' + PAGE_ID + ' .sources-drop-help{margin:7px 0 0;padding:8px;border:1px dashed #c9c3ff;border-radius:7px;color:#6257db;font-size:9px;text-align:center}#' + PAGE_ID + ' .branch-actions .cases-icon,#' + PAGE_ID + ' .question-row .cases-icon{display:grid;place-items:center;min-width:22px;padding:4px!important}#' + PAGE_ID + ' .cases-icon svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}#' + PAGE_ID + ' .branch-ai{margin:8px 8px 2px;padding:8px 9px;border-top:1px solid #e5e8f1;background:#fbfbfe}#' + PAGE_ID + ' .branch-ai summary{cursor:pointer;color:#38436a;font-size:10px;font-weight:800}#' + PAGE_ID + ' .branch-ai-options{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}#' + PAGE_ID + ' .branch-ai-option{display:flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px;border:1px solid #e0e4ee;border-radius:6px;background:#fff;color:#56617f;font-size:9px}#' + PAGE_ID + ' .branch-ai-option span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}#' + PAGE_ID + ' .branch-ai textarea{box-sizing:border-box;width:100%;min-height:96px;margin-top:7px;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;line-height:1.4;color:#293357}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
@@ -190,10 +212,10 @@
     const article = el('article', {className: 'primary-branch'}), title = el('div', {className: 'branch-title'}, el('b', {textContent: node.title}), el('small', {textContent: sourceLabel}));
     const input = el('input', {type: 'file', multiple: 'multiple', accept: '.pdf,.doc,.docx,.odt,.txt,.html,.htm,.rtf,.xls,.ods', hidden: 'hidden'});
     const isOpen = openPrimaryIds.has(node.id);
-    const toggle = el('button', {type: 'button', className: 'cases-icon', textContent: isOpen ? 'Ocultar' : 'Mostrar', title: isOpen ? 'Ocultar las cuestiones de esta rama' : 'Mostrar las cuestiones de esta rama'});
-    const upload = el('button', {type: 'button', className: 'cases-icon', textContent: 'Archivos', title: 'Elegir archivos o arrastrarlos sobre esta rama'});
+    const toggle = actionIcon(isOpen ? 'hide' : 'show', isOpen ? 'Ocultar rama' : 'Mostrar rama');
+    const upload = actionIcon('files', 'Cargar archivos en esta rama');
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
-    const addQuestion = el('button', {type: 'button', className: 'cases-icon', textContent: '+ Cuestión', title: canAddQuestion ? 'Crear cuestión' : 'Cargá primero un archivo en esta rama'}), edit = el('button', {type: 'button', className: 'cases-icon', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-icon cases-danger', textContent: 'Eliminar'});
+    const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
     addQuestion.disabled = !canAddQuestion;
     toggle.addEventListener('click', () => { if (isOpen) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); });
     upload.addEventListener('click', () => input.click());
@@ -205,7 +227,7 @@
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
     if (questionParentId === node.id) questions.append(questionForm(snapshot, node.id));
-    article.append(questions);
+    article.append(questions, branchAiSection(snapshot, node));
     return article;
   }
   function findNode(nodes, id) {
@@ -218,13 +240,13 @@
   }
   function questionRow(snapshot, node) {
     const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
-    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = el('button', {type: 'button', className: 'cases-icon', textContent: expandedNodeId === node.id ? 'Ocultar' : 'Mostrar'});
+    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = actionIcon(expandedNodeId === node.id ? 'hide' : 'show', expandedNodeId === node.id ? 'Ocultar cuestión' : 'Mostrar cuestión');
     open.addEventListener('click', () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.case-workspace'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); });
     const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
-    const addChild = el('button', {type: 'button', className: 'cases-icon', textContent: '+ Subcuestión', title: canAddChild ? 'Crear subcuestión' : 'Agregá primero un resaltado a esta cuestión'});
+    const addChild = actionIcon('add', canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión');
     addChild.disabled = !canAddChild;
     addChild.addEventListener('click', () => { questionParentId = node.id; render({cases: caseList}); });
-    const row = el('div', {className: 'question-row'}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), addChild, open);
+    const row = el('div', {className: 'question-row'}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), open, addChild);
     const article = el('article', {});
     article.append(row);
     if (expandedNodeId === node.id) article.append(workspace(snapshot, node));
@@ -279,7 +301,6 @@
     const editor = el('section', {className: 'workspace-editor'});
     editor.append(argumentSection(snapshot, node, 'contraparte', 'Planteo de la contraparte'));
     editor.append(argumentSection(snapshot, node, 'propia', 'Nuestra postura y fundamentos'));
-    editor.append(aiSection(snapshot, node));
     box.append(el('div', {className: 'workspace-layout'}, editor, sources(snapshot, node, activeWorkspaceSide))); return box;
   }
   function argumentSection(snapshot, node, side, label) {
@@ -299,11 +320,20 @@
     text.addEventListener('input', () => scheduleAutosave('block:' + block.id, async () => {
       const response = await api('/api/cases/block/update', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, content: text.value, title: block.title || ''})}); currentCase = response.case;
     }));
-    const evidence = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Fuente'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
+    const evidence = actionIcon('add', 'Agregar fuente al párrafo'), remove = actionIcon('remove', 'Eliminar párrafo', 'cases-danger');
     evidence.addEventListener('click', () => { selectBlock(); openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node)); });
     remove.addEventListener('click', async () => { if (!confirm('¿Eliminar este bloque y sus resaltados?')) return; try { const response = await api('/api/cases/block/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, confirmed: true})}); currentCase = response.case; await loadCases(false); } catch (error) { alert(error.message); } });
-    const count = (block.highlights || []).length;
-    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('div', {className: 'argument-block-head'}, el('span', {textContent: 'Bloque ' + number + ' · ' + count + ' fuente(s)'}), el('span', {textContent: count ? 'resaltados guardados' : 'sin fuente todavía'})), text, el('div', {className: 'argument-block-actions'}, evidence, remove)); return article;
+    const body = el('div', {className: 'argument-block-body'}, text);
+    (block.highlights || []).forEach(highlight => {
+      const excerpt = el('blockquote', {
+        className: 'argument-evidence',
+        textContent: highlight.selected_text,
+        title: highlight.document_name + (highlight.page_start ? ' · pág. ' + highlight.page_start : ''),
+      });
+      excerpt.addEventListener('click', () => openSource(highlight));
+      body.append(excerpt);
+    });
+    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove)); return article;
   }
   function sources(snapshot, node, side) {
     const sideLabel = side === 'propia' ? 'nuestra postura' : side === 'contraparte' ? 'el planteo de la contraparte' : 'la cuestión';
@@ -385,28 +415,69 @@
     dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Seleccionar evidencia para el bloque'}), cancel), el('div', {className: 'evidence-dialog-body'}, field('Documento del caso', select), reader, status, el('div', {className: 'evidence-dialog-actions'}, save)));
     document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open'); load();
   }
-  function buildAiPackage(snapshot, node) {
+  function questionAiMaterial(node) {
     const side = name => ((node.blocks && node.blocks[name]) || []).map((block, index) => {
       const evidence = (block.highlights || []).map((item, itemIndex) => '[Fuente ' + (index + 1) + '.' + (itemIndex + 1) + ' · ' + item.document_name + (item.page_start ? ' · pág. ' + item.page_start : '') + ']\n' + item.selected_text).join('\n\n');
       return 'BLOQUE ' + (index + 1) + '\n' + (block.content || '(sin desarrollo)') + (evidence ? '\n\n' + evidence : '');
     }).join('\n\n') || '(sin bloques)';
-    return 'INSTRUCCIÓN ESTRICTA\nRedactá exclusivamente sobre el material incluido abajo. No uses conocimiento externo, no completes datos ausentes, no inventes hechos, normas, antecedentes ni citas. Si una conclusión no surge de las fuentes, indicá expresamente: "No surge de las fuentes aportadas". Diferenciá con claridad el planteo contrario y nuestra postura.\n\nCUESTIÓN\n' + node.title + '\n\nPLANTEO DE LA CONTRAPARTE\n' + side('contraparte') + '\n\nNUESTRA POSTURA Y FUNDAMENTOS\n' + side('propia');
+    return 'CUESTIÓN\n' + node.title + '\n\nPLANTEO DE LA CONTRAPARTE\n' + side('contraparte') + '\n\nNUESTRA POSTURA Y FUNDAMENTOS\n' + side('propia');
   }
-  function aiSection(snapshot, node) {
-    const output = node.ai_output, text = el('textarea', {value: output ? output.content : '', placeholder: 'El resultado de la IA aparecerá aquí. También podés pegar una respuesta obtenida con el paquete preparado.'});
-    text.addEventListener('input', () => scheduleAutosave('ai:' + node.id, async () => {
-      if (!text.value.trim() && !output) return;
-      const payload = {case_id: snapshot.case.id, content: text.value, status: 'borrador'};
-      const response = output ? await api('/api/cases/node/ai-output/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {output_id: output.id}))}) : await api('/api/cases/node/ai-output', {method: 'POST', body: JSON.stringify(Object.assign(payload, {node_id: node.id, prompt: buildAiPackage(snapshot, node), source_package: buildAiPackage(snapshot, node)}))});
-      currentCase = response.case;
-    }));
-    const prepare = el('button', {type: 'button', className: 'cases-button', textContent: 'Preparar consulta IA'}); prepare.addEventListener('click', () => {
-      const adverse = (node.blocks && node.blocks.contraparte) || [];
-      if (!adverse.length || adverse.some(block => !(block.highlights || []).length)) return alert('Cada bloque del planteo de la contraparte debe contener al menos un pasaje resaltado antes de consultar a la IA.');
-      showAiPackage(buildAiPackage(snapshot, node));
+  function descendantQuestions(node, output) {
+    const values = output || [];
+    (node.children || []).forEach(child => {
+      if (child.node_kind === 'cuestion') values.push(child);
+      descendantQuestions(child, values);
     });
-    const body = el('div', {className: 'workspace-ai'}, text, el('div', {className: 'argument-block-actions'}, prepare));
-    return compactSection('Resultado de la IA' + (output ? ' · guardado' : ''), activeWorkspaceSide === 'ia', body);
+    return values;
+  }
+  function branchSelection(root, questions) {
+    const valid = new Set(questions.map(question => question.id));
+    let selected = selectedQuestionIdsByRoot.get(root.id);
+    if (!selected) {
+      selected = new Set(valid);
+      selectedQuestionIdsByRoot.set(root.id, selected);
+    } else {
+      [...selected].forEach(id => { if (!valid.has(id)) selected.delete(id); });
+    }
+    return selected;
+  }
+  function buildBranchAiPackage(root, questions) {
+    return 'INSTRUCCIÓN ESTRICTA\nRedactá exclusivamente sobre el material incluido abajo. No uses conocimiento externo, no completes datos ausentes, no inventes hechos, normas, antecedentes ni citas. Si una conclusión no surge de las fuentes, indicá expresamente: "No surge de las fuentes aportadas". Diferenciá con claridad el planteo contrario y nuestra postura.\n\nRAMA PRINCIPAL\n' + root.title + '\n\n' + questions.map((question, index) => '=== CUESTIÓN ' + (index + 1) + ' ===\n' + questionAiMaterial(question)).join('\n\n');
+  }
+  function branchAiSection(snapshot, root) {
+    const questions = descendantQuestions(root), selected = branchSelection(root, questions), output = root.ai_output;
+    const details = el('details', {className: 'branch-ai'}); details.open = !!output;
+    const body = el('div', {}), options = el('div', {className: 'branch-ai-options'});
+    questions.forEach(question => {
+      const check = el('input', {type: 'checkbox'}); check.checked = selected.has(question.id);
+      check.addEventListener('change', () => { if (check.checked) selected.add(question.id); else selected.delete(question.id); });
+      options.append(el('label', {className: 'branch-ai-option', title: question.title}, check, el('span', {textContent: question.title})));
+    });
+    if (questions.length) body.append(options);
+    else body.append(el('p', {className: 'sources-empty', textContent: 'Agregá al menos una cuestión antes de preparar una consulta.'}));
+    let outputId = output ? output.id : null;
+    const text = el('textarea', {value: output ? output.content : '', placeholder: 'Pegá aquí la respuesta de la IA para conservarla en la rama principal.'});
+    text.addEventListener('input', () => scheduleAutosave('branch-ai:' + root.id, async () => {
+      if (!text.value.trim() && !outputId) return;
+      const chosen = questions.filter(question => selected.has(question.id)), packageText = buildBranchAiPackage(root, chosen);
+      const payload = {case_id: snapshot.case.id, content: text.value, status: 'borrador'};
+      const response = outputId
+        ? await api('/api/cases/node/ai-output/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {output_id: outputId}))})
+        : await api('/api/cases/node/ai-output', {method: 'POST', body: JSON.stringify(Object.assign(payload, {node_id: root.id, prompt: packageText, source_package: packageText}))});
+      currentCase = response.case;
+      outputId = findNode(response.case.nodes || [], root.id)?.ai_output?.id || outputId;
+    }));
+    const prepare = el('button', {type: 'button', className: 'cases-button', textContent: 'Preparar consulta IA'});
+    prepare.addEventListener('click', () => {
+      const chosen = questions.filter(question => selected.has(question.id));
+      if (!chosen.length) return alert('Seleccioná al menos una cuestión.');
+      const unsupported = chosen.some(question => ((question.blocks && question.blocks.contraparte) || []).some(block => !(block.highlights || []).length));
+      if (unsupported) return alert('Cada bloque del planteo de la contraparte debe contener al menos un pasaje resaltado antes de consultar a la IA.');
+      showAiPackage(buildBranchAiPackage(root, chosen));
+    });
+    body.append(el('div', {className: 'argument-block-actions'}, prepare), text);
+    details.append(el('summary', {textContent: output ? 'Consulta a IA · resultado guardado' : 'Consulta a IA'}), body);
+    return details;
   }
   function showAiPackage(packageText) {
     const dialog = el('dialog', {className: 'lexia-evidence-dialog'}), area = el('textarea', {className: 'evidence-reader', value: packageText}); area.style.height = '52vh';
