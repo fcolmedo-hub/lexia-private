@@ -10,6 +10,11 @@ from typing import Iterable
 from config.settings import SETTINGS
 
 
+DEFAULT_PATHS_FILE = (
+    Path("runtime") / "standards_pilot" / "seleccion_50.txt"
+)
+
+
 @dataclass(frozen=True)
 class ExportedDocument:
     path: str
@@ -35,56 +40,61 @@ def _connect(catalog_path: Path) -> sqlite3.Connection:
     return connection
 
 
-def _load_requested_paths(paths_file: Path | None) -> list[str]:
-    if paths_file is None:
-        return []
+def _normalize_path(value: str) -> str:
+    return str(Path(value.strip()).resolve())
+
+
+def _load_requested_paths(paths_file: Path) -> list[str]:
     values: list[str] = []
-    for raw in paths_file.read_text(encoding="utf-8").splitlines():
-        value = raw.strip()
-        if value and not value.startswith("#"):
-            values.append(value)
+    seen: set[str] = set()
+
+    for raw in paths_file.read_text(encoding="utf-8-sig").splitlines():
+        value = raw.strip().strip('"')
+        if not value or value.startswith("#"):
+            continue
+
+        normalized = _normalize_path(value)
+        key = normalized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        values.append(normalized)
+
     return values
 
 
 def _select_documents(
     connection: sqlite3.Connection,
-    limit: int,
     requested_paths: list[str],
 ) -> list[sqlite3.Row]:
-    if requested_paths:
-        placeholders = ",".join("?" for _ in requested_paths)
-        rows = connection.execute(
-            f"""
-            SELECT d.path, d.name, d.metadata_json, d.total_pages,
-                   COUNT(f.fragment_index) AS fragment_count
-            FROM documents d
-            JOIN fragments f ON f.document_path = d.path
-            WHERE COALESCE(d.is_deleted, 0) = 0
-              AND d.category = 'Jurisprudencia'
-              AND d.path IN ({placeholders})
-            GROUP BY d.path, d.name, d.metadata_json, d.total_pages
-            ORDER BY d.path COLLATE NOCASE
-            """,
-            requested_paths,
-        ).fetchall()
-        return rows
+    if not requested_paths:
+        return []
 
-    return connection.execute(
-        """
+    # SQLite no garantiza que IN conserve el orden de la lista. Recuperamos
+    # los documentos y luego reordenamos exactamente como seleccion_50.txt.
+    placeholders = ",".join("?" for _ in requested_paths)
+    rows = connection.execute(
+        f"""
         SELECT d.path, d.name, d.metadata_json, d.total_pages,
                COUNT(f.fragment_index) AS fragment_count
         FROM documents d
         JOIN fragments f ON f.document_path = d.path
         WHERE COALESCE(d.is_deleted, 0) = 0
           AND d.category = 'Jurisprudencia'
-          AND LENGTH(TRIM(d.text_content)) >= 500
+          AND d.path IN ({placeholders})
         GROUP BY d.path, d.name, d.metadata_json, d.total_pages
         HAVING COUNT(f.fragment_index) > 0
-        ORDER BY d.path COLLATE NOCASE
-        LIMIT ?
         """,
-        (limit,),
+        requested_paths,
     ).fetchall()
+
+    by_path = {str(row["path"]).casefold(): row for row in rows}
+    ordered: list[sqlite3.Row] = []
+    for path in requested_paths:
+        row = by_path.get(path.casefold())
+        if row is not None:
+            ordered.append(row)
+    return ordered
 
 
 def _load_fragments(
@@ -121,15 +131,16 @@ def _load_fragments(
 
 def export_documents(
     catalog_path: Path,
-    limit: int,
-    requested_paths: list[str] | None = None,
-) -> list[ExportedDocument]:
-    requested_paths = requested_paths or []
+    requested_paths: list[str],
+) -> tuple[list[ExportedDocument], list[str]]:
     with _connect(catalog_path) as connection:
-        rows = _select_documents(connection, limit, requested_paths)
+        rows = _select_documents(connection, requested_paths)
         result: list[ExportedDocument] = []
+        found: set[str] = set()
+
         for row in rows:
             path = str(row["path"])
+            found.add(path.casefold())
             result.append(
                 ExportedDocument(
                     path=path,
@@ -143,7 +154,11 @@ def export_documents(
                     fragments=_load_fragments(connection, path),
                 )
             )
-        return result
+
+        missing = [
+            path for path in requested_paths if path.casefold() not in found
+        ]
+        return result, missing
 
 
 def _render_document_for_ai(document: ExportedDocument) -> str:
@@ -181,6 +196,7 @@ def write_export(
     documents: list[ExportedDocument],
     prompt_template: str,
     output_dir: Path,
+    source_paths_file: Path,
 ) -> dict[str, int | str]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -232,12 +248,14 @@ def write_export(
         "documents": len(documents),
         "fragments": total_fragments,
         "characters_in_ai_documents": total_chars,
+        "selection_file": str(source_paths_file.resolve()),
         "documents_file": documents_path.name,
         "prompts_file": prompts_path.name,
         "purpose": "Piloto controlado de extracción de estándares jurídicos",
         "note": (
-            "No llama a ninguna API. Sólo exporta, en modo lectura, los "
-            "fragmentos ya indexados en LexIA y construye prompts listos para prueba."
+            "No llama a ninguna API. Exporta exclusivamente los documentos "
+            "enumerados en seleccion_50.txt, en ese mismo orden, usando los "
+            "fragmentos ya indexados en LexIA."
         ),
     }
     manifest_path.write_text(
@@ -250,8 +268,8 @@ def write_export(
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Exporta fallos de Jurisprudencia y todos sus fragmentos ya "
-            "indexados en LexIA para un piloto de extracción de estándares."
+            "Exporta exclusivamente los fallos listados en seleccion_50.txt y "
+            "todos sus fragmentos ya indexados en LexIA."
         )
     )
     parser.add_argument(
@@ -261,16 +279,13 @@ def main() -> int:
         help="Ruta al catálogo SQLite de LexIA.",
     )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=50,
-        help="Cantidad de fallos a exportar si no se usa --paths-file.",
-    )
-    parser.add_argument(
         "--paths-file",
         type=Path,
-        default=None,
-        help="TXT opcional con una ruta de documento por línea.",
+        default=DEFAULT_PATHS_FILE,
+        help=(
+            "TXT con una ruta de documento por línea. Por defecto: "
+            "runtime/standards_pilot/seleccion_50.txt"
+        ),
     )
     parser.add_argument(
         "--prompt",
@@ -290,27 +305,43 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.limit < 1:
-        parser.error("--limit debe ser mayor que cero")
     if not args.catalog.exists():
         parser.error(f"No existe el catálogo: {args.catalog}")
     if not args.prompt.exists():
         parser.error(f"No existe el prompt: {args.prompt}")
+    if not args.paths_file.exists():
+        parser.error(
+            "No existe el archivo de selección: "
+            f"{args.paths_file}. Cree seleccion_50.txt con una ruta por línea."
+        )
 
     requested_paths = _load_requested_paths(args.paths_file)
-    documents = export_documents(
+    if not requested_paths:
+        parser.error(f"La lista está vacía: {args.paths_file}")
+
+    documents, missing = export_documents(
         catalog_path=args.catalog,
-        limit=args.limit,
         requested_paths=requested_paths,
     )
+
+    if missing:
+        print("ERROR: algunos archivos de la selección no están indexados como Jurisprudencia")
+        print("o no tienen fragmentos en el catálogo de LexIA:")
+        for path in missing:
+            print(f"  - {path}")
+        print(f"Coincidencias: {len(documents)}/{len(requested_paths)}")
+        print("No se generó la exportación para evitar un piloto incompleto.")
+        return 3
+
     prompt_template = args.prompt.read_text(encoding="utf-8")
-    manifest = write_export(documents, prompt_template, args.output)
+    manifest = write_export(
+        documents,
+        prompt_template,
+        args.output,
+        args.paths_file,
+    )
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
-    if not documents:
-        print("No se encontraron fallos elegibles.")
-        return 2
-
     print(f"Exportación lista en: {args.output.resolve()}")
     return 0
 
