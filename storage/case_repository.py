@@ -109,6 +109,43 @@ class CaseRepository:
                     UNIQUE(node_id, case_document_id, case_entry_id)
                 );
 
+                CREATE TABLE IF NOT EXISTS case_argument_blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_id INTEGER NOT NULL,
+                    node_id INTEGER NOT NULL,
+                    side TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '',
+                    content TEXT NOT NULL DEFAULT '',
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CHECK (side IN ('contraparte', 'propia'))
+                );
+
+                CREATE TABLE IF NOT EXISTS case_block_highlights (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_id INTEGER NOT NULL,
+                    block_id INTEGER NOT NULL,
+                    case_document_id INTEGER NOT NULL,
+                    page_start INTEGER,
+                    page_end INTEGER,
+                    selected_text TEXT NOT NULL,
+                    anchor_data TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS case_node_ai_outputs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_id INTEGER NOT NULL,
+                    node_id INTEGER NOT NULL,
+                    prompt TEXT NOT NULL DEFAULT '',
+                    source_package TEXT NOT NULL DEFAULT '',
+                    content TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'borrador',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_case_documents_case
                     ON case_documents(case_id, category, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_case_entries_case
@@ -117,6 +154,12 @@ class CaseRepository:
                     ON case_nodes(case_id, parent_id, sort_order, id);
                 CREATE INDEX IF NOT EXISTS idx_case_node_sources_node
                     ON case_node_sources(node_id, id);
+                CREATE INDEX IF NOT EXISTS idx_case_argument_blocks_node
+                    ON case_argument_blocks(node_id, side, sort_order, id);
+                CREATE INDEX IF NOT EXISTS idx_case_block_highlights_block
+                    ON case_block_highlights(block_id, id);
+                CREATE INDEX IF NOT EXISTS idx_case_node_ai_outputs_node
+                    ON case_node_ai_outputs(node_id, id DESC);
                 '''
             )
 
@@ -128,6 +171,24 @@ class CaseRepository:
                     connection.execute(
                         f"ALTER TABLE cases ADD COLUMN {name} TEXT NOT NULL DEFAULT ''"
                     )
+
+            # Conserva lo ya escrito en la primera versión de Casos como un
+            # bloque editable. No se borra el texto legado hasta que el usuario
+            # decida editar o eliminar ese bloque.
+            for side, column in (("contraparte", "adversary_text"), ("propia", "own_position")):
+                connection.execute(
+                    f'''
+                    INSERT INTO case_argument_blocks (case_id, node_id, side, content, sort_order)
+                    SELECT n.case_id, n.id, ?, n.{column}, 1
+                    FROM case_nodes n
+                    WHERE TRIM(COALESCE(n.{column}, '')) <> ''
+                      AND NOT EXISTS (
+                        SELECT 1 FROM case_argument_blocks b
+                        WHERE b.node_id = n.id AND b.side = ?
+                      )
+                    ''',
+                    (side, side),
+                )
 
     def create_case(
         self,
@@ -197,6 +258,7 @@ class CaseRepository:
             if exists is None:
                 raise KeyError(f"No existe el caso #{case_id}.")
             for table in (
+                "case_block_highlights", "case_argument_blocks", "case_node_ai_outputs",
                 "case_node_sources", "case_nodes", "case_documents", "case_entries",
                 "case_sources", "case_outputs",
             ):
@@ -353,10 +415,29 @@ class CaseRepository:
                 raise KeyError(f"No existe el caso #{case_id}.")
             if parent_id is not None:
                 parent = connection.execute(
-                    "SELECT node_kind, case_id FROM case_nodes WHERE id = ?", (int(parent_id),)
+                    "SELECT id, node_kind, case_id, primary_document_id FROM case_nodes WHERE id = ?", (int(parent_id),)
                 ).fetchone()
                 if parent is None or int(parent["case_id"]) != case_id:
                     raise ValueError("La rama principal seleccionada no pertenece a este caso.")
+                if parent["node_kind"] == "hito":
+                    has_source = parent["primary_document_id"] is not None or connection.execute(
+                        "SELECT 1 FROM case_node_sources WHERE node_id = ? LIMIT 1", (int(parent_id),)
+                    ).fetchone() is not None
+                else:
+                    has_source = connection.execute(
+                        '''
+                        SELECT 1
+                        FROM case_argument_blocks b
+                        JOIN case_block_highlights h ON h.block_id = b.id
+                        WHERE b.node_id = ?
+                        LIMIT 1
+                        ''',
+                        (int(parent_id),),
+                    ).fetchone() is not None
+                if not has_source:
+                    raise ValueError(
+                        "Antes de crear una subrama, vinculá y resaltá al menos un archivo en la rama madre."
+                    )
             if primary_document_id is not None:
                 document = connection.execute(
                     "SELECT 1 FROM case_documents WHERE id = ? AND case_id = ?",
@@ -422,6 +503,175 @@ class CaseRepository:
                 "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),)
             )
 
+    def add_argument_block(
+        self,
+        case_id: int,
+        node_id: int,
+        *,
+        side: str,
+        content: str = "",
+        title: str = "",
+    ) -> int:
+        """Add one editable argument block to the adverse or own position."""
+        case_id, node_id = int(case_id), int(node_id)
+        side = str(side or "").strip().lower()
+        if side not in {"contraparte", "propia"}:
+            raise ValueError("El bloque debe pertenecer al planteo de la contraparte o a nuestra postura.")
+        with self._connect() as connection:
+            if connection.execute(
+                "SELECT 1 FROM case_nodes WHERE id = ? AND case_id = ? AND node_kind = 'cuestion'",
+                (node_id, case_id),
+            ).fetchone() is None:
+                raise ValueError("El bloque debe pertenecer a una cuestión jurídica del caso.")
+            order = connection.execute(
+                "SELECT COALESCE(MAX(sort_order), 0) + 1 AS value FROM case_argument_blocks WHERE node_id = ? AND side = ?",
+                (node_id, side),
+            ).fetchone()["value"]
+            cursor = connection.execute(
+                '''
+                INSERT INTO case_argument_blocks (case_id, node_id, side, title, content, sort_order)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''',
+                (case_id, node_id, side, str(title or "").strip(), str(content or "").strip(), order),
+            )
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (case_id,))
+            return int(cursor.lastrowid)
+
+    def update_argument_block(
+        self, case_id: int, block_id: int, *, content: str, title: str = ""
+    ) -> None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                UPDATE case_argument_blocks
+                SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND case_id = ?
+                ''',
+                (str(title or "").strip(), str(content or "").strip(), int(block_id), int(case_id)),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"No existe el bloque #{block_id} en este caso.")
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+
+    def delete_argument_block(self, case_id: int, block_id: int) -> None:
+        with self._connect() as connection:
+            existing = connection.execute(
+                "SELECT id FROM case_argument_blocks WHERE id = ? AND case_id = ?",
+                (int(block_id), int(case_id)),
+            ).fetchone()
+            if existing is None:
+                raise KeyError(f"No existe el bloque #{block_id} en este caso.")
+            connection.execute("DELETE FROM case_block_highlights WHERE block_id = ?", (int(block_id),))
+            connection.execute("DELETE FROM case_argument_blocks WHERE id = ?", (int(block_id),))
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+
+    def add_block_highlight(
+        self,
+        case_id: int,
+        block_id: int,
+        *,
+        case_document_id: int,
+        selected_text: str,
+        page_start: int | None = None,
+        page_end: int | None = None,
+        anchor_data: str = "",
+    ) -> int:
+        """Store the exact user-selected text, independently of index chunks."""
+        selected_text = str(selected_text or "").strip()
+        if not selected_text:
+            raise ValueError("Seleccioná al menos un pasaje del documento antes de incorporarlo al bloque.")
+        with self._connect() as connection:
+            block = connection.execute(
+                "SELECT node_id FROM case_argument_blocks WHERE id = ? AND case_id = ?",
+                (int(block_id), int(case_id)),
+            ).fetchone()
+            if block is None:
+                raise KeyError(f"No existe el bloque #{block_id} en este caso.")
+            if connection.execute(
+                "SELECT 1 FROM case_documents WHERE id = ? AND case_id = ?",
+                (int(case_document_id), int(case_id)),
+            ).fetchone() is None:
+                raise ValueError("El documento elegido no pertenece al caso.")
+            cursor = connection.execute(
+                '''
+                INSERT INTO case_block_highlights (
+                    case_id, block_id, case_document_id, page_start, page_end, selected_text, anchor_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    int(case_id), int(block_id), int(case_document_id), page_start, page_end,
+                    selected_text, str(anchor_data or "").strip(),
+                ),
+            )
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+            return int(cursor.lastrowid)
+
+    def update_block_highlight(
+        self,
+        case_id: int,
+        highlight_id: int,
+        *,
+        selected_text: str,
+        page_start: int | None = None,
+        page_end: int | None = None,
+        anchor_data: str = "",
+    ) -> None:
+        selected_text = str(selected_text or "").strip()
+        if not selected_text:
+            raise ValueError("Un archivo sólo puede integrar un bloque si conserva algún texto resaltado.")
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                UPDATE case_block_highlights
+                SET page_start = ?, page_end = ?, selected_text = ?, anchor_data = ?
+                WHERE id = ? AND case_id = ?
+                ''',
+                (page_start, page_end, selected_text, str(anchor_data or "").strip(), int(highlight_id), int(case_id)),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"No existe el resaltado #{highlight_id} en este caso.")
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+
+    def delete_block_highlight(self, case_id: int, highlight_id: int) -> None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM case_block_highlights WHERE id = ? AND case_id = ?",
+                (int(highlight_id), int(case_id)),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"No existe el resaltado #{highlight_id} en este caso.")
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+
+    def save_ai_output(
+        self, case_id: int, node_id: int, *, prompt: str, source_package: str, content: str, status: str = "borrador"
+    ) -> int:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                INSERT INTO case_node_ai_outputs (case_id, node_id, prompt, source_package, content, status)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''',
+                (int(case_id), int(node_id), str(prompt or ""), str(source_package or ""), str(content or ""), str(status or "borrador")),
+            )
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+            return int(cursor.lastrowid)
+
+    def update_ai_output(
+        self, case_id: int, output_id: int, *, content: str, status: str = "borrador"
+    ) -> None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                '''
+                UPDATE case_node_ai_outputs
+                SET content = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND case_id = ?
+                ''',
+                (str(content or ""), str(status or "borrador"), int(output_id), int(case_id)),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"No existe el resultado de IA #{output_id} en este caso.")
+            connection.execute("UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (int(case_id),))
+
     def delete_node(self, case_id: int, node_id: int) -> None:
         """Delete a branch and all its questions, never the library sources."""
         case_id, node_id = int(case_id), int(node_id)
@@ -440,6 +690,17 @@ class CaseRepository:
                 ids.extend(int(row["id"]) for row in rows)
                 index += 1
             markers = ",".join("?" for _ in ids)
+            block_rows = connection.execute(
+                f"SELECT id FROM case_argument_blocks WHERE node_id IN ({markers})", ids
+            ).fetchall()
+            block_ids = [int(row["id"]) for row in block_rows]
+            if block_ids:
+                block_markers = ",".join("?" for _ in block_ids)
+                connection.execute(
+                    f"DELETE FROM case_block_highlights WHERE block_id IN ({block_markers})", block_ids
+                )
+            connection.execute(f"DELETE FROM case_argument_blocks WHERE node_id IN ({markers})", ids)
+            connection.execute(f"DELETE FROM case_node_ai_outputs WHERE node_id IN ({markers})", ids)
             connection.execute(f"DELETE FROM case_node_sources WHERE node_id IN ({markers})", ids)
             connection.execute(f"DELETE FROM case_nodes WHERE id IN ({markers})", ids)
             connection.execute(
@@ -539,15 +800,60 @@ class CaseRepository:
                 ''',
                 (int(case_id),),
             ).fetchall()
+            blocks = connection.execute(
+                '''
+                SELECT * FROM case_argument_blocks
+                WHERE case_id = ?
+                ORDER BY node_id, side, sort_order, id
+                ''',
+                (int(case_id),),
+            ).fetchall()
+            highlights = connection.execute(
+                '''
+                SELECT h.*, d.document_name, d.document_path, d.category
+                FROM case_block_highlights h
+                JOIN case_documents d ON d.id = h.case_document_id
+                WHERE h.case_id = ?
+                ORDER BY h.block_id, h.id
+                ''',
+                (int(case_id),),
+            ).fetchall()
+            ai_outputs = connection.execute(
+                '''
+                SELECT * FROM case_node_ai_outputs
+                WHERE case_id = ?
+                ORDER BY node_id, id DESC
+                ''',
+                (int(case_id),),
+            ).fetchall()
         output = [dict(row) for row in rows]
         by_node = {item["id"]: item for item in output}
         for item in output:
             item["sources"] = []
+            item["blocks"] = {"contraparte": [], "propia": []}
+            item["ai_output"] = None
             item["children"] = []
         for row in sources:
             source = dict(row)
             if source["node_id"] in by_node:
                 by_node[source["node_id"]]["sources"].append(source)
+        by_block: dict[int, dict] = {}
+        for row in blocks:
+            block = dict(row)
+            block["highlights"] = []
+            parent = by_node.get(block["node_id"])
+            if parent is not None:
+                parent["blocks"][block["side"]].append(block)
+                by_block[block["id"]] = block
+        for row in highlights:
+            highlight = dict(row)
+            if highlight["block_id"] in by_block:
+                by_block[highlight["block_id"]]["highlights"].append(highlight)
+        for row in ai_outputs:
+            output_value = dict(row)
+            parent = by_node.get(output_value["node_id"])
+            if parent is not None and parent["ai_output"] is None:
+                parent["ai_output"] = output_value
         roots: list[dict] = []
         for item in output:
             if item["parent_id"] is None:
