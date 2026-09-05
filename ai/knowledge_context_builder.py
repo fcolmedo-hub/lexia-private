@@ -965,6 +965,7 @@ CRITERIO DE TRABAJO
 Trabajá únicamente con las fuentes incluidas debajo.
 No agregues hechos, normas, jurisprudencia, doctrina ni argumentos externos.
 Toda afirmación jurídica o fáctica debe indicar la fuente correspondiente como [FUENTE N].
+Si una fuente contiene varios fragmentos, pertenecen al mismo documento y no representan precedentes diferentes.
 Si las fuentes no permiten responder un punto, indicá exactamente qué información falta.
 Comenzá directamente con el informe, sin describir este mensaje ni pedir aclaraciones previas.
 
