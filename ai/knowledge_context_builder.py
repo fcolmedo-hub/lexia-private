@@ -43,13 +43,7 @@ class KnowledgeContextPackageBuilder(
         self.query_expander = LegalQueryExpander()
         self.legal_authority_ranker = LegalAuthorityRanker()
         self.context_selector = IntelligentContextSelector(
-            max_per_document=int(
-                getattr(
-                    SETTINGS,
-                    "context_builder_max_fragments_per_document",
-                    2,
-                )
-            ),
+            max_per_document=None,
             similarity_threshold=float(
                 getattr(
                     SETTINGS,
@@ -1011,7 +1005,7 @@ ESTRUCTURA DE LA RESPUESTA
                 "knowledge_plan": plan.to_dict(),
             },
             document_count=len(candidates),
-            selected_count=len(selected),
+            selected_count=self._document_source_count(selected),
         )
 
     def _merge_queries(
@@ -1115,27 +1109,27 @@ ESTRUCTURA DE LA RESPUESTA
 
         lines = []
 
-        for number, result in enumerate(
-            results,
+        for number, fragments in enumerate(
+            self._document_groups(results),
             start=1,
         ):
+            first = fragments[0]
             concepts, authority = notes.get(
-                str(result.document_path),
+                str(first.document_path),
                 ([], ""),
             )
             reasons = []
 
             if concepts:
                 reasons.append(
-                    "conceptos: "
-                    + ", ".join(concepts[:5])
+                    "conceptos: " + ", ".join(concepts[:5])
                 )
-
             if authority:
-                reasons.append(
-                    "autoridad: " + authority
-                )
+                reasons.append("autoridad: " + authority)
 
+            locations = ", ".join(
+                dict.fromkeys(fragment.page_label for fragment in fragments)
+            )
             suffix = (
                 f" ({'; '.join(reasons)})"
                 if reasons
@@ -1143,9 +1137,9 @@ ESTRUCTURA DE LA RESPUESTA
             )
             lines.append(
                 f"- [FUENTE {number}] "
-                f"{result.document_name} — "
-                f"{result.category} — "
-                f"{result.page_label}{suffix}"
+                f"{first.document_name} — "
+                f"{first.category} — "
+                f"{locations}{suffix}"
             )
 
         return "\n".join(lines)
@@ -1153,7 +1147,7 @@ ESTRUCTURA DE LA RESPUESTA
     def _source_blocks(
         self,
         results,
-        ranked,
+        ranked=None,
         source_char_limit=None,
     ) -> str:
         notes = {
@@ -1161,42 +1155,51 @@ ESTRUCTURA DE LA RESPUESTA
                 item[2],
                 item[3],
             )
-            for item in ranked
+            for item in (ranked or [])
         }
         blocks = []
         total_chars = 0
+        per_fragment_limit = int(
+            source_char_limit
+            or SETTINGS.context_builder_max_chars_per_source
+        )
 
-        for number, result in enumerate(
-            results,
+        for number, fragments in enumerate(
+            self._document_groups(results),
             start=1,
         ):
+            first = fragments[0]
             concepts, authority = notes.get(
-                str(result.document_path),
+                str(first.document_path),
                 ([], ""),
             )
-            text = " ".join(
-                result.text.split()
-            )[
-                : int(source_char_limit or SETTINGS.context_builder_max_chars_per_source)
-            ]
+            excerpts = []
+
+            for fragment_number, result in enumerate(fragments, start=1):
+                text = " ".join(result.text.split())[:per_fragment_limit]
+                excerpts.append(
+                    f"FRAGMENTO {fragment_number}\n"
+                    f"Ubicación: {result.page_label}\n"
+                    f"Contenido:\n{text}"
+                )
+
             block = (
                 f"[FUENTE {number}]\n"
-                f"Documento: {result.document_name}\n"
-                f"Categoría: {result.category}\n"
-                f"Ubicación: {result.page_label}\n"
+                f"Documento: {first.document_name}\n"
+                f"Categoría: {first.category}\n"
                 "Conceptos coincidentes: "
                 f"{', '.join(concepts) or 'No determinados'}\n"
                 f"Autoridad: "
                 f"{authority or 'Sin preferencia especial'}\n"
-                f"Ruta local: {result.document_path}\n"
-                f"Contenido:\n{text}"
+                f"Ruta local: {first.document_path}\n"
+                f"Fragmentos seleccionados: {len(fragments)}\n\n"
+                + "\n\n".join(excerpts)
             )
 
             if (
                 blocks
                 and total_chars + len(block)
-                > SETTINGS
-                .context_builder_max_total_chars
+                > SETTINGS.context_builder_max_total_chars
             ):
                 break
 
@@ -1204,6 +1207,10 @@ ESTRUCTURA DE LA RESPUESTA
             total_chars += len(block)
 
         return "\n\n".join(blocks)
+
+    def _render_sources(self, results) -> str:
+        # curate_package usa este método al confirmar las fichas elegidas.
+        return self._source_blocks(results, ranked=None)
 
     def _stage(
         self,
