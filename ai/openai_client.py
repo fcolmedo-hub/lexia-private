@@ -74,6 +74,7 @@ class OpenAIClient:
         instructions: str,
         user_input: str,
         max_output_tokens: int | None = None,
+        response_format: dict | None = None,
     ) -> OpenAIAnswer:
         if not self.api_key:
             raise OpenAIClientError(
@@ -95,6 +96,9 @@ class OpenAIClient:
             payload["reasoning"] = {
                 "effort": SETTINGS.openai_reasoning_effort
             }
+
+        if response_format:
+            payload["text"] = {"format": response_format}
 
         response = self._request(
             "POST",
