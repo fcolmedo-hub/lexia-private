@@ -52,11 +52,29 @@ def _normalize_path(value: str) -> str:
     return str(Path(value.strip()).resolve())
 
 
-def _load_requested_paths(paths_file: Path) -> list[str]:
+def _read_selection_text(paths_file: Path) -> tuple[str, str]:
+    """Lee listados creados por CMD/PowerShell/Bloc de notas sin exigir UTF-8."""
+    raw = paths_file.read_bytes()
+    encodings = ("utf-8-sig", "utf-16", "cp1252", "latin-1")
+    last_error: UnicodeDecodeError | None = None
+
+    for encoding in encodings:
+        try:
+            return raw.decode(encoding), encoding
+        except UnicodeDecodeError as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise last_error
+    return "", "unknown"
+
+
+def _load_requested_paths(paths_file: Path) -> tuple[list[str], str]:
     values: list[str] = []
     seen: set[str] = set()
+    text, encoding = _read_selection_text(paths_file)
 
-    for raw in paths_file.read_text(encoding="utf-8-sig").splitlines():
+    for raw in text.splitlines():
         value = raw.strip().strip('"')
         if not value or value.startswith("#"):
             continue
@@ -68,7 +86,7 @@ def _load_requested_paths(paths_file: Path) -> list[str]:
         seen.add(key)
         values.append(normalized)
 
-    return values
+    return values, encoding
 
 
 def _select_documents(
@@ -78,8 +96,6 @@ def _select_documents(
     if not requested_paths:
         return []
 
-    # SQLite no garantiza que IN conserve el orden de la lista. Recuperamos
-    # los documentos y luego reordenamos exactamente como seleccion_50.txt.
     placeholders = ",".join("?" for _ in requested_paths)
     rows = connection.execute(
         f"""
@@ -205,6 +221,7 @@ def write_export(
     prompt_template: str,
     output_dir: Path,
     source_paths_file: Path,
+    selection_encoding: str,
 ) -> dict[str, int | str]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -237,9 +254,7 @@ def write_export(
                 "pilot_id": position,
                 "document_path": document.path,
                 "document_name": document.name,
-                "prompt": prompt_template.rstrip()
-                + "\n\n"
-                + document_text,
+                "prompt": prompt_template.rstrip() + "\n\n" + document_text,
             }
         )
 
@@ -257,6 +272,7 @@ def write_export(
         "fragments": total_fragments,
         "characters_in_ai_documents": total_chars,
         "selection_file": str(source_paths_file.resolve()),
+        "selection_encoding": selection_encoding,
         "documents_file": documents_path.name,
         "prompts_file": prompts_path.name,
         "purpose": "Piloto controlado de extracción de estándares jurídicos",
@@ -323,9 +339,14 @@ def main() -> int:
             f"{args.paths_file}. Cree seleccion_50.txt con una ruta por línea."
         )
 
-    requested_paths = _load_requested_paths(args.paths_file)
+    requested_paths, selection_encoding = _load_requested_paths(args.paths_file)
     if not requested_paths:
         parser.error(f"La lista está vacía: {args.paths_file}")
+
+    print(
+        f"Lista leída: {len(requested_paths)} rutas "
+        f"(codificación detectada: {selection_encoding})"
+    )
 
     documents, missing = export_documents(
         catalog_path=args.catalog,
@@ -347,6 +368,7 @@ def main() -> int:
         prompt_template,
         args.output,
         args.paths_file,
+        selection_encoding,
     )
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
