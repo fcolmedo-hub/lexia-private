@@ -48,6 +48,24 @@ def test_analyzer_rejects_non_literal_adversary_quote():
         CaseStructureAnalyzer(FakeClient(payload)).analyze("demanda.pdf", "Texto real del documento", False)
 
 
+def test_manual_package_and_response_validation_need_no_api():
+    analyzer = CaseStructureAnalyzer(FakeClient({}))
+    source = "La actora reclama diferencias salariales desde enero de 2023."
+    package = analyzer.manual_package("demanda.pdf", source, include_own=False)
+    assert "LEXIA — ESTRUCTURA INICIAL DEL CASO" in package["prompt"]
+    assert source in package["prompt"]
+    response = json.dumps({"issues": [{
+        "title": "Diferencias salariales",
+        "adversary_blocks": [{
+            "content": "La actora reclama diferencias desde enero de 2023.",
+            "quotes": ["La actora reclama diferencias salariales desde enero de 2023."],
+        }],
+        "own_blocks": [],
+    }]})
+    proposal = analyzer.parse_and_validate(response, source, include_own=False)
+    assert proposal["issues"][0]["blocks"]["contraparte"][0]["highlights"]
+
+
 def test_repository_applies_ai_structure_atomically(tmp_path):
     repository = CaseRepository(tmp_path / "cases.sqlite3")
     case_id = repository.create_case("Caso de prueba")
