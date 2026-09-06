@@ -85,20 +85,11 @@ REGLAS ESTRICTAS:
         self.max_chars = max(20_000, int(max_chars))
 
     def analyze(self, document_name: str, document_text: str, include_own: bool = False) -> dict:
-        text = str(document_text or "").strip()
-        if not text:
-            raise CaseStructureError("LexIA no tiene texto indexado para analizar este documento.")
-        truncated = len(text) > self.max_chars
-        supplied = text[: self.max_chars]
-        user_input = (
-            f"DOCUMENTO: {document_name}\n"
-            f"PROPONER NUESTRA POSTURA: {'SÍ' if include_own else 'NO'}\n"
-            f"TEXTO COMPLETO ENVIADO: {'NO, recortado por límite de seguridad' if truncated else 'SÍ'}\n\n"
-            "TEXTO DEL DOCUMENTO:\n" + supplied
-        )
+        package = self.manual_package(document_name, document_text, include_own)
+        supplied = package["source_text"]
         answer = self.client.respond(
             self.INSTRUCTIONS,
-            user_input,
+            package["user_input"],
             max_output_tokens=20_000,
             response_format=CASE_STRUCTURE_SCHEMA,
         )
@@ -113,9 +104,40 @@ REGLAS ESTRICTAS:
                 "output_tokens": answer.output_tokens,
                 "total_tokens": answer.total_tokens,
             },
-            "document_truncated": truncated,
+            "document_truncated": package["document_truncated"],
             "analyzed_chars": len(supplied),
         }
+
+    def manual_package(self, document_name: str, document_text: str, include_own: bool = False) -> dict:
+        text = str(document_text or "").strip()
+        if not text:
+            raise CaseStructureError("LexIA no tiene texto indexado para analizar este documento.")
+        truncated = len(text) > self.max_chars
+        supplied = text[: self.max_chars]
+        user_input = (
+            f"DOCUMENTO: {document_name}\n"
+            f"PROPONER NUESTRA POSTURA: {'SÍ' if include_own else 'NO'}\n"
+            f"TEXTO COMPLETO ENVIADO: {'NO, recortado por límite de seguridad' if truncated else 'SÍ'}\n\n"
+            "TEXTO DEL DOCUMENTO:\n" + supplied
+        )
+        prompt = (
+            "# LEXIA — ESTRUCTURA INICIAL DEL CASO\n\n"
+            + self.INSTRUCTIONS.strip()
+            + "\n\nFORMATO JSON OBLIGATORIO:\n"
+            + json.dumps(CASE_STRUCTURE_SCHEMA["schema"], ensure_ascii=False, indent=2)
+            + "\n\n"
+            + user_input
+        )
+        return {
+            "prompt": prompt,
+            "source_text": supplied,
+            "user_input": user_input,
+            "document_truncated": truncated,
+        }
+
+    @classmethod
+    def parse_and_validate(cls, raw_text: str, source_text: str, include_own: bool = True) -> dict:
+        return cls.validate_proposal(cls._parse_json(raw_text), source_text, include_own=include_own)
 
     @staticmethod
     def _parse_json(raw_text: str) -> dict:
