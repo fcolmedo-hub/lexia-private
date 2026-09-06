@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -51,12 +52,6 @@ def canonicalize_whitespace_quote(source: str, quote: str) -> str | None:
             source_positions.append(idx)
             in_ws = False
 
-    normalized_source = "".join(normalized_chars).strip()
-    start = normalized_source.find(target)
-    if start < 0:
-        return None
-
-    # Ajuste por strip inicial del normalized_source: buscamos también sobre variante sin strip.
     full_normalized = "".join(normalized_chars)
     start_full = full_normalized.find(target)
     if start_full < 0:
@@ -67,6 +62,47 @@ def canonicalize_whitespace_quote(source: str, quote: str) -> str | None:
     start_src = source_positions[start_full]
     end_src = source_positions[end_full] + 1
     return source[start_src:end_src]
+
+
+def _compact_with_positions(text: str) -> tuple[str, list[int]]:
+    """NFKC + elimina sólo whitespace, conservando puntuación/acentos y mapa al original."""
+    chars: list[str] = []
+    positions: list[int] = []
+    for idx, original in enumerate(text):
+        normalized = unicodedata.normalize("NFKC", original)
+        for ch in normalized:
+            if ch.isspace():
+                continue
+            chars.append(ch)
+            positions.append(idx)
+    return "".join(chars), positions
+
+
+def canonicalize_ocr_spacing_quote(source: str, quote: str) -> str | None:
+    """
+    Recupera una cita literal cuando el OCR insertó espacios dentro de palabras
+    (p.ej. 'interpretaci ón' / 'deb ía') y el modelo los normalizó.
+
+    Para no certificar falsos positivos exige:
+    - al menos 30 caracteres no-blancos en la cita;
+    - coincidencia exacta tras quitar únicamente whitespace;
+    - una única aparición en el chunk.
+    """
+    compact_quote, _ = _compact_with_positions(quote)
+    if len(compact_quote) < 30:
+        return None
+
+    compact_source, positions = _compact_with_positions(source)
+    first = compact_source.find(compact_quote)
+    if first < 0:
+        return None
+    if compact_source.find(compact_quote, first + 1) >= 0:
+        return None
+
+    end = first + len(compact_quote) - 1
+    if first >= len(positions) or end >= len(positions):
+        return None
+    return source[positions[first] : positions[end] + 1]
 
 
 def validate_result(document: dict[str, Any], response_text: str) -> dict[str, Any]:
@@ -84,6 +120,7 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
     issues: list[dict[str, Any]] = []
     exact_quotes = 0
     canonicalized_quotes = 0
+    ocr_spacing_canonicalized_quotes = 0
     invalid_quotes = 0
 
     for index, item in enumerate(parsed, start=1):
@@ -123,9 +160,14 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
                     canonicalized_quotes += 1
                     status = "whitespace_canonicalized"
                 else:
-                    invalid_quotes += 1
-                    issues.append({"standard": index, "quote": q_index, "type": "quote_not_found", "chunk_id": chunk_id})
-                    continue
+                    canonical = canonicalize_ocr_spacing_quote(source, text)
+                    if canonical is not None:
+                        ocr_spacing_canonicalized_quotes += 1
+                        status = "ocr_spacing_canonicalized"
+                    else:
+                        invalid_quotes += 1
+                        issues.append({"standard": index, "quote": q_index, "type": "quote_not_found", "chunk_id": chunk_id})
+                        continue
 
             canonical_quotes.append(
                 {
@@ -146,6 +188,7 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
             "standards_count": len(standards),
             "exact_quotes": exact_quotes,
             "canonicalized_quotes": canonicalized_quotes,
+            "ocr_spacing_canonicalized_quotes": ocr_spacing_canonicalized_quotes,
             "invalid_quotes": invalid_quotes,
             "issues": issues,
             "needs_review": bool(issues),
@@ -170,7 +213,15 @@ def main() -> int:
     documents = load_jsonl(args.fallos)
     by_id = {int(row.get("pilot_id")): row for row in documents if row.get("pilot_id") is not None}
 
-    summary = {"documents": 0, "standards": 0, "exact_quotes": 0, "canonicalized_quotes": 0, "invalid_quotes": 0, "needs_review": 0}
+    summary = {
+        "documents": 0,
+        "standards": 0,
+        "exact_quotes": 0,
+        "canonicalized_quotes": 0,
+        "ocr_spacing_canonicalized_quotes": 0,
+        "invalid_quotes": 0,
+        "needs_review": 0,
+    }
 
     for response_path in sorted(args.responses.glob("*_respuesta.txt")):
         try:
@@ -194,12 +245,13 @@ def main() -> int:
         summary["standards"] += int(val["standards_count"])
         summary["exact_quotes"] += int(val["exact_quotes"])
         summary["canonicalized_quotes"] += int(val["canonicalized_quotes"])
+        summary["ocr_spacing_canonicalized_quotes"] += int(val["ocr_spacing_canonicalized_quotes"])
         summary["invalid_quotes"] += int(val["invalid_quotes"])
         summary["needs_review"] += int(bool(val["needs_review"]))
         print(
             f"{response_path.name}: estándares={val['standards_count']}, "
             f"citas exactas={val['exact_quotes']}, canonizadas={val['canonicalized_quotes']}, "
-            f"inválidas={val['invalid_quotes']}"
+            f"OCR-espacios={val['ocr_spacing_canonicalized_quotes']}, inválidas={val['invalid_quotes']}"
         )
 
     (output / "resumen_validacion.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
