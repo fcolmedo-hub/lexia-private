@@ -191,6 +191,20 @@ class Settings:
     context_builder_upload_max_chars: int = 95000
     context_builder_exports_path: Path = _EXPORTS_PATH / "context_packages"
 
+    # Inteligencia en la nube. La clave nunca se guarda en el repositorio:
+    # se obtiene exclusivamente de OPENAI_API_KEY.
+    openai_base_url: str = str(
+        _setting("openai_base_url", "https://api.openai.com/v1")
+    ).strip()
+    openai_model: str = str(
+        _setting("openai_model", "gpt-5.6-terra")
+    ).strip()
+    openai_timeout_seconds: int = 600
+    openai_max_output_tokens: int = 20_000
+    openai_store_responses: bool = False
+    openai_reasoning_effort: str = "medium"
+    uploaded_document_max_chars: int = 500_000
+
     # Knowledge Engine determinista
     knowledge_path: Path = _RUNTIME_PATH / "knowledge.sqlite3"
     knowledge_candidate_multiplier: int = 3
