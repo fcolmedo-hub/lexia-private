@@ -516,6 +516,94 @@ class CaseRepository:
             )
             return int(cursor.lastrowid)
 
+    def apply_ai_structure(
+        self,
+        case_id: int,
+        root_node_id: int,
+        case_document_id: int,
+        issues: list[dict],
+    ) -> list[int]:
+        """Atomically append an AI-reviewed structure below a principal branch."""
+        case_id, root_node_id, case_document_id = (
+            int(case_id), int(root_node_id), int(case_document_id)
+        )
+        if not issues:
+            raise ValueError("Seleccioná al menos una cuestión para incorporar.")
+        with self._connect() as connection:
+            root = connection.execute(
+                "SELECT node_kind, primary_document_id FROM case_nodes WHERE id = ? AND case_id = ?",
+                (root_node_id, case_id),
+            ).fetchone()
+            if root is None:
+                raise KeyError(f"No existe la rama #{root_node_id} en este caso.")
+            if str(root["node_kind"]) != "hito":
+                raise ValueError("La estructura de IA sólo puede incorporarse a una rama principal.")
+            if int(root["primary_document_id"] or 0) != case_document_id:
+                raise ValueError("El documento inicial de la rama cambió; volvé a analizarlo.")
+            if connection.execute(
+                "SELECT 1 FROM case_documents WHERE id = ? AND case_id = ?",
+                (case_document_id, case_id),
+            ).fetchone() is None:
+                raise ValueError("El documento analizado ya no pertenece al caso.")
+
+            next_question_order = int(connection.execute(
+                "SELECT COALESCE(MAX(sort_order), 0) + 1 AS value FROM case_nodes WHERE case_id = ? AND parent_id = ?",
+                (case_id, root_node_id),
+            ).fetchone()["value"])
+            created = []
+            for issue_offset, issue in enumerate(issues):
+                title = str(issue.get("title", "") or "").strip()
+                if not title:
+                    raise ValueError("Todas las cuestiones deben conservar un título.")
+                node_cursor = connection.execute(
+                    '''
+                    INSERT INTO case_nodes (
+                        case_id, parent_id, node_kind, title, adversary_text,
+                        own_position, primary_document_id, sort_order
+                    ) VALUES (?, ?, 'cuestion', ?, '', '', NULL, ?)
+                    ''',
+                    (case_id, root_node_id, title[:240], next_question_order + issue_offset),
+                )
+                node_id = int(node_cursor.lastrowid)
+                created.append(node_id)
+                groups = issue.get("blocks") or {}
+                for side in ("contraparte", "propia"):
+                    blocks = groups.get(side) or []
+                    for block_order, block in enumerate(blocks, start=1):
+                        content = str(block.get("content", "") or "").strip()
+                        if not content:
+                            continue
+                        block_cursor = connection.execute(
+                            '''
+                            INSERT INTO case_argument_blocks (
+                                case_id, node_id, side, title, content, sort_order
+                            ) VALUES (?, ?, ?, 'Borrador IA', ?, ?)
+                            ''',
+                            (case_id, node_id, side, content[:8000], block_order),
+                        )
+                        block_id = int(block_cursor.lastrowid)
+                        for highlight in block.get("highlights") or []:
+                            selected_text = str(highlight.get("selected_text", "") or "").strip()
+                            if not selected_text:
+                                continue
+                            connection.execute(
+                                '''
+                                INSERT INTO case_block_highlights (
+                                    case_id, block_id, case_document_id, page_start,
+                                    page_end, selected_text, anchor_data
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                                ''',
+                                (
+                                    case_id, block_id, case_document_id,
+                                    highlight.get("page_start"), highlight.get("page_end"),
+                                    selected_text, str(highlight.get("anchor_data", "") or ""),
+                                ),
+                            )
+            connection.execute(
+                "UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (case_id,)
+            )
+            return created
+
     def update_node(
         self,
         case_id: int,
