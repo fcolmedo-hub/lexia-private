@@ -54,6 +54,21 @@ def _validate_json_array(text: str) -> tuple[bool, Any, str | None]:
     return True, value, None
 
 
+def _existing_result_is_success(path: Path) -> tuple[bool, dict[str, Any] | None]:
+    """Sólo considera reutilizable un resultado que haya completado una respuesta API."""
+    if not path.exists():
+        return False, None
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False, None
+    if not isinstance(existing, dict):
+        return False, None
+    # Los resultados de error tienen error_type/error y no response_id.
+    success = bool(existing.get("response_id")) and "error_type" not in existing
+    return success, existing
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Envía los primeros fallos del piloto de estándares a OpenAI y guarda cada respuesta."
@@ -76,7 +91,7 @@ def main() -> int:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Repite y sobrescribe resultados ya existentes.",
+        help="Repite también resultados ya completados correctamente.",
     )
     args = parser.parse_args()
 
@@ -128,14 +143,20 @@ def main() -> int:
         result_path = args.output / f"{pilot_id:03d}_resultado.json"
         raw_path = args.output / f"{pilot_id:03d}_respuesta.txt"
 
-        if result_path.exists() and not args.overwrite:
-            print(f"[{position}/{len(selected)}] YA EXISTE: {name}")
-            try:
-                existing = json.loads(result_path.read_text(encoding="utf-8"))
-                summary["results"].append(existing)
-            except Exception:
-                pass
+        existing_success, existing = _existing_result_is_success(result_path)
+        if existing_success and not args.overwrite:
+            print(f"[{position}/{len(selected)}] YA COMPLETADO: {name}")
+            summary["completed"] += 1
+            summary["valid_json"] += int(bool(existing.get("valid_json_array")))
+            usage = existing.get("usage") if isinstance(existing.get("usage"), dict) else {}
+            if isinstance(usage.get("input_tokens"), int):
+                summary["input_tokens"] += usage["input_tokens"]
+            if isinstance(usage.get("output_tokens"), int):
+                summary["output_tokens"] += usage["output_tokens"]
+            summary["results"].append(existing)
             continue
+        if result_path.exists() and not existing_success:
+            print(f"[{position}/{len(selected)}] Reintentando resultado previo fallido: {name}")
 
         print(f"[{position}/{len(selected)}] Enviando: {name}")
         started = time.perf_counter()
@@ -203,6 +224,12 @@ def main() -> int:
             )
             summary["results"].append(error_result)
             print(f"    ERROR {type(exc).__name__}: {exc}")
+
+            # Si no hay saldo, insistir con el resto no sirve y sólo ensucia la salida.
+            error_text = str(exc).lower()
+            if "credit_balance_exhausted" in error_text or "insufficient_quota" in error_text or "no credits remaining" in error_text:
+                print("    Sin créditos API: se detiene la prueba.")
+                break
 
     summary_path = args.output / "resumen.json"
     summary_path.write_text(
