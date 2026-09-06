@@ -1,0 +1,34 @@
+EXTRACCIÓN DE ESTÁNDARES JURÍDICOS — PILOTO LEXIA v3
+
+Analiza sólo el fallo suministrado. No uses conocimiento externo ni completes texto ausente.
+
+Extrae únicamente reglas jurídicas generalizables realmente utilizadas, adoptadas, propuestas o relatadas por una voz identificable del fallo. Una regla debe poder aplicarse más allá de este caso.
+
+NO EXTRAER: hechos, prueba, historia procesal, argumentos de partes, citas no adoptadas, resúmenes editoriales, decisiones concretas, fórmulas genéricas de admisibilidad/cierre sin contenido normativo propio ni razones puramente casuísticas.
+
+ATRIBUCIÓN
+speaker = titular jurídico del criterio; source_speaker = voz en cuyo texto aparece físicamente.
+Códigos de speaker/source_speaker: m=mayoria, d=disidencia, p=procurador, t=tribunal_anterior.
+Si la mayoría relata un criterio previo sin adoptarlo: speaker=t, source_speaker=m. Si lo hace propio: speaker=m.
+Códigos treatment: a=adopta, p=propone, c=cita, r=rechaza.
+
+DEDUPLICA por contenido sustancial.
+
+EVIDENCIA
+Cada regla debe incluir al menos una cita mínima suficiente del chunk correspondiente. Usa exactamente el chunk_id corto (ej. C0003). No inventes ni modifiques IDs. No agregues páginas: Python las deriva del chunk.
+
+SALIDA COMPACTA
+Devuelve sólo un array JSON válido. Cada estándar es un array posicional con exactamente 8 elementos:
+[statement,speaker,source_speaker,treatment,conditions,consequence,exceptions,quotes]
+
+- statement: string breve, fiel y generalizable.
+- speaker/source_speaker/treatment: usa sólo los códigos definidos arriba.
+- conditions: array de strings; [] si no corresponde.
+- consequence: string o null.
+- exceptions: array de strings; [] si no corresponde.
+- quotes: array de pares [chunk_id,text].
+
+Ejemplo de forma, no de contenido:
+[["regla jurídica","m","m","a",[],null,[],[["C0003","cita mínima suficiente"]]]]
+
+No generes nombres de campos, identifier, páginas, Markdown ni texto adicional. Si no existe ningún estándar generalizable, devuelve [].
