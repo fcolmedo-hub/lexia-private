@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tools.preparar_estandares_v2 import dump_jsonl, load_jsonl, prepare_document
+from preparar_estandares_v2 import dump_jsonl, load_jsonl, prepare_document
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = REPO_ROOT / "runtime" / "standards_pilot" / "export_50" / "fallos.jsonl"
