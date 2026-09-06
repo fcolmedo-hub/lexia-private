@@ -2169,6 +2169,87 @@ def _case_node_address(nodes, target_id, trail=None):
     return []
 
 
+def _case_find_node(nodes, target_id):
+    for node in nodes or []:
+        if int(node.get("id", 0) or 0) == int(target_id):
+            return node
+        found = _case_find_node(node.get("children") or [], target_id)
+        if found:
+            return found
+    return None
+
+
+def _case_ai_document(snapshot, root_node_id):
+    root = _case_find_node(snapshot.get("nodes") or [], root_node_id)
+    if not root or str(root.get("node_kind", "")) != "hito":
+        raise ValueError("Elegí una rama principal válida.")
+    document_id = int(root.get("primary_document_id") or 0)
+    if not document_id:
+        raise ValueError("La rama necesita un documento inicial antes de analizarla con IA.")
+    document = next(
+        (item for item in snapshot.get("documents") or [] if int(item.get("id", 0) or 0) == document_id),
+        None,
+    )
+    if not document:
+        raise ValueError("El documento inicial ya no pertenece al caso.")
+    file_path = Path(str(document.get("document_path", "") or "")).expanduser().resolve()
+    con = sqlite3.connect(str(RUNTIME_ROOT / "lexia_catalog.sqlite3"))
+    con.row_factory = sqlite3.Row
+    try:
+        row = con.execute(
+            "SELECT text_content,name FROM documents WHERE path=? AND COALESCE(is_deleted,0)=0 LIMIT 1",
+            (str(file_path),),
+        ).fetchone()
+        try:
+            segment_rows = con.execute(
+                '''
+                SELECT start_char, end_char, page_start, page_end
+                FROM fragments WHERE document_path = ? ORDER BY fragment_index
+                ''',
+                (str(file_path),),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            segment_rows = []
+    finally:
+        con.close()
+    if row is None:
+        raise ValueError("El documento inicial todavía no aparece en el catálogo de LexIA.")
+    text = str(row["text_content"] or "").strip()
+    if not text:
+        raise ValueError("LexIA todavía no extrajo texto del documento inicial.")
+    return root, document, text, [dict(item) for item in segment_rows]
+
+
+def _case_ai_enrich_pages(proposal, segments, *, model="", response_id=""):
+    for issue in proposal.get("issues") or []:
+        for blocks in (issue.get("blocks") or {}).values():
+            for block in blocks or []:
+                for highlight in block.get("highlights") or []:
+                    start = int(highlight.get("start_char", 0) or 0)
+                    end = int(highlight.get("end_char", start) or start)
+                    overlaps = [
+                        item for item in segments
+                        if start < int(item.get("end_char", 0) or 0)
+                        and end > int(item.get("start_char", 0) or 0)
+                    ]
+                    highlight["page_start"] = next(
+                        (item.get("page_start") for item in overlaps if item.get("page_start") is not None),
+                        None,
+                    )
+                    highlight["page_end"] = next(
+                        (item.get("page_end") for item in reversed(overlaps) if item.get("page_end") is not None),
+                        highlight["page_start"],
+                    )
+                    highlight["anchor_data"] = json.dumps({
+                        "start_char": start,
+                        "end_char": end,
+                        "origin": "ai_structure",
+                        "model": str(model or ""),
+                        "response_id": str(response_id or ""),
+                    }, ensure_ascii=False)
+    return proposal
+
+
 def _case_import_destination(case_id, node_id=None):
     snapshot = CASES.case_snapshot(int(case_id))
     folder_name = _navigator_clean_folder_name(snapshot["case"]["name"])
@@ -3070,6 +3151,76 @@ class Handler(SimpleHTTPRequestHandler):
             except KeyError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 404)
             except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/ai/structure-preview":
+            try:
+                from ai.case_structure_analyzer import CaseStructureAnalyzer, CaseStructureError
+                from ai.openai_client import OpenAIClientError
+
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                root_node_id = int(body.get("node_id"))
+                include_own = bool(body.get("include_own", False))
+                snapshot = CASES.case_snapshot(case_id)
+                root, document, text, _ = _case_ai_document(snapshot, root_node_id)
+                result = CaseStructureAnalyzer().analyze(
+                    str(document.get("document_name", "Documento inicial")),
+                    text,
+                    include_own=include_own,
+                )
+                return self._json({
+                    "ok": True,
+                    "root_node_id": int(root["id"]),
+                    "document_id": int(document["id"]),
+                    "document_name": str(document.get("document_name", "")),
+                    **result,
+                })
+            except (KeyError, TypeError, ValueError, CaseStructureError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except OpenAIClientError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 409)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/ai/apply-structure":
+            try:
+                from ai.case_structure_analyzer import CaseStructureAnalyzer, CaseStructureError
+
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                root_node_id = int(body.get("node_id"))
+                snapshot = CASES.case_snapshot(case_id)
+                _, document, text, segments = _case_ai_document(snapshot, root_node_id)
+                proposal = CaseStructureAnalyzer.validate_proposal(
+                    body.get("proposal") or {}, text[:500_000], include_own=True
+                )
+                proposal = _case_ai_enrich_pages(
+                    proposal,
+                    segments,
+                    model=body.get("model"),
+                    response_id=body.get("response_id"),
+                )
+                created = CASES.apply_ai_structure(
+                    case_id,
+                    root_node_id,
+                    int(document["id"]),
+                    proposal["issues"],
+                )
+                return self._json({
+                    "ok": True,
+                    "created_node_ids": created,
+                    "case": CASES.case_snapshot(case_id),
+                })
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError, CaseStructureError) as exc:
                 return self._json({"ok": False, "error": str(exc)}, 400)
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
