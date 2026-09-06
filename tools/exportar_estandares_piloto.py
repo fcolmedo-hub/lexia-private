@@ -3,9 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+# Permite ejecutar este archivo directamente con:
+#   python tools\exportar_estandares_piloto.py
+# agregando la raíz del repositorio al path de importación.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from config.settings import SETTINGS
 
