@@ -29,6 +29,7 @@
       files: '<path d="M4 5h6l2 2h8v12H4z"></path><path d="M4 10h16"></path>',
       add: '<path d="M12 5v14M5 12h14"></path>',
       edit: '<path d="m5 19 3.5-.8L18 8.7 15.3 6 5.8 15.5z"></path><path d="m14.8 6.5 2.7 2.7"></path>',
+      ai: '<path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"></path><path d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"></path>',
       replace: '<path d="M7 7h10l-3-3"></path><path d="M17 7l-3 3"></path><path d="M17 17H7l3 3"></path><path d="M7 17l3-3"></path>',
       remove: '<path d="M5 7h14M10 7V5h4v2M8 7l.7 12h6.6L16 7M10 11v5M14 11v5"></path>',
     };
@@ -66,6 +67,7 @@
       '#' + PAGE_ID + ' .argument-block{display:grid;grid-template-columns:17px minmax(0,1fr) auto;column-gap:5px;align-items:start;margin:1px 0;padding:2px 0;border:0;border-radius:0;background:transparent}#' + PAGE_ID + ' .argument-block + .argument-block{border-top:1px solid #edf0f5;padding-top:4px}#' + PAGE_ID + ' .argument-paragraph-number{display:grid;place-items:center;width:16px;height:16px;margin-top:3px;border-radius:50%;background:#eeeaff;color:#5648ed;font-size:9px;font-weight:800}#' + PAGE_ID + ' .argument-block-body{min-width:0}#' + PAGE_ID + ' .argument-block textarea{min-height:27px!important;height:27px;border-color:transparent;background:#fcfcff;padding:4px 5px!important;font-size:11px!important;line-height:1.3!important;overflow:hidden!important}#' + PAGE_ID + ' .argument-block textarea:focus{border-color:#b9b3ff;background:#fff}#' + PAGE_ID + ' .argument-block-actions{margin:1px 0 0;display:flex;gap:2px;align-items:flex-start}#' + PAGE_ID + ' .argument-evidence{margin:3px 0 0;padding:6px 7px;border-left:2px solid #8075fa;background:#f8f7ff;white-space:pre-wrap;font-size:11px;line-height:1.4;color:#4e5878}#' + PAGE_ID + ' .argument-evidence:first-of-type{margin-top:3px}#' + PAGE_ID + ' .case-identification{padding:10px 12px;margin-bottom:9px}#' + PAGE_ID + ' .case-identification h1{font-size:15px}#' + PAGE_ID + ' .case-identification .case-summary{margin-top:4px;font-size:10px;line-height:1.3}#' + PAGE_ID + ' .case-identification .case-facts{gap:6px;margin-top:8px;padding-top:8px}#' + PAGE_ID + ' .case-identification .case-fact small{font-size:8px;margin-bottom:1px}#' + PAGE_ID + ' .case-identification .case-fact span{font-size:10px}#' + PAGE_ID + ' .case-identification .cases-form-grid{gap:7px}#' + PAGE_ID + ' .case-identification .cases-field{gap:3px}#' + PAGE_ID + ' .case-identification .cases-field label{font-size:8px}#' + PAGE_ID + ' .case-identification .cases-field input,#' + PAGE_ID + ' .case-identification .cases-field textarea{padding:6px 8px;font-size:11px;line-height:1.25}#' + PAGE_ID + ' .case-identification .cases-field textarea{min-height:52px}#' + PAGE_ID + ' .case-identification .cases-form-actions{margin-top:7px}#' + PAGE_ID + ' .workspace-sources.drop-target{outline:2px dashed #6558f5;outline-offset:-5px;background:#f3f1ff}#' + PAGE_ID + ' .sources-drop-help{margin:7px 0 0;padding:8px;border:1px dashed #c9c3ff;border-radius:7px;color:#6257db;font-size:9px;text-align:center}#' + PAGE_ID + ' .argument-section summary{font-size:11px}#' + PAGE_ID + ' .branch-actions .cases-icon,#' + PAGE_ID + ' .question-row .cases-icon{display:grid;place-items:center;min-width:22px;padding:4px!important}#' + PAGE_ID + ' .cases-icon svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}#' + PAGE_ID + ' .evidence-dialog-head{justify-content:space-between}#' + PAGE_ID + ' .evidence-reader{box-sizing:border-box!important;display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;white-space:pre-wrap!important;overflow-x:hidden!important;overflow-y:auto!important;overflow-wrap:anywhere!important;word-break:break-word!important;tab-size:4}#' + PAGE_ID + ' .branch-ai{margin:8px 8px 2px;padding:8px 9px;border-top:1px solid #e5e8f1;background:#fbfbfe}#' + PAGE_ID + ' .branch-ai summary{cursor:pointer;color:#38436a;font-size:10px;font-weight:800}#' + PAGE_ID + ' .branch-ai-options{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}#' + PAGE_ID + ' .branch-ai-option{display:flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px;border:1px solid #e0e4ee;border-radius:6px;background:#fff;color:#56617f;font-size:9px}#' + PAGE_ID + ' .branch-ai-option span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}#' + PAGE_ID + ' .branch-ai textarea{box-sizing:border-box;width:100%;min-height:96px;margin-top:7px;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;line-height:1.4;color:#293357}',
       '.cases-create-dialog{width:min(680px,92vw);max-width:680px}.cases-create-dialog .branch-form{margin:0;padding:2px;border:0;background:transparent}.cases-create-dialog .cases-form-actions{margin-bottom:0}',
       '.evidence-selection-dialog[open]{width:min(940px,92vw);height:min(84vh,720px);max-height:84vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);display:flex;flex-direction:column;overflow:hidden}.evidence-selection-dialog[open]::backdrop{background:rgba(24,31,56,.34)}.evidence-selection-dialog .evidence-dialog-head{flex:0 0 auto;padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.evidence-selection-dialog .evidence-dialog-body{box-sizing:border-box;display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden;padding:11px 13px}.evidence-selection-dialog .evidence-reader{box-sizing:border-box;display:block;flex:1 1 auto;width:100%;min-height:130px;height:auto!important;margin-top:8px;overflow:auto!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.evidence-selection-dialog .evidence-selection-status{flex:0 0 auto;margin:7px 0}.evidence-selection-dialog .evidence-dialog-actions{flex:0 0 auto;display:flex;justify-content:flex-end;gap:6px;margin-top:0;padding-top:8px;background:#fff;border-top:1px solid #edf0f5}',
+      '.case-ai-dialog[open]{box-sizing:border-box;width:min(900px,94vw);max-height:88vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);overflow:hidden}.case-ai-dialog::backdrop{background:rgba(24,31,56,.38)}.case-ai-dialog .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.case-ai-dialog .evidence-dialog-body{box-sizing:border-box;max-height:calc(88vh - 48px);padding:13px;overflow:auto}.case-ai-dialog .cases-button,.case-ai-dialog .cases-button-secondary{box-sizing:border-box;font:inherit;font-size:10px;line-height:1.1;font-weight:800;cursor:pointer;border-radius:6px;padding:7px 9px}.case-ai-dialog .cases-button{background:#5146f6;color:#fff;border:1px solid #5146f6}.case-ai-dialog .cases-button-secondary{background:#fff;color:#465176;border:1px solid #d8deed}.case-ai-intro{color:#596583;font-size:11px;line-height:1.45;margin:0 0 12px}.case-ai-option{display:flex;align-items:flex-start;gap:7px;padding:10px;border:1px solid #e1e5ef;border-radius:8px;background:#fafaff;color:#374162;font-size:11px}.case-ai-option input{margin-top:2px}.case-ai-status{min-height:18px;margin:9px 0;color:#6659e8;font-size:10px}.case-ai-preview-meta{margin:0 0 10px;color:#697493;font-size:10px}.case-ai-issue{margin:7px 0;padding:9px;border:1px solid #dfe4ef;border-radius:9px;background:#fff}.case-ai-issue-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:center}.case-ai-issue-head input[type=text]{box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid #dce1ed;border-radius:6px;font:inherit;font-size:11px;font-weight:800;color:#293357}.case-ai-side{margin:7px 0 0;padding-top:6px;border-top:1px solid #edf0f5}.case-ai-side h4{margin:0 0 4px;color:#687492;font-size:9px;text-transform:uppercase}.case-ai-block{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;margin:3px 0;padding:5px;background:#fafaff;border-radius:6px}.case-ai-block textarea{box-sizing:border-box;width:100%;min-height:45px;resize:vertical;padding:5px 6px;border:1px solid #e0e4ee;border-radius:5px;font:10px/1.35 inherit;color:#303a5e}.case-ai-quote{margin:4px 0 0;padding:5px 7px;border-left:2px solid #7c70f7;background:#f5f3ff;color:#56607d;font-size:9px;line-height:1.35;white-space:pre-wrap}.case-ai-dialog .cases-form-actions{position:sticky;bottom:-13px;margin:10px -13px -13px;padding:10px 13px;background:#fff;border-top:1px solid #e7eaf2}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
@@ -249,6 +251,73 @@
   }
   function openBranchDialog(snapshot) { openCreationDialog('Nueva rama principal', close => branchForm(snapshot, close)); }
   function openQuestionDialog(snapshot, parentId) { openCreationDialog('Nueva cuestión jurídica', close => questionForm(snapshot, parentId, close)); }
+  function openAiStructureDialog(snapshot, node) {
+    if (!node.primary_document_id) return alert('Cargá primero el documento inicial de la rama.');
+    const dialog = el('dialog', {className: 'case-ai-dialog'}), body = el('div', {className: 'evidence-dialog-body'});
+    const close = () => { if (dialog.open && dialog.close) dialog.close(); dialog.remove(); };
+    const closeButton = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'});
+    closeButton.addEventListener('click', close);
+    const includeOwn = el('input', {type: 'checkbox'}); includeOwn.checked = false;
+    const analyze = el('button', {type: 'button', className: 'cases-button', textContent: 'Analizar documento'}), status = el('p', {className: 'case-ai-status'});
+    body.append(
+      el('p', {className: 'case-ai-intro', textContent: 'LexIA enviará el texto indexado del documento inicial a la IA. Las cuestiones, bloques y citas se mostrarán como borrador antes de modificar el árbol.'}),
+      el('label', {className: 'case-ai-option'}, includeOwn, el('span', {}, el('b', {textContent: 'Proponer también nuestra postura'}), document.createTextNode(' · Desactivado por defecto. Sólo podrá usar elementos que surjan del mismo documento.'))),
+      status,
+      el('div', {className: 'cases-form-actions'}, analyze)
+    );
+    analyze.addEventListener('click', async () => {
+      analyze.disabled = true; includeOwn.disabled = true; status.textContent = 'Analizando el documento y verificando las citas…';
+      try {
+        const result = await api('/api/cases/ai/structure-preview', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, include_own: includeOwn.checked})});
+        renderAiStructurePreview(dialog, body, snapshot, node, result, close);
+      } catch (error) {
+        status.textContent = error.message; analyze.disabled = false; includeOwn.disabled = false;
+      }
+    });
+    dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Armar árbol con IA · ' + node.title}), closeButton), body);
+    document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
+  }
+  function renderAiStructurePreview(dialog, body, snapshot, node, result, close) {
+    const proposal = result.proposal || {issues: []}, issueViews = [];
+    body.replaceChildren(el('p', {className: 'case-ai-preview-meta', textContent: proposal.issues.length + ' cuestión(es) detectada(s) · Modelo ' + result.model + ' · ' + Number(result.usage?.total_tokens || 0).toLocaleString('es-AR') + ' tokens' + (result.document_truncated ? ' · El documento fue recortado por su extensión' : '')}));
+    proposal.issues.forEach((issue, issueIndex) => {
+      const enabled = el('input', {type: 'checkbox'}); enabled.checked = true;
+      const title = el('input', {type: 'text', value: issue.title, 'aria-label': 'Título de la cuestión ' + (issueIndex + 1)}), blockViews = [];
+      const article = el('article', {className: 'case-ai-issue'}, el('div', {className: 'case-ai-issue-head'}, enabled, title));
+      [['contraparte', 'Planteo de la contraparte'], ['propia', 'Nuestra postura y fundamentos']].forEach(([side, label]) => {
+        const values = (issue.blocks && issue.blocks[side]) || [];
+        if (!values.length) return;
+        const section = el('section', {className: 'case-ai-side'}, el('h4', {textContent: label}));
+        values.forEach(block => {
+          const keep = el('input', {type: 'checkbox'}); keep.checked = true;
+          const content = el('textarea', {value: block.content || ''}), blockBody = el('div', {}, content);
+          (block.highlights || []).forEach(highlight => blockBody.append(el('blockquote', {className: 'case-ai-quote', textContent: highlight.selected_text})));
+          section.append(el('div', {className: 'case-ai-block'}, keep, blockBody));
+          blockViews.push({side, keep, content, highlights: block.highlights || []});
+        });
+        article.append(section);
+      });
+      issueViews.push({enabled, title, blockViews}); body.append(article);
+    });
+    const cancel = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cancelar'}), apply = el('button', {type: 'button', className: 'cases-button', textContent: 'Crear estructura'}), status = el('p', {className: 'case-ai-status'});
+    cancel.addEventListener('click', close);
+    apply.addEventListener('click', async () => {
+      const issues = issueViews.filter(view => view.enabled.checked).map(view => {
+        const blocks = {contraparte: [], propia: []};
+        view.blockViews.filter(item => item.keep.checked).forEach(item => blocks[item.side].push({content: item.content.value, highlights: item.highlights}));
+        return {title: view.title.value, blocks};
+      });
+      if (!issues.length) return alert('Seleccioná al menos una cuestión.');
+      if (issues.some(issue => !issue.blocks.contraparte.length)) return alert('Cada cuestión necesita al menos un bloque respaldado del planteo de la contraparte.');
+      if ((node.children || []).length && !confirm('Esta rama ya contiene cuestiones. La propuesta se agregará sin reemplazarlas. ¿Continuar?')) return;
+      apply.disabled = true; cancel.disabled = true; status.textContent = 'Creando cuestiones, bloques y resaltados…';
+      try {
+        const response = await api('/api/cases/ai/apply-structure', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, proposal: {issues}, model: result.model, response_id: result.response_id})});
+        currentCase = response.case; openPrimaryIds.add(node.id); expandedNodeId = (response.created_node_ids || [])[0] || null; close(); await loadCases(false);
+      } catch (error) { status.textContent = error.message; apply.disabled = false; cancel.disabled = false; }
+    });
+    body.append(status, el('div', {className: 'cases-form-actions'}, cancel, apply));
+  }
   function branchForm(snapshot, close) {
     const form = el('form', {className: 'branch-form'}), title = el('input', {placeholder: 'Ej.: Demanda, Actuación administrativa, Sentencia', required: 'required'}), document = docSelect(snapshot.documents || []);
     const submit = el('button', {type: 'submit', className: 'cases-button', textContent: 'Agregar rama'}), cancel = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cancelar'});
@@ -265,17 +334,19 @@
     const toggle = actionIcon(isOpen ? 'hide' : 'show', isOpen ? 'Ocultar rama' : 'Mostrar rama');
     const upload = actionIcon('files', 'Cargar archivos en esta rama');
     const replace = node.primary_document_id ? actionIcon('replace', 'Reemplazar documento inicial') : null;
+    const analyze = node.primary_document_id ? actionIcon('ai', 'Armar árbol con IA') : null;
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
     const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
     addQuestion.disabled = !canAddQuestion;
     toggle.addEventListener('click', () => { if (isOpen) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); });
     upload.addEventListener('click', () => input.click());
     if (replace) replace.addEventListener('click', () => replacePrimaryDocument(snapshot, node));
+    if (analyze) analyze.addEventListener('click', () => openAiStructureDialog(snapshot, node));
     input.addEventListener('change', () => { if (input.files?.length) importBranchFiles(snapshot, node, input.files, upload); input.value = ''; });
     addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); openQuestionDialog(snapshot, node.id); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
-    article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, addQuestion, edit, remove)));
+    article.append(input, el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, analyze, addQuestion, edit, remove)));
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
     article.append(questions, branchAiSection(snapshot, node));
