@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -80,13 +81,8 @@ def _compact_with_positions(text: str) -> tuple[str, list[int]]:
 
 def canonicalize_ocr_spacing_quote(source: str, quote: str) -> str | None:
     """
-    Recupera una cita literal cuando el OCR insertó espacios dentro de palabras
-    (p.ej. 'interpretaci ón' / 'deb ía') y el modelo los normalizó.
-
-    Para no certificar falsos positivos exige:
-    - al menos 30 caracteres no-blancos en la cita;
-    - coincidencia exacta tras quitar únicamente whitespace;
-    - una única aparición en el chunk.
+    Recupera una cita literal cuando el OCR insertó espacios dentro de palabras.
+    Exige al menos 30 caracteres no-blancos y una aparición única.
     """
     compact_quote, _ = _compact_with_positions(quote)
     if len(compact_quote) < 30:
@@ -105,6 +101,90 @@ def canonicalize_ocr_spacing_quote(source: str, quote: str) -> str | None:
     return source[positions[first] : positions[end] + 1]
 
 
+def _fuzzy_normalize_with_positions(text: str) -> tuple[str, list[int]]:
+    """
+    Normalización sólo para localizar candidatos OCR: minúsculas, sin diacríticos,
+    sin whitespace ni puntuación. Nunca se almacena esta versión; se usa para
+    recuperar un tramo literal del chunk original.
+    """
+    chars: list[str] = []
+    positions: list[int] = []
+    for idx, original in enumerate(text):
+        decomposed = unicodedata.normalize("NFKD", original)
+        for ch in decomposed:
+            if unicodedata.combining(ch):
+                continue
+            ch = ch.casefold()
+            if not ch.isalnum():
+                continue
+            chars.append(ch)
+            positions.append(idx)
+    return "".join(chars), positions
+
+
+def canonicalize_fuzzy_ocr_quote(source: str, quote: str) -> tuple[str | None, float | None]:
+    """
+    Último recurso conservador para OCR que cambió pocos caracteres además de espacios.
+
+    Sólo certifica si:
+    - la cita normalizada tiene >= 45 caracteres;
+    - la mejor ventana alcanza similitud >= 0.94;
+    - no existe otra ventana no solapada casi igual (margen >= 0.025).
+
+    Devuelve siempre el texto literal del chunk, nunca la versión del modelo.
+    """
+    target, _ = _fuzzy_normalize_with_positions(quote)
+    source_norm, positions = _fuzzy_normalize_with_positions(source)
+    if len(target) < 45 or len(source_norm) < len(target) // 2 or not positions:
+        return None, None
+
+    matcher = SequenceMatcher(None, target, source_norm, autojunk=False)
+    longest = matcher.find_longest_match(0, len(target), 0, len(source_norm))
+    if longest.size < max(18, int(len(target) * 0.35)):
+        return None, None
+
+    estimated_start = max(0, longest.b - longest.a)
+    target_len = len(target)
+    starts = range(max(0, estimated_start - 24), min(len(source_norm), estimated_start + 25))
+    deltas = (-10, -6, -3, 0, 3, 6, 10)
+
+    candidates: list[tuple[float, int, int]] = []
+    for start in starts:
+        for delta in deltas:
+            length = target_len + delta
+            if length < 35:
+                continue
+            end = start + length
+            if end > len(source_norm):
+                continue
+            ratio = SequenceMatcher(None, target, source_norm[start:end], autojunk=False).ratio()
+            candidates.append((ratio, start, end))
+
+    if not candidates:
+        return None, None
+    candidates.sort(reverse=True, key=lambda x: x[0])
+    best_ratio, best_start, best_end = candidates[0]
+    if best_ratio < 0.94:
+        return None, best_ratio
+
+    second_ratio = 0.0
+    for ratio, start, end in candidates[1:]:
+        # Sólo cuenta como competidor un tramo sustancialmente distinto.
+        overlap = max(0, min(best_end, end) - max(best_start, start))
+        union = max(best_end, end) - min(best_start, start)
+        overlap_ratio = overlap / union if union else 1.0
+        if overlap_ratio < 0.50:
+            second_ratio = ratio
+            break
+    if second_ratio and (best_ratio - second_ratio) < 0.025:
+        return None, best_ratio
+
+    if best_start >= len(positions) or best_end - 1 >= len(positions):
+        return None, best_ratio
+    literal = source[positions[best_start] : positions[best_end - 1] + 1]
+    return literal, best_ratio
+
+
 def validate_result(document: dict[str, Any], response_text: str) -> dict[str, Any]:
     parsed = json.loads(response_text)
     if not isinstance(parsed, list):
@@ -121,6 +201,7 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
     exact_quotes = 0
     canonicalized_quotes = 0
     ocr_spacing_canonicalized_quotes = 0
+    fuzzy_ocr_canonicalized_quotes = 0
     invalid_quotes = 0
 
     for index, item in enumerate(parsed, start=1):
@@ -145,11 +226,17 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
             chunk_id = str(quote.get("chunk_id") or "")
             chunk = chunks.get(chunk_id)
             if chunk is None:
-                issues.append({"standard": index, "quote": q_index, "type": "unknown_chunk_id", "chunk_id": chunk_id})
+                issues.append({
+                    "standard": index,
+                    "quote": q_index,
+                    "type": "unknown_chunk_id",
+                    "chunk_id": chunk_id,
+                })
                 invalid_quotes += 1
                 continue
             text = str(quote.get("text") or "")
             source = str(chunk.get("text") or "")
+            fuzzy_score: float | None = None
             if text and text in source:
                 canonical = text
                 exact_quotes += 1
@@ -165,19 +252,34 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
                         ocr_spacing_canonicalized_quotes += 1
                         status = "ocr_spacing_canonicalized"
                     else:
-                        invalid_quotes += 1
-                        issues.append({"standard": index, "quote": q_index, "type": "quote_not_found", "chunk_id": chunk_id})
-                        continue
+                        canonical, fuzzy_score = canonicalize_fuzzy_ocr_quote(source, text)
+                        if canonical is not None:
+                            fuzzy_ocr_canonicalized_quotes += 1
+                            status = "fuzzy_ocr_canonicalized"
+                        else:
+                            invalid_quotes += 1
+                            issues.append({
+                                "standard": index,
+                                "quote": q_index,
+                                "type": "quote_not_found",
+                                "chunk_id": chunk_id,
+                                "model_quote": text,
+                                "best_fuzzy_score": (
+                                    round(fuzzy_score, 4) if fuzzy_score is not None else None
+                                ),
+                            })
+                            continue
 
-            canonical_quotes.append(
-                {
-                    "chunk_id": chunk_id,
-                    "page_start": chunk.get("page_start"),
-                    "page_end": chunk.get("page_end"),
-                    "text": canonical,
-                    "validation": status,
-                }
-            )
+            stored_quote = {
+                "chunk_id": chunk_id,
+                "page_start": chunk.get("page_start"),
+                "page_end": chunk.get("page_end"),
+                "text": canonical,
+                "validation": status,
+            }
+            if fuzzy_score is not None:
+                stored_quote["fuzzy_score"] = round(fuzzy_score, 4)
+            canonical_quotes.append(stored_quote)
 
         standard["quotes"] = canonical_quotes
         standards.append(standard)
@@ -189,6 +291,7 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
             "exact_quotes": exact_quotes,
             "canonicalized_quotes": canonicalized_quotes,
             "ocr_spacing_canonicalized_quotes": ocr_spacing_canonicalized_quotes,
+            "fuzzy_ocr_canonicalized_quotes": fuzzy_ocr_canonicalized_quotes,
             "invalid_quotes": invalid_quotes,
             "issues": issues,
             "needs_review": bool(issues),
@@ -219,6 +322,7 @@ def main() -> int:
         "exact_quotes": 0,
         "canonicalized_quotes": 0,
         "ocr_spacing_canonicalized_quotes": 0,
+        "fuzzy_ocr_canonicalized_quotes": 0,
         "invalid_quotes": 0,
         "needs_review": 0,
     }
@@ -246,15 +350,20 @@ def main() -> int:
         summary["exact_quotes"] += int(val["exact_quotes"])
         summary["canonicalized_quotes"] += int(val["canonicalized_quotes"])
         summary["ocr_spacing_canonicalized_quotes"] += int(val["ocr_spacing_canonicalized_quotes"])
+        summary["fuzzy_ocr_canonicalized_quotes"] += int(val["fuzzy_ocr_canonicalized_quotes"])
         summary["invalid_quotes"] += int(val["invalid_quotes"])
         summary["needs_review"] += int(bool(val["needs_review"]))
         print(
             f"{response_path.name}: estándares={val['standards_count']}, "
-            f"citas exactas={val['exact_quotes']}, canonizadas={val['canonicalized_quotes']}, "
-            f"OCR-espacios={val['ocr_spacing_canonicalized_quotes']}, inválidas={val['invalid_quotes']}"
+            f"exactas={val['exact_quotes']}, espacios={val['canonicalized_quotes']}, "
+            f"OCR-espacios={val['ocr_spacing_canonicalized_quotes']}, "
+            f"OCR-fuzzy={val['fuzzy_ocr_canonicalized_quotes']}, inválidas={val['invalid_quotes']}"
         )
 
-    (output / "resumen_validacion.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output / "resumen_validacion.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 
