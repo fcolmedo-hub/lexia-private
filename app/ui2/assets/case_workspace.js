@@ -289,8 +289,12 @@
       setBusy(true); status.textContent = 'Preparando el TXT con el documento y la consigna…';
       try {
         const result = await api('/api/cases/ai/structure-prompt', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, include_own: includeOwn.checked})});
-        downloadTextFile('LexIA_arbol_' + safeDownloadName(result.document_name) + '.txt', result.prompt);
-        status.textContent = 'TXT descargado. Adjuntalo a ChatGPT, pedile que responda sólo el JSON y pegá su respuesta aquí.';
+        if (result.export_path) {
+          status.textContent = 'TXT guardado en Descargas: ' + (result.export_name || 'LexIA_arbol.txt') + '. Adjuntalo a ChatGPT, pedile que responda sólo el JSON y pegá su respuesta aquí.';
+        } else {
+          downloadTextFile('LexIA_arbol_' + safeDownloadName(result.document_name) + '.txt', result.prompt);
+          status.textContent = 'TXT descargado. Adjuntalo a ChatGPT, pedile que responda sólo el JSON y pegá su respuesta aquí.';
+        }
       } catch (error) { status.textContent = error.message; }
       finally { setBusy(false); }
     });
@@ -479,7 +483,9 @@
   }
   function compactSection(label, open, content) {
     const details = el('details', {className: 'argument-section'}); details.open = !!open;
-    details.append(el('summary', {textContent: label}), el('div', {className: 'argument-section-body'}, content));
+    const summary = el('summary', {textContent: label});
+    summary.addEventListener('dblclick', event => { event.preventDefault(); details.open = !details.open; });
+    details.append(summary, el('div', {className: 'argument-section-body'}, content));
     return details;
   }
   function workspace(snapshot, node) {
