@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -60,12 +59,19 @@ def require_sdk():
 
 def cmd_prepare(args: argparse.Namespace) -> int:
     rows = load_jsonl(args.prompts)
+
+    if args.skip < 0:
+        raise RuntimeError("--skip debe ser >= 0")
+    if args.skip:
+        rows = rows[args.skip:]
+
     if args.limit is not None:
         if args.limit < 1:
             raise RuntimeError("--limit debe ser >= 1")
         rows = rows[: args.limit]
+
     if not rows:
-        raise RuntimeError("No hay prompts para preparar")
+        raise RuntimeError("No hay prompts para preparar con ese rango")
 
     args.workdir.mkdir(parents=True, exist_ok=True)
     request_path = args.workdir / "batch_input.jsonl"
@@ -74,7 +80,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     requests: list[str] = []
     manifest_rows: list[dict[str, Any]] = []
     for position, row in enumerate(rows, start=1):
-        pilot_id = int(row.get("pilot_id", position))
+        pilot_id = int(row.get("pilot_id", args.skip + position))
         custom_id = f"pilot-{pilot_id:03d}"
         prompt = str(row.get("prompt") or "")
         if not prompt.strip():
@@ -91,37 +97,56 @@ def cmd_prepare(args: argparse.Namespace) -> int:
             },
         }
         requests.append(json.dumps(request, ensure_ascii=False, separators=(",", ":")))
-        manifest_rows.append({
-            "custom_id": custom_id,
-            "pilot_id": pilot_id,
-            "document_name": row.get("document_name"),
-            "document_path": row.get("document_path"),
-        })
+        manifest_rows.append(
+            {
+                "custom_id": custom_id,
+                "pilot_id": pilot_id,
+                "document_name": row.get("document_name"),
+                "document_path": row.get("document_path"),
+            }
+        )
 
     request_path.write_text("\n".join(requests) + "\n", encoding="utf-8")
     manifest = {
         "model": args.model,
         "reasoning_effort": args.reasoning_effort,
         "max_output_tokens": args.max_output_tokens,
+        "skip": args.skip,
+        "limit": args.limit,
         "requests": len(manifest_rows),
         "prompts_file": str(args.prompts.resolve()),
         "batch_input_file": request_path.name,
+        "pilot_ids": [row["pilot_id"] for row in manifest_rows],
         "rows": manifest_rows,
     }
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({
-        "prepared": len(manifest_rows),
-        "batch_input": str(request_path.resolve()),
-        "workdir": str(args.workdir.resolve()),
-    }, ensure_ascii=False, indent=2))
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(
+        json.dumps(
+            {
+                "prepared": len(manifest_rows),
+                "skip": args.skip,
+                "first_pilot_id": manifest_rows[0]["pilot_id"],
+                "last_pilot_id": manifest_rows[-1]["pilot_id"],
+                "batch_input": str(request_path.resolve()),
+                "workdir": str(args.workdir.resolve()),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
 def cmd_submit(args: argparse.Namespace) -> int:
     client = require_sdk()
     request_path = args.workdir / "batch_input.jsonl"
-    if not request_path.exists():
-        raise RuntimeError(f"No existe {request_path}; ejecute primero prepare")
+    manifest_path = args.workdir / "manifest.json"
+    if not request_path.exists() or not manifest_path.exists():
+        raise RuntimeError(f"Falta batch_input.jsonl o manifest.json en {args.workdir}; ejecute primero prepare")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     with request_path.open("rb") as fh:
         uploaded = client.files.create(file=fh, purpose="batch")
     batch = client.batches.create(
@@ -136,8 +161,9 @@ def cmd_submit(args: argparse.Namespace) -> int:
         "status": batch.status,
         "endpoint": batch.endpoint,
         "completion_window": batch.completion_window,
+        "requests": manifest.get("requests"),
+        "pilot_ids": manifest.get("pilot_ids"),
     }
-    args.workdir.mkdir(parents=True, exist_ok=True)
     (args.workdir / "batch_state.json").write_text(
         json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -166,7 +192,9 @@ def cmd_status(args: argparse.Namespace) -> int:
         "output_file_id": getattr(batch, "output_file_id", None),
         "error_file_id": getattr(batch, "error_file_id", None),
         "request_counts": (
-            batch.request_counts.model_dump() if getattr(batch, "request_counts", None) is not None else None
+            batch.request_counts.model_dump()
+            if getattr(batch, "request_counts", None) is not None
+            else None
         ),
     }
     state.update(result)
@@ -184,6 +212,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
     if batch.status != "completed":
         print(json.dumps({"batch_id": batch.id, "status": batch.status}, ensure_ascii=False, indent=2))
         return 2
+
     output_file_id = getattr(batch, "output_file_id", None)
     if not output_file_id:
         raise RuntimeError("Batch completado sin output_file_id")
@@ -192,10 +221,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
     by_custom = {row["custom_id"]: row for row in manifest.get("rows", [])}
 
     raw_content = client.files.content(output_file_id).read()
-    if isinstance(raw_content, bytes):
-        raw_text = raw_content.decode("utf-8")
-    else:
-        raw_text = str(raw_content)
+    raw_text = raw_content.decode("utf-8") if isinstance(raw_content, bytes) else str(raw_content)
     (args.workdir / "batch_output.jsonl").write_text(raw_text, encoding="utf-8")
 
     results_dir = args.workdir / "results"
@@ -209,7 +235,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
         "results": [],
     }
 
-    for lineno, raw in enumerate(raw_text.splitlines(), start=1):
+    for raw in raw_text.splitlines():
         if not raw.strip():
             continue
         record = json.loads(raw)
@@ -219,11 +245,14 @@ def cmd_collect(args: argparse.Namespace) -> int:
             summary["failed"] += 1
             summary["results"].append({"custom_id": custom_id, "error": "custom_id desconocido"})
             continue
+
         pilot_id = int(meta["pilot_id"])
         response_info = record.get("response") if isinstance(record.get("response"), dict) else {}
         status_code = response_info.get("status_code")
         body = response_info.get("body") if isinstance(response_info.get("body"), dict) else {}
         error = record.get("error")
+        result_path = results_dir / f"{pilot_id:03d}_resultado.json"
+
         if status_code != 200 or error:
             summary["failed"] += 1
             item = {
@@ -232,15 +261,13 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 "status_code": status_code,
                 "error": error or body,
             }
-            (results_dir / f"{pilot_id:03d}_resultado.json").write_text(
-                json.dumps(item, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-            )
+            result_path.write_text(json.dumps(item, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             summary["results"].append(item)
             continue
 
         text = output_text_from_response_body(body)
-        valid = False
         parsed: Any = None
+        valid = False
         validation_error: str | None = None
         try:
             parsed = json.loads(text)
@@ -258,9 +285,8 @@ def cmd_collect(args: argparse.Namespace) -> int:
         if isinstance(output_tokens, int):
             summary["output_tokens"] += output_tokens
 
-        (results_dir / f"{pilot_id:03d}_respuesta.txt").write_text(
-            text + ("\n" if text else ""), encoding="utf-8"
-        )
+        response_file = f"{pilot_id:03d}_respuesta.txt"
+        (results_dir / response_file).write_text(text + ("\n" if text else ""), encoding="utf-8")
         item = {
             "pilot_id": pilot_id,
             "document_name": meta.get("document_name"),
@@ -276,11 +302,9 @@ def cmd_collect(args: argparse.Namespace) -> int:
             "valid_json_array": valid,
             "validation_error": validation_error,
             "standards_count": len(parsed) if valid else None,
-            "response_file": f"{pilot_id:03d}_respuesta.txt",
+            "response_file": response_file,
         }
-        (results_dir / f"{pilot_id:03d}_resultado.json").write_text(
-            json.dumps(item, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
+        result_path.write_text(json.dumps(item, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         summary["completed"] += 1
         summary["valid_json"] += int(valid)
         summary["results"].append(item)
@@ -288,14 +312,20 @@ def cmd_collect(args: argparse.Namespace) -> int:
     (results_dir / "resumen.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(json.dumps({
-        "completed": summary["completed"],
-        "valid_json": summary["valid_json"],
-        "failed": summary["failed"],
-        "input_tokens": summary["input_tokens"],
-        "output_tokens": summary["output_tokens"],
-        "results_dir": str(results_dir.resolve()),
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "completed": summary["completed"],
+                "valid_json": summary["valid_json"],
+                "failed": summary["failed"],
+                "input_tokens": summary["input_tokens"],
+                "output_tokens": summary["output_tokens"],
+                "results_dir": str(results_dir.resolve()),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0 if summary["failed"] == 0 else 1
 
 
@@ -308,9 +338,14 @@ def build_parser() -> argparse.ArgumentParser:
     prepare = sub.add_parser("prepare")
     prepare.add_argument("--prompts", type=Path, default=DEFAULT_PROMPTS)
     prepare.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
+    prepare.add_argument("--skip", type=int, default=0, help="Omite los primeros N prompts antes de aplicar --limit")
     prepare.add_argument("--limit", type=int, default=None)
     prepare.add_argument("--model", default="gpt-5.6-luna")
-    prepare.add_argument("--reasoning-effort", default="medium", choices=("none", "low", "medium", "high", "xhigh", "max"))
+    prepare.add_argument(
+        "--reasoning-effort",
+        default="medium",
+        choices=("none", "low", "medium", "high", "xhigh", "max"),
+    )
     prepare.add_argument("--max-output-tokens", type=int, default=4000)
     prepare.set_defaults(func=cmd_prepare)
 
