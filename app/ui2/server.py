@@ -3155,6 +3155,67 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
 
+        if path == "/api/cases/ai/structure-prompt":
+            try:
+                from ai.case_structure_analyzer import CaseStructureAnalyzer, CaseStructureError
+
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                root_node_id = int(body.get("node_id"))
+                include_own = bool(body.get("include_own", False))
+                snapshot = CASES.case_snapshot(case_id)
+                root, document, text, _ = _case_ai_document(snapshot, root_node_id)
+                package = CaseStructureAnalyzer().manual_package(
+                    str(document.get("document_name", "Documento inicial")), text, include_own
+                )
+                return self._json({
+                    "ok": True,
+                    "root_node_id": int(root["id"]),
+                    "document_id": int(document["id"]),
+                    "document_name": str(document.get("document_name", "")),
+                    "prompt": package["prompt"],
+                    "document_truncated": package["document_truncated"],
+                    "analyzed_chars": len(package["source_text"]),
+                })
+            except (KeyError, TypeError, ValueError, CaseStructureError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/ai/manual-preview":
+            try:
+                from ai.case_structure_analyzer import CaseStructureAnalyzer, CaseStructureError
+
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                root_node_id = int(body.get("node_id"))
+                include_own = bool(body.get("include_own", False))
+                snapshot = CASES.case_snapshot(case_id)
+                root, document, text, _ = _case_ai_document(snapshot, root_node_id)
+                proposal = CaseStructureAnalyzer.parse_and_validate(
+                    str(body.get("response_text", "") or ""), text[:500_000], include_own=include_own
+                )
+                return self._json({
+                    "ok": True,
+                    "root_node_id": int(root["id"]),
+                    "document_id": int(document["id"]),
+                    "document_name": str(document.get("document_name", "")),
+                    "proposal": proposal,
+                    "model": "ChatGPT manual",
+                    "response_id": "manual",
+                    "usage": {},
+                    "document_truncated": len(text) > 500_000,
+                    "analyzed_chars": min(len(text), 500_000),
+                })
+            except (KeyError, TypeError, ValueError, CaseStructureError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
         if path == "/api/cases/ai/structure-preview":
             try:
                 from ai.case_structure_analyzer import CaseStructureAnalyzer, CaseStructureError
