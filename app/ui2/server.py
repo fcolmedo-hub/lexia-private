@@ -2220,6 +2220,20 @@ def _case_ai_document(snapshot, root_node_id):
     return root, document, text, [dict(item) for item in segment_rows]
 
 
+def _case_write_manual_prompt(document_name, prompt):
+    """Save a manual IA package where it can be attached from the desktop."""
+    downloads = Path.home() / "Downloads"
+    downloads.mkdir(parents=True, exist_ok=True)
+    raw_name = str(document_name or "documento")
+    safe_name = "".join(
+        char if (char.isalnum() or char in " -_.") else "_"
+        for char in raw_name
+    ).strip(" ._") or "documento"
+    target = downloads / f"LexIA_arbol_{safe_name[:100]}.txt"
+    target.write_text(str(prompt or ""), encoding="utf-8")
+    return target
+
+
 def _case_ai_enrich_pages(proposal, segments, *, model="", response_id=""):
     for issue in proposal.get("issues") or []:
         for blocks in (issue.get("blocks") or {}).values():
@@ -3170,12 +3184,17 @@ class Handler(SimpleHTTPRequestHandler):
                 package = CaseStructureAnalyzer().manual_package(
                     str(document.get("document_name", "Documento inicial")), text, include_own
                 )
+                export_path = _case_write_manual_prompt(
+                    str(document.get("document_name", "Documento inicial")), package["prompt"]
+                )
                 return self._json({
                     "ok": True,
                     "root_node_id": int(root["id"]),
                     "document_id": int(document["id"]),
                     "document_name": str(document.get("document_name", "")),
                     "prompt": package["prompt"],
+                    "export_name": export_path.name,
+                    "export_path": str(export_path),
                     "document_truncated": package["document_truncated"],
                     "analyzed_chars": len(package["source_text"]),
                 })
