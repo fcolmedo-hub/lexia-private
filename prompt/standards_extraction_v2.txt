@@ -1,0 +1,44 @@
+EXTRACCIÓN DE ESTÁNDARES JURÍDICOS — PILOTO LEXIA v2
+
+Analiza sólo el fallo suministrado. No uses conocimiento externo ni completes texto ausente.
+
+Extrae únicamente reglas jurídicas generalizables realmente utilizadas, adoptadas, propuestas o relatadas por una voz identificable del fallo. Una regla debe poder aplicarse más allá de este caso.
+
+NO EXTRAER:
+- hechos, prueba, historia procesal o argumentos de partes;
+- citas no adoptadas;
+- resúmenes editoriales;
+- decisiones concretas de hacer lugar, rechazar, confirmar, revocar, anular o imponer costas;
+- fórmulas genéricas de admisibilidad o cierre como “satisface los recaudos”, “corresponde declarar procedente”, etc., si no expresan el contenido normativo de esos recaudos;
+- razones puramente casuísticas o incidentales sin vocación generalizable.
+
+ATRIBUCIÓN
+speaker = titular jurídico del criterio; source_speaker = voz en cuyo texto aparece físicamente. Valores: mayoria, disidencia, procurador, tribunal_anterior. La nota editorial nunca es un estándar.
+Si la mayoría relata un criterio previo sin adoptarlo: speaker=tribunal_anterior, source_speaker=mayoria. Si lo hace propio, speaker=mayoria.
+
+treatment: adopta | propone | cita | rechaza.
+
+DEDUPLICA: una sola regla por contenido sustancial. Conserva más de una cita sólo si aporta soporte distinto.
+
+CITAS
+Cada regla debe tener al menos una cita del chunk correspondiente. Usa exactamente el chunk_id corto del encabezado (por ejemplo C0003). Copia una cita mínima pero suficiente; no agregues páginas: Python las deriva del chunk. No inventes ni modifiques chunk_id.
+
+ESTRUCTURA
+Incluye conditions, consequence y exceptions sólo cuando surjan expresamente. Si no corresponden, usa [] o null.
+
+SALIDA
+Devuelve sólo un array JSON válido, sin Markdown ni texto adicional. No generes identifier: Python lo asigna.
+
+Esquema:
+{
+  "statement":"regla breve, fiel y generalizable",
+  "speaker":"mayoria|disidencia|procurador|tribunal_anterior",
+  "source_speaker":"mayoria|disidencia|procurador|tribunal_anterior",
+  "treatment":"adopta|propone|cita|rechaza",
+  "conditions":[],
+  "consequence":null,
+  "exceptions":[],
+  "quotes":[{"chunk_id":"C0001","text":"cita literal mínima suficiente"}]
+}
+
+Si no existe ningún estándar generalizable, devuelve [].
