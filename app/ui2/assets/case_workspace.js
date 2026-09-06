@@ -51,6 +51,15 @@
     if (!response.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + response.status));
     return data;
   }
+  function safeDownloadName(value) {
+    return String(value || 'documento').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 100);
+  }
+  function downloadTextFile(filename, content) {
+    const blob = new Blob([String(content || '')], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob), link = el('a', {href: url, download: filename, hidden: 'hidden'});
+    document.body.append(link); link.click(); link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   function style() {
     if (document.getElementById('lexiaCasesStyle')) return;
     const css = [
@@ -68,6 +77,7 @@
       '.cases-create-dialog{width:min(680px,92vw);max-width:680px}.cases-create-dialog .branch-form{margin:0;padding:2px;border:0;background:transparent}.cases-create-dialog .cases-form-actions{margin-bottom:0}',
       '.evidence-selection-dialog[open]{width:min(940px,92vw);height:min(84vh,720px);max-height:84vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);display:flex;flex-direction:column;overflow:hidden}.evidence-selection-dialog[open]::backdrop{background:rgba(24,31,56,.34)}.evidence-selection-dialog .evidence-dialog-head{flex:0 0 auto;padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.evidence-selection-dialog .evidence-dialog-body{box-sizing:border-box;display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden;padding:11px 13px}.evidence-selection-dialog .evidence-reader{box-sizing:border-box;display:block;flex:1 1 auto;width:100%;min-height:130px;height:auto!important;margin-top:8px;overflow:auto!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.evidence-selection-dialog .evidence-selection-status{flex:0 0 auto;margin:7px 0}.evidence-selection-dialog .evidence-dialog-actions{flex:0 0 auto;display:flex;justify-content:flex-end;gap:6px;margin-top:0;padding-top:8px;background:#fff;border-top:1px solid #edf0f5}',
       '.case-ai-dialog[open]{box-sizing:border-box;width:min(900px,94vw);max-height:88vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);overflow:hidden}.case-ai-dialog::backdrop{background:rgba(24,31,56,.38)}.case-ai-dialog .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.case-ai-dialog .evidence-dialog-body{box-sizing:border-box;max-height:calc(88vh - 48px);padding:13px;overflow:auto}.case-ai-dialog .cases-button,.case-ai-dialog .cases-button-secondary{box-sizing:border-box;font:inherit;font-size:10px;line-height:1.1;font-weight:800;cursor:pointer;border-radius:6px;padding:7px 9px}.case-ai-dialog .cases-button{background:#5146f6;color:#fff;border:1px solid #5146f6}.case-ai-dialog .cases-button-secondary{background:#fff;color:#465176;border:1px solid #d8deed}.case-ai-intro{color:#596583;font-size:11px;line-height:1.45;margin:0 0 12px}.case-ai-option{display:flex;align-items:flex-start;gap:7px;padding:10px;border:1px solid #e1e5ef;border-radius:8px;background:#fafaff;color:#374162;font-size:11px}.case-ai-option input{margin-top:2px}.case-ai-status{min-height:18px;margin:9px 0;color:#6659e8;font-size:10px}.case-ai-preview-meta{margin:0 0 10px;color:#697493;font-size:10px}.case-ai-issue{margin:7px 0;padding:9px;border:1px solid #dfe4ef;border-radius:9px;background:#fff}.case-ai-issue-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:center}.case-ai-issue-head input[type=text]{box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid #dce1ed;border-radius:6px;font:inherit;font-size:11px;font-weight:800;color:#293357}.case-ai-side{margin:7px 0 0;padding-top:6px;border-top:1px solid #edf0f5}.case-ai-side h4{margin:0 0 4px;color:#687492;font-size:9px;text-transform:uppercase}.case-ai-block{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;margin:3px 0;padding:5px;background:#fafaff;border-radius:6px}.case-ai-block textarea{box-sizing:border-box;width:100%;min-height:45px;resize:vertical;padding:5px 6px;border:1px solid #e0e4ee;border-radius:5px;font:10px/1.35 inherit;color:#303a5e}.case-ai-quote{margin:4px 0 0;padding:5px 7px;border-left:2px solid #7c70f7;background:#f5f3ff;color:#56607d;font-size:9px;line-height:1.35;white-space:pre-wrap}.case-ai-dialog .cases-form-actions{position:sticky;bottom:-13px;margin:10px -13px -13px;padding:10px 13px;background:#fff;border-top:1px solid #e7eaf2}',
+      '.case-ai-manual-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.case-ai-manual-response{box-sizing:border-box;width:100%;min-height:145px;margin-top:8px;padding:8px 9px;border:1px solid #dce2ee;border-radius:7px;resize:vertical;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#293357}.case-ai-api-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:13px;padding-top:10px;border-top:1px solid #e8ebf3;color:#7a84a0;font-size:9px}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
@@ -258,20 +268,48 @@
     const closeButton = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'});
     closeButton.addEventListener('click', close);
     const includeOwn = el('input', {type: 'checkbox'}); includeOwn.checked = false;
-    const analyze = el('button', {type: 'button', className: 'cases-button', textContent: 'Analizar documento'}), status = el('p', {className: 'case-ai-status'});
+    const download = el('button', {type: 'button', className: 'cases-button', textContent: 'Descargar TXT para ChatGPT'});
+    const openChatGpt = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Abrir ChatGPT'});
+    const responseText = el('textarea', {className: 'case-ai-manual-response', placeholder: 'Después de adjuntar el TXT en ChatGPT, pegá aquí únicamente la respuesta JSON que devuelve.'});
+    const review = el('button', {type: 'button', className: 'cases-button', textContent: 'Revisar respuesta de ChatGPT'});
+    const analyze = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Analizar con API'}), status = el('p', {className: 'case-ai-status'});
+    const setBusy = busy => {
+      [download, openChatGpt, responseText, review, analyze, includeOwn].forEach(control => { control.disabled = busy; });
+    };
     body.append(
-      el('p', {className: 'case-ai-intro', textContent: 'LexIA enviará el texto indexado del documento inicial a la IA. Las cuestiones, bloques y citas se mostrarán como borrador antes de modificar el árbol.'}),
+      el('p', {className: 'case-ai-intro', textContent: 'Podés probar el árbol sin API: descargá el TXT, adjuntalo a ChatGPT y pegá aquí su respuesta. LexIA sólo aceptará citas textuales que existan en el documento antes de mostrar el borrador.'}),
       el('label', {className: 'case-ai-option'}, includeOwn, el('span', {}, el('b', {textContent: 'Proponer también nuestra postura'}), document.createTextNode(' · Desactivado por defecto. Sólo podrá usar elementos que surjan del mismo documento.'))),
+      el('div', {className: 'case-ai-manual-actions'}, download, openChatGpt),
+      responseText,
+      el('div', {className: 'case-ai-manual-actions'}, review),
       status,
-      el('div', {className: 'cases-form-actions'}, analyze)
+      el('div', {className: 'case-ai-api-actions'}, el('span', {textContent: 'Cuando tengas una API configurada:'}), analyze)
     );
+    download.addEventListener('click', async () => {
+      setBusy(true); status.textContent = 'Preparando el TXT con el documento y la consigna…';
+      try {
+        const result = await api('/api/cases/ai/structure-prompt', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, include_own: includeOwn.checked})});
+        downloadTextFile('LexIA_arbol_' + safeDownloadName(result.document_name) + '.txt', result.prompt);
+        status.textContent = 'TXT descargado. Adjuntalo a ChatGPT, pedile que responda sólo el JSON y pegá su respuesta aquí.';
+      } catch (error) { status.textContent = error.message; }
+      finally { setBusy(false); }
+    });
+    openChatGpt.addEventListener('click', () => window.open('https://chatgpt.com/', '_blank', 'noopener'));
+    review.addEventListener('click', async () => {
+      if (!responseText.value.trim()) { status.textContent = 'Pegá primero la respuesta JSON de ChatGPT.'; return; }
+      setBusy(true); status.textContent = 'Verificando las citas contra el documento…';
+      try {
+        const result = await api('/api/cases/ai/manual-preview', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, include_own: includeOwn.checked, response_text: responseText.value})});
+        renderAiStructurePreview(dialog, body, snapshot, node, result, close);
+      } catch (error) { status.textContent = error.message; setBusy(false); }
+    });
     analyze.addEventListener('click', async () => {
-      analyze.disabled = true; includeOwn.disabled = true; status.textContent = 'Analizando el documento y verificando las citas…';
+      setBusy(true); status.textContent = 'Analizando el documento y verificando las citas…';
       try {
         const result = await api('/api/cases/ai/structure-preview', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: node.id, include_own: includeOwn.checked})});
         renderAiStructurePreview(dialog, body, snapshot, node, result, close);
       } catch (error) {
-        status.textContent = error.message; analyze.disabled = false; includeOwn.disabled = false;
+        status.textContent = error.message; setBusy(false);
       }
     });
     dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Armar árbol con IA · ' + node.title}), closeButton), body);
