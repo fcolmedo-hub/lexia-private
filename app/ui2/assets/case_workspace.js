@@ -928,7 +928,7 @@
     return selected;
   }
   function buildBranchAiPackage(root, questions) {
-    return 'INSTRUCCIÓN ESTRICTA\nRedactá exclusivamente sobre el material incluido abajo. No uses conocimiento externo, no completes datos ausentes, no inventes hechos, normas, antecedentes ni citas. Si una conclusión no surge de las fuentes, indicá expresamente: "No surge de las fuentes aportadas". Diferenciá con claridad el planteo contrario y nuestra postura.\n\nRAMA PRINCIPAL\n' + root.title + '\n\n' + questions.map((question, index) => '=== CUESTIÓN ' + (index + 1) + ' ===\n' + questionAiMaterial(question)).join('\n\n');
+    return 'LEXIA — CONTESTACIÓN DEFINITIVA DE LA RAMA\n\nTAREA\nRedactá una única contestación definitiva de nuestra parte para la rama indicada. Integrá todas las cuestiones seleccionadas en un escrito coherente: exponé sintéticamente cada planteo de la contraparte, contestalo con nuestra postura y desarrollá exclusivamente los fundamentos y evidencias incorporados en LexIA. No entregues un análisis preliminar, un esquema ni recomendaciones: devolvé el texto final de la contestación.\n\nREGLAS ESTRICTAS\n1. No uses conocimiento externo ni inventes hechos, normas, antecedentes o citas.\n2. No omitas cuestiones seleccionadas ni mezcles fundamentos pertenecientes a cuestiones diferentes.\n3. Diferenciá con claridad lo afirmado por la contraparte de nuestra respuesta.\n4. Conservá literalmente las citas documentales cuando las utilices.\n5. Si un fundamento necesario no surge del material, indicá: “No surge de las fuentes aportadas”.\n6. Usá títulos con “# ”, subtítulos con “## ” y párrafos completos, para que LexIA pueda convertir la respuesta a Word.\n7. Devolvé solamente la contestación definitiva, sin explicar el procedimiento seguido.\n\nRAMA PRINCIPAL\n' + root.title + '\n\n' + questions.map((question, index) => '=== CUESTIÓN ' + (index + 1) + ' ===\n' + questionAiMaterial(question)).join('\n\n');
   }
   function branchAiSection(snapshot, root) {
     const questions = descendantQuestions(root), selected = branchSelection(root, questions), output = root.ai_output;
@@ -943,7 +943,7 @@
     if (questions.length) body.append(options);
     else body.append(el('p', {className: 'sources-empty', textContent: 'Agregá al menos una cuestión antes de preparar una consulta.'}));
     let outputId = output ? output.id : null;
-    const text = el('textarea', {value: output ? output.content : '', placeholder: 'Pegá aquí la respuesta de la IA para conservarla en la rama principal.'});
+    const text = el('textarea', {value: output ? output.content : '', placeholder: 'Pegá aquí la contestación definitiva generada por la IA. LexIA la conservará en esta rama y podrá exportarla a Word.'});
     text.addEventListener('input', () => scheduleAutosave('branch-ai:' + root.id, async () => {
       if (!text.value.trim() && !outputId) return;
       const chosen = questions.filter(question => selected.has(question.id)), packageText = buildBranchAiPackage(root, chosen);
@@ -954,7 +954,7 @@
       currentCase = response.case;
       outputId = findNode(response.case.nodes || [], root.id)?.ai_output?.id || outputId;
     }));
-    const prepare = el('button', {type: 'button', className: 'cases-button', textContent: 'Preparar consulta IA'});
+    const prepare = el('button', {type: 'button', className: 'cases-button', textContent: 'Preparar contestación para IA'}), exportDocx = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Exportar contestación a Word'}), exportStatus = el('span', {className: 'case-ai-status'});
     prepare.addEventListener('click', () => {
       const chosen = questions.filter(question => selected.has(question.id));
       if (!chosen.length) return alert('Seleccioná al menos una cuestión.');
@@ -962,15 +962,26 @@
       if (unsupported) return alert('Cada bloque del planteo de la contraparte debe contener al menos un pasaje resaltado antes de consultar a la IA.');
       showAiPackage(buildBranchAiPackage(root, chosen));
     });
-    body.append(el('div', {className: 'argument-block-actions'}, prepare), text);
-    details.append(el('summary', {textContent: output ? 'Consulta a IA · resultado guardado' : 'Consulta a IA'}), body);
+    exportDocx.addEventListener('click', async () => {
+      if (!text.value.trim()) return alert('Pegá primero la contestación definitiva generada por la IA.');
+      clearTimeout(autosaveTimers.get('branch-ai:' + root.id)); autosaveTimers.delete('branch-ai:' + root.id);
+      exportDocx.disabled = true; exportStatus.textContent = 'Generando Word…';
+      try {
+        const result = await api('/api/cases/node/ai-output/export', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: root.id, title: 'Contestación · ' + root.title, content: text.value})});
+        currentCase = result.case; outputId = findNode(result.case.nodes || [], root.id)?.ai_output?.id || outputId;
+        exportStatus.textContent = 'Word creado en ' + result.export_path;
+      } catch (error) { exportStatus.textContent = error.message; }
+      finally { exportDocx.disabled = false; }
+    });
+    body.append(el('div', {className: 'argument-block-actions'}, prepare, exportDocx), exportStatus, text);
+    details.append(el('summary', {textContent: output ? 'Contestación definitiva con IA · borrador guardado' : 'Contestación definitiva con IA'}), body);
     return details;
   }
   function showAiPackage(packageText) {
     const dialog = el('dialog', {className: 'lexia-evidence-dialog'}), area = el('textarea', {className: 'evidence-reader', value: packageText}); area.style.height = '52vh';
     const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'}), copy = el('button', {type: 'button', className: 'cases-button', textContent: 'Copiar'});
     close.addEventListener('click', () => { dialog.close(); dialog.remove(); }); copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(packageText); copy.textContent = 'Copiado'; } catch (_) { area.select(); document.execCommand('copy'); copy.textContent = 'Copiado'; } });
-    dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Paquete cerrado para IA'}), close), el('div', {className: 'evidence-dialog-body'}, area, el('div', {className: 'evidence-dialog-actions'}, copy))); document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
+    dialog.append(el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Paquete para generar la contestación definitiva'}), close), el('div', {className: 'evidence-dialog-body'}, area, el('div', {className: 'evidence-dialog-actions'}, copy))); document.body.append(dialog); if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
   }
   async function importBlockFiles(snapshot, node, block, fileList, target) {
     const files = Array.from(fileList || []); if (!files.length) return;
