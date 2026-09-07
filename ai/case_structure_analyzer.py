@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 from typing import Any
 
 from ai.openai_client import OpenAIAnswer, OpenAIClient
@@ -77,7 +78,16 @@ REGLAS ESTRICTAS:
   partir de contradicciones, límites o elementos que surjan del documento. No
   agregues derecho ni hechos externos. Sus citas pueden quedar vacías.
 - Si nuestra postura no fue solicitada, `own_blocks` debe ser siempre [].
-- Devolvé únicamente el objeto JSON solicitado.
+- Devolvé únicamente un objeto JSON estricto, que pueda leerse directamente
+  con `JSON.parse`, sin texto previo, posterior ni bloque Markdown.
+- Antes de responder, verificá mentalmente que el JSON sea válido. Cada texto
+  debe estar entre comillas dobles y cualquier comilla doble que pertenezca al
+  contenido de una cita debe escribirse como `\\\"`, o bien reemplazarse por
+  comillas tipográficas “ ”. Nunca incluyas una comilla doble literal sin
+  escapar dentro de `title`, `content` o `quotes`.
+- Conservá las citas literalmente en cuanto a sus palabras, pero podés usar
+  comillas tipográficas para representar signos de cita internos y preservar
+  un JSON válido.
 """
 
     def __init__(self, client: OpenAIClient | None = None, max_chars: int = 500_000):
@@ -206,13 +216,31 @@ REGLAS ESTRICTAS:
                     highlights.append(located)
             if require_quote and not highlights:
                 raise CaseStructureError(
-                    f"La IA propuso un bloque de la {context} cuya cita no aparece literalmente en el documento."
+                    f"La IA propuso un bloque de la {context} cuya cita no pudo verificarse en el documento, ni siquiera tras normalizar el OCR."
                 )
             output.append({"content": content, "highlights": highlights})
         return output
 
     @staticmethod
-    def locate_quote(source_text: str, quote_text: str) -> dict | None:
+    def _ocr_key(text: str) -> tuple[str, list[int]]:
+        """Normaliza acentos, espacios y signos, conservando el índice original.
+
+        Los PDF escaneados suelen separar o fusionar palabras de forma irregular.
+        Esta clave permite comprobar el pasaje sin perder el texto original que
+        luego se mostrará como resaltado.
+        """
+        chars, positions = [], []
+        for index, char in enumerate(str(text or "")):
+            for normalized in unicodedata.normalize("NFD", char):
+                if unicodedata.category(normalized) == "Mn":
+                    continue
+                if normalized.isalnum():
+                    chars.append(normalized.casefold())
+                    positions.append(index)
+        return "".join(chars), positions
+
+    @classmethod
+    def locate_quote(cls, source_text: str, quote_text: str) -> dict | None:
         source, quote = str(source_text or ""), str(quote_text or "").strip()
         if not quote:
             return None
@@ -223,9 +251,19 @@ REGLAS ESTRICTAS:
                 return None
             pattern = r"\s+".join(re.escape(word) for word in words)
             match = re.search(pattern, source)
-            if match is None:
-                return None
-            start, end = match.span()
+            if match is not None:
+                start, end = match.span()
+            else:
+                # Último paso: el OCR puede haber unido palabras ("buen nombre"
+                # -> "buennombre"), eliminado acentos o cambiado puntuación.
+                source_key, positions = cls._ocr_key(source)
+                quote_key, _ = cls._ocr_key(quote)
+                normalized_start = source_key.find(quote_key) if len(quote_key) >= 12 else -1
+                if normalized_start < 0:
+                    return None
+                normalized_end = normalized_start + len(quote_key)
+                start = positions[normalized_start]
+                end = positions[normalized_end - 1] + 1
         else:
             end = start + len(quote)
         return {
