@@ -1,6 +1,7 @@
 import json
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from typing import Any
 
 from ai.openai_client import OpenAIAnswer, OpenAIClient
@@ -260,18 +261,94 @@ REGLAS ESTRICTAS:
                 continue
             raw_quotes = raw_block.get("quotes")
             if raw_quotes is None:
-                raw_quotes = [item.get("selected_text", "") for item in raw_block.get("highlights", []) if isinstance(item, dict)]
+                raw_quotes = [item for item in raw_block.get("highlights", []) if isinstance(item, dict)]
             highlights = []
+            review_quotes = []
             for quote in raw_quotes if isinstance(raw_quotes, list) else []:
-                located = cls.locate_quote(source, str(quote or ""))
+                quote_text = str(
+                    quote.get("selected_text", "") if isinstance(quote, dict) else quote or ""
+                ).strip()
+                located = cls.locate_quote(source, quote_text)
                 if located and not any(item["start_char"] == located["start_char"] and item["end_char"] == located["end_char"] for item in highlights):
                     highlights.append(located)
-            if require_quote and not highlights:
+                elif isinstance(quote, dict) and bool(quote.get("user_approved_ai")) and quote_text:
+                    # Excepción deliberada y trazable: el usuario comparó el
+                    # dato de LexIA con el de la IA y eligió esta última cita.
+                    highlights.append({
+                        "selected_text": quote_text,
+                        "start_char": -1,
+                        "end_char": -1,
+                        "user_approved_ai": True,
+                    })
+                elif quote_text:
+                    # No se descarta la estructura por una divergencia OCR/IA:
+                    # se devuelve el pasaje literal más próximo para revisión
+                    # humana y la UI exige una decisión expresa antes de crear.
+                    candidate = cls.suggest_quote(source, quote_text)
+                    review_quotes.append({
+                        "ai_quote": quote_text,
+                        "lexia_candidate": candidate,
+                    })
+            if require_quote and not highlights and not review_quotes:
                 raise CaseStructureError(
-                    f"La IA propuso un bloque de la {context} cuya cita no pudo verificarse en el documento, ni siquiera tras normalizar el OCR."
+                    f"La cuestión {context} no contiene una cita utilizable para revisar."
                 )
-            output.append({"content": content, "highlights": highlights})
+            output.append({
+                "content": content,
+                "highlights": highlights,
+                "review_quotes": review_quotes,
+            })
         return output
+
+    @classmethod
+    def suggest_quote(cls, source_text: str, quote_text: str) -> dict | None:
+        """Devuelve un pasaje literal cercano para resolver diferencias de OCR.
+
+        Es una sugerencia para el usuario, nunca una validación automática.
+        """
+        source = str(source_text or "")
+        quote = str(quote_text or "").strip()
+        terms = sorted(
+            {term.casefold() for term in re.findall(r"[\wÁÉÍÓÚÜÑáéíóúüñ]{4,}", quote)},
+            key=len,
+            reverse=True,
+        )[:8]
+        if not source or not terms:
+            return None
+        candidates = []
+        seen = set()
+        for term in terms:
+            for match in re.finditer(re.escape(term), source, flags=re.IGNORECASE):
+                start = max(0, match.start() - 260)
+                end = min(len(source), match.end() + max(520, len(quote) + 180))
+                key = (start, end)
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append((start, end))
+                if len(candidates) >= 48:
+                    break
+            if len(candidates) >= 48:
+                break
+        if not candidates:
+            return None
+        quote_key, _ = cls._ocr_key(quote)
+        best = None
+        for start, end in candidates:
+            text = source[start:end]
+            candidate_key, _ = cls._ocr_key(text)
+            score = SequenceMatcher(None, quote_key, candidate_key, autojunk=False).ratio()
+            if best is None or score > best[0]:
+                best = (score, start, end, text)
+        if best is None:
+            return None
+        score, start, end, text = best
+        return {
+            "selected_text": text.strip(),
+            "start_char": start,
+            "end_char": end,
+            "similarity": round(float(score), 3),
+        }
 
     @staticmethod
     def _ocr_key(text: str) -> tuple[str, list[int]]:
