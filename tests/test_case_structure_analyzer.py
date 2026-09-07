@@ -74,6 +74,27 @@ def test_manual_package_and_response_validation_need_no_api():
     assert proposal["issues"][0]["blocks"]["contraparte"][0]["highlights"]
 
 
+def test_user_approved_ai_quote_keeps_lexia_candidate_for_viewer():
+    source = "La actora reclama diferencias salariales desde enero de 2023."
+    candidate = CaseStructureAnalyzer.locate_quote(source, source)
+    proposal = CaseStructureAnalyzer.validate_proposal({"issues": [{
+        "title": "Diferencias salariales",
+        "adversary_blocks": [{
+            "content": "La actora reclama diferencias.",
+            "quotes": [{
+                "selected_text": "La actora reclamó diferencias salariales desde enero de 2023.",
+                "user_approved_ai": True,
+                "lexia_candidate": candidate,
+            }],
+        }],
+        "own_blocks": [],
+    }]}, source, include_own=False)
+    highlight = proposal["issues"][0]["blocks"]["contraparte"][0]["highlights"][0]
+    assert highlight["selected_text"].startswith("La actora reclamó")
+    assert highlight["viewer_text"] == source
+    assert highlight["start_char"] == 0
+    assert highlight["end_char"] == len(source)
+
 def test_parser_repairs_unescaped_quotes_inside_ai_quote():
     raw = '''{"issues":[{"title":"Medida","adversary_blocks":[{"content":"Contenido","quotes":["La tutela"(CNFed., "Arrazola").-"]}],"own_blocks":[]}]}'''
     parsed = CaseStructureAnalyzer._parse_json(raw)
