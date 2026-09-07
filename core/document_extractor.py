@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 import zipfile
 import xml.etree.ElementTree as ET
 from typing import Callable
@@ -259,8 +260,21 @@ class DocumentExtractor:
             for page_number, text in pages.items()
             if len((text or "").strip()) < minimum
         ]
-        if not short_pages:
+        unreadable_pages = [
+            page_number
+            for page_number, text in pages.items()
+            if self._native_text_is_unreadable(text)
+        ]
+        if not short_pages and not unreadable_pages:
             return []
+
+        # Una capa de texto PDF puede contener miles de caracteres inválidos
+        # (cuadrados de sustitución) y superar el mínimo de longitud. En ese
+        # caso no debe bloquear el OCR: el visor gráfico se ve bien, pero el
+        # texto que usan búsqueda e IA resulta inutilizable.
+        if unreadable_pages:
+            return sorted(set(unreadable_pages))
+
         # Una pagina sin texto y sin una imagen documental es una pagina en
         # blanco, no una pagina pendiente de OCR.
         image_pages = (
@@ -274,6 +288,18 @@ class DocumentExtractor:
         if native_ratio >= 0.50:
             return []
         return image_pages
+
+    @staticmethod
+    def _native_text_is_unreadable(text: str) -> bool:
+        value = str(text or "")
+        visible = [char for char in value if not char.isspace()]
+        if len(visible) < 24:
+            return False
+        replacements = sum(
+            char == "\ufffd" or char == "□" or unicodedata.category(char) == "Co"
+            for char in visible
+        )
+        return replacements >= max(8, int(len(visible) * 0.12))
 
     def _image_pages_with_content(
         self,
