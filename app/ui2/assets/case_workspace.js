@@ -93,8 +93,8 @@
       '#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border:1px solid #d6a83f!important;border-radius:7px!important;background:#fff8df!important;color:#7c5a00!important;font-size:0!important;line-height:1!important}#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]::before{content:"↻";font-size:17px;line-height:1;font-weight:800}#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]:disabled{opacity:.65;cursor:wait}',
       '#searchpage #realSearchResults .result-actions{display:grid!important;grid-template-columns:repeat(6,28px)!important;grid-template-rows:28px 20px!important;width:188px!important;min-width:188px!important;justify-content:end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-investigate-file{border-color:#5146f6!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-investigate-file:hover{border-color:#4035da!important;background:#4035da!important}#searchpage #realSearchResults .result-actions .score{grid-column:6!important;grid-row:2!important;display:grid!important;place-items:center!important;width:28px!important;min-width:28px!important;height:20px!important;margin:0!important;padding:0!important;font-size:9px!important;line-height:1!important;overflow:visible!important;white-space:nowrap!important}#searchpage #realSearchResults .result-actions .lexia-ocr-status{grid-column:1 / 6!important;grid-row:2!important;align-self:center!important;overflow:hidden!important;color:#7c5a00!important;font-size:8px!important;line-height:1!important;text-overflow:ellipsis!important;white-space:nowrap!important}',
       '#searchpage #realSearchResults .result-card{grid-template-columns:28px minmax(0,1fr) 122px!important;overflow:hidden!important}#searchpage #realSearchResults .result-actions{grid-template-columns:repeat(5,22px)!important;grid-template-rows:22px 19px!important;width:122px!important;min-width:122px!important;max-width:122px!important;gap:3px!important;margin-right:1px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions .search-investigate-file,#searchpage #realSearchResults .result-actions .search-file-info,#searchpage #realSearchResults .result-actions .search-delete-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link],#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]{width:22px!important;min-width:22px!important;height:22px!important;min-height:22px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#e5ae00!important;background:#f5c542!important;color:#5c4600!important}#searchpage #realSearchResults .result-actions .search-open-file:hover,#searchpage #realSearchResults .result-actions [data-lexia-case-link]:hover{border-color:#c89500!important;background:#ffd761!important}#searchpage #realSearchResults .result-actions .search-open-file::before{content:"↗"!important;font-size:14px!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]::before{content:"⇥"!important;font-size:15px!important}#searchpage #realSearchResults .result-actions .search-investigate-file::before,#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]::before{font-size:14px!important}#searchpage #realSearchResults .result-actions .search-file-info::before{font-size:12px!important}#searchpage #realSearchResults .result-actions .search-delete-file::before{font-size:15px!important}#searchpage #realSearchResults .result-actions .score{grid-column:5!important;grid-row:2!important;width:22px!important;min-width:22px!important;height:19px!important}#searchpage #realSearchResults .result-actions .lexia-ocr-status{grid-column:1 / 5!important;grid-row:2!important}.lexia-action-tooltip{position:fixed;z-index:10090;max-width:220px;padding:5px 7px;border-radius:6px;background:#222a45;color:#fff;box-shadow:0 4px 15px rgba(20,28,56,.24);font:10px/1.25 system-ui,sans-serif;pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .08s ease,transform .08s ease}.lexia-action-tooltip.is-visible{opacity:1;transform:translateY(0)}',
-      '#searchpage #realSearchResults .result-actions .search-open-file{border-color:#128447!important;background:#169b55!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-open-file:hover{border-color:#0f753e!important;background:#128847!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#b57c0c!important;background:#d49a19!important;color:#2f2200!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]:hover{border-color:#996708!important;background:#e5ad2d!important}',
-      '#' + PAGE_ID + ' .evidence-reader{cursor:text!important;-webkit-user-select:text!important;user-select:text!important}#' + PAGE_ID + ' .evidence-existing-mark{background:#fff19c;color:inherit;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #e1c542;pointer-events:none;-webkit-user-select:text;user-select:text}',
+      '#searchpage #realSearchResults .result-actions .search-open-file{border-color:#128447!important;background:#169b55!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-open-file:hover{border-color:#0f753e!important;background:#128847!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#b57c0c!important;background:#d49a19!important;color:#2f2200!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]:hover{border-color:#996708!important;background:#e5ad2d!important}#searchpage #realSearchResults .result-actions .search-open-file.search-investigate-file{border-color:#4035da!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-open-file.search-investigate-file:hover{border-color:#342ac7!important;background:#4035da!important}',
+      '#' + PAGE_ID + ' .evidence-reader{cursor:text!important;resize:none!important;-webkit-user-select:text!important;user-select:text!important}#' + PAGE_ID + ' .evidence-reader::selection{background:#f1d64f;color:#202944}#' + PAGE_ID + ' .evidence-existing-mark{background:#fff19c;color:inherit;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #e1c542;pointer-events:none;-webkit-user-select:text;user-select:text}',
       '#' + PAGE_ID + ' .primary-head{gap:9px;padding:9px 11px}#' + PAGE_ID + ' .branch-mark{width:24px;height:24px;font-size:12px}#' + PAGE_ID + ' .branch-title b{font-size:13px;line-height:1.25}#' + PAGE_ID + ' .branch-title small{margin-top:2px;font-size:10px}#' + PAGE_ID + ' .branch-questions{padding:8px 10px 10px}#' + PAGE_ID + ' .question-row{gap:9px;padding:8px 9px;margin-top:6px}#' + PAGE_ID + ' .question-row strong{font-size:12px;line-height:1.28}#' + PAGE_ID + ' .question-row small{margin-top:2px;max-width:none;font-size:10px;line-height:1.3}#' + PAGE_ID + ' .question-row-active strong{font-size:13px}',
       '#' + PAGE_ID + ' .question-row-active{position:relative;z-index:1;margin-top:7px;padding:8px 9px;border-color:#8e85ff;background:#fbfaff;box-shadow:0 0 0 2px rgba(93,81,244,.10)}#' + PAGE_ID + ' .question-row-active strong{font-size:13px;color:#25305a;white-space:normal;overflow:visible}#' + PAGE_ID + ' .question-row-active small{display:none}#' + PAGE_ID + ' .case-workspace-inline{margin:0!important;border:1px solid #8e85ff!important;border-top:0!important;border-radius:0 0 8px 8px!important;box-shadow:0 2px 7px rgba(72,62,184,.08)!important}#' + PAGE_ID + ' .question-row-active + .case-workspace-inline{margin-top:-1px!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-layout{min-height:0!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-editor{padding-top:9px!important}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
@@ -704,6 +704,14 @@
     window.open('/api/file-preview?path=' + encodeURIComponent(path), '_blank', 'noopener');
   }
   function selectionOffsets(reader) {
+    if (reader instanceof HTMLTextAreaElement) {
+      const rawStart = Number(reader.selectionStart || 0), rawEnd = Number(reader.selectionEnd || 0);
+      if (rawEnd <= rawStart) return null;
+      const raw = reader.value.slice(rawStart, rawEnd), leading = raw.length - raw.trimStart().length;
+      const text = raw.trim(); if (!text) return null;
+      const start = rawStart + leading;
+      return {text, start, end: start + text.length};
+    }
     const selection = window.getSelection(); if (!selection || !selection.rangeCount || !selection.toString().trim()) return null;
     const range = selection.getRangeAt(0); if (!reader.contains(range.commonAncestorContainer)) return null;
     const prefix = range.cloneRange(); prefix.selectNodeContents(reader); prefix.setEnd(range.startContainer, range.startOffset);
@@ -711,7 +719,7 @@
     return {text: selected, start, end: start + selected.length};
   }
   function revealExistingHighlight(reader, savedText) {
-    const source = String(reader.textContent || ''), exact = String(savedText || '').trim();
+    const source = String(reader instanceof HTMLTextAreaElement ? reader.value : reader.textContent || ''), exact = String(savedText || '').trim();
     if (!exact) return false;
     let start = source.indexOf(exact), length = exact.length;
     if (start < 0) {
@@ -740,6 +748,14 @@
       }
     }
     if (start < 0) return false;
+    if (reader instanceof HTMLTextAreaElement) {
+      reader.focus({preventScroll: true});
+      reader.setSelectionRange(start, start + length);
+      const lineHeight = Number.parseFloat(getComputedStyle(reader).lineHeight) || 16;
+      const precedingLines = source.slice(0, start).split('\n').length - 1;
+      reader.scrollTop = Math.max(0, precedingLines * lineHeight - reader.clientHeight * .42);
+      return true;
+    }
     const mark = el('mark', {className: 'evidence-existing-mark', textContent: source.slice(start, start + length)});
     reader.replaceChildren(
       document.createTextNode(source.slice(0, start)),
@@ -768,7 +784,7 @@
   }
   function openEvidenceDialog(snapshot, node, block, documents, existing) {
     if (!documents.length) return alert('Primero cargá o vinculá un archivo a la rama del caso.');
-    const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('pre', {className: 'evidence-reader', tabindex: '0', textContent: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar.'});
+    const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('textarea', {className: 'evidence-reader', readonly: 'readonly', spellcheck: 'false', value: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar.'});
     reader.style.cssText = 'box-sizing:border-box;display:block;width:100%;max-width:100%;min-width:0;white-space:pre-wrap;overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;word-break:break-word;';
     documents.forEach(doc => select.append(el('option', {value: String(doc.id), textContent: doc.document_name})));
     if (existing) select.value = String(existing.case_document_id);
@@ -776,20 +792,18 @@
     let selected = null, preview = null, displayWasReformatted = false;
     const selectedDocument = () => documents.find(item => String(item.id) === select.value);
     const enableNewSelection = () => {
-      const source = String(reader.textContent || '');
-      reader.replaceChildren(document.createTextNode(source));
       selected = null;
-      const selection = window.getSelection(); if (selection) selection.removeAllRanges();
+      reader.focus({preventScroll: true});
+      reader.setSelectionRange(0, 0);
       status.textContent = 'Ahora seleccioná con el mouse el nuevo pasaje y pulsá “Reemplazar resaltado”.';
-      reader.focus();
     };
     const load = async () => {
-      selected = null; status.textContent = 'Cargando el texto indexado de LexIA…'; reader.textContent = '';
+      selected = null; status.textContent = 'Cargando el texto indexado de LexIA…'; reader.value = '';
       try {
         const doc = selectedDocument(), data = await api('/api/catalog-text-preview?path=' + encodeURIComponent(doc.document_path));
         preview = data;
         const formatted = formatEvidenceText(data.text || '', doc.document_path);
-        displayWasReformatted = formatted.reformatted; reader.textContent = formatted.text;
+        displayWasReformatted = formatted.reformatted; reader.value = formatted.text;
         status.textContent = displayWasReformatted
           ? 'La vista de Word fue separada en párrafos para facilitar la selección. Seleccioná el pasaje exacto que querés conservar.'
           : 'Seleccioná con el mouse el pasaje exacto que querés conservar.';
@@ -805,7 +819,7 @@
             status.textContent = 'No se pudo ubicar automáticamente el pasaje anterior. Seleccioná el texto que querés conservar.';
           }
         });
-      } catch (error) { preview = null; reader.textContent = ''; status.textContent = 'No se pudo cargar texto seleccionable: ' + error.message; }
+      } catch (error) { preview = null; reader.value = ''; status.textContent = 'No se pudo cargar texto seleccionable: ' + error.message; }
     };
     // La selección nativa suele desaparecer cuando el usuario activa el botón
     // con Enter o con el mouse. Se conserva su último rango válido antes de que
@@ -816,7 +830,7 @@
     };
     const stopSelectionTracking = () => document.removeEventListener('selectionchange', capture);
     document.addEventListener('selectionchange', capture);
-    reader.addEventListener('mouseup', capture); reader.addEventListener('keyup', capture); select.addEventListener('change', load);
+    reader.addEventListener('select', capture); reader.addEventListener('mouseup', capture); reader.addEventListener('keyup', capture); select.addEventListener('change', load);
     if (changeSelection) changeSelection.addEventListener('click', enableNewSelection);
     save.addEventListener('pointerdown', capture); save.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') capture(); });
     close.addEventListener('click', () => { stopSelectionTracking(); dialog.close(); dialog.remove(); });
