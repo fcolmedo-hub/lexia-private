@@ -92,6 +92,7 @@
       '#searchpage #realSearchResults .result-actions{width:auto!important;min-width:0!important;flex-direction:row!important;align-items:center!important;justify-content:flex-end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions .search-investigate-file,#searchpage #realSearchResults .result-actions .search-file-info,#searchpage #realSearchResults .result-actions .search-delete-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link]{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border-radius:7px!important;font-size:0!important;line-height:1!important}#searchpage #realSearchResults .result-actions .search-open-file{border-color:#e5ae00!important;background:#f5c542!important;color:#5c4600!important}#searchpage #realSearchResults .result-actions .search-open-file:hover{border-color:#c89500!important;background:#ffd761!important}#searchpage #realSearchResults .result-actions .search-open-file::before{content:"↗";font-size:17px;line-height:1;font-weight:900}#searchpage #realSearchResults .result-actions .search-investigate-file::before{content:"⌕";font-size:17px;line-height:1;font-weight:800}#searchpage #realSearchResults .result-actions .search-file-info::before{content:"i";font-size:14px;line-height:1;font-family:Georgia,serif;font-weight:800}#searchpage #realSearchResults .result-actions .search-delete-file::before{content:"×";font-size:18px;line-height:1;font-weight:700}#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#169b55!important;background:#169b55!important;color:#fff!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]::before{content:"+";font-size:18px;line-height:1;font-weight:800}',
       '#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border:1px solid #d6a83f!important;border-radius:7px!important;background:#fff8df!important;color:#7c5a00!important;font-size:0!important;line-height:1!important}#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]::before{content:"↻";font-size:17px;line-height:1;font-weight:800}#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]:disabled{opacity:.65;cursor:wait}',
       '#searchpage #realSearchResults .result-actions{display:grid!important;grid-template-columns:repeat(6,28px)!important;grid-template-rows:28px 20px!important;width:188px!important;min-width:188px!important;justify-content:end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-investigate-file{border-color:#5146f6!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-investigate-file:hover{border-color:#4035da!important;background:#4035da!important}#searchpage #realSearchResults .result-actions .score{grid-column:6!important;grid-row:2!important;display:grid!important;place-items:center!important;width:28px!important;min-width:28px!important;height:20px!important;margin:0!important;padding:0!important;font-size:9px!important;line-height:1!important;overflow:visible!important;white-space:nowrap!important}#searchpage #realSearchResults .result-actions .lexia-ocr-status{grid-column:1 / 6!important;grid-row:2!important;align-self:center!important;overflow:hidden!important;color:#7c5a00!important;font-size:8px!important;line-height:1!important;text-overflow:ellipsis!important;white-space:nowrap!important}',
+      '#searchpage #realSearchResults .result-actions{grid-template-columns:repeat(6,24px)!important;grid-template-rows:24px 20px!important;width:159px!important;min-width:159px!important;gap:3px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions .search-investigate-file,#searchpage #realSearchResults .result-actions .search-file-info,#searchpage #realSearchResults .result-actions .search-delete-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link],#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]{width:24px!important;min-width:24px!important;height:24px!important;min-height:24px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#e5ae00!important;background:#f5c542!important;color:#5c4600!important}#searchpage #realSearchResults .result-actions .search-open-file:hover,#searchpage #realSearchResults .result-actions [data-lexia-case-link]:hover{border-color:#c89500!important;background:#ffd761!important}#searchpage #realSearchResults .result-actions .search-open-file::before,#searchpage #realSearchResults .result-actions [data-lexia-case-link]::before{content:"↗"!important;font-size:15px!important}#searchpage #realSearchResults .result-actions .search-investigate-file::before,#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]::before{font-size:15px!important}#searchpage #realSearchResults .result-actions .search-file-info::before{font-size:13px!important}#searchpage #realSearchResults .result-actions .search-delete-file::before{font-size:16px!important}#searchpage #realSearchResults .result-actions .score{grid-column:6!important;grid-row:2!important;width:24px!important;min-width:24px!important}.lexia-action-tooltip{position:fixed;z-index:10090;max-width:220px;padding:5px 7px;border-radius:6px;background:#222a45;color:#fff;box-shadow:0 4px 15px rgba(20,28,56,.24);font:10px/1.25 system-ui,sans-serif;pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .08s ease,transform .08s ease}.lexia-action-tooltip.is-visible{opacity:1;transform:translateY(0)}',
       '#' + PAGE_ID + ' .primary-head{gap:9px;padding:9px 11px}#' + PAGE_ID + ' .branch-mark{width:24px;height:24px;font-size:12px}#' + PAGE_ID + ' .branch-title b{font-size:13px;line-height:1.25}#' + PAGE_ID + ' .branch-title small{margin-top:2px;font-size:10px}#' + PAGE_ID + ' .branch-questions{padding:8px 10px 10px}#' + PAGE_ID + ' .question-row{gap:9px;padding:8px 9px;margin-top:6px}#' + PAGE_ID + ' .question-row strong{font-size:12px;line-height:1.28}#' + PAGE_ID + ' .question-row small{margin-top:2px;max-width:none;font-size:10px;line-height:1.3}#' + PAGE_ID + ' .question-row-active strong{font-size:13px}',
       '#' + PAGE_ID + ' .question-row-active{position:relative;z-index:1;margin-top:7px;padding:8px 9px;border-color:#8e85ff;background:#fbfaff;box-shadow:0 0 0 2px rgba(93,81,244,.10)}#' + PAGE_ID + ' .question-row-active strong{font-size:13px;color:#25305a;white-space:normal;overflow:visible}#' + PAGE_ID + ' .question-row-active small{display:none}#' + PAGE_ID + ' .case-workspace-inline{margin:0!important;border:1px solid #8e85ff!important;border-top:0!important;border-radius:0 0 8px 8px!important;box-shadow:0 2px 7px rgba(72,62,184,.08)!important}#' + PAGE_ID + ' .question-row-active + .case-workspace-inline{margin-top:-1px!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-layout{min-height:0!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-editor{padding-top:9px!important}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
@@ -971,10 +972,55 @@
         });
         actions.append(ocr);
       }
+      const help = [
+        ['.search-open-file', 'Abrir archivo'],
+        ['.search-investigate-file', 'Cargar contenido en Investigación'],
+        ['.search-file-info', 'Ver detalles del archivo'],
+        ['.search-delete-file', 'Eliminar archivo'],
+        ['[data-lexia-case-link]', 'Agregar al caso'],
+        ['[data-lexia-ocr-reprocess]', 'Reprocesar OCR del PDF'],
+      ];
+      help.forEach(([selector, label]) => actions.querySelectorAll(selector).forEach(button => {
+        button.dataset.lexiaTooltip = label;
+        button.setAttribute('aria-label', label);
+        button.removeAttribute('title');
+      }));
+    });
+  }
+  function installQuickActionTooltips() {
+    let tip = null, shownFor = null, timer = null;
+    const selector = '#searchpage .result-actions .search-open-file,#searchpage .result-actions .search-investigate-file,#searchpage .result-actions .search-file-info,#searchpage .result-actions .search-delete-file,#searchpage .result-actions [data-lexia-case-link],#searchpage .result-actions [data-lexia-ocr-reprocess]';
+    const hide = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (tip) tip.classList.remove('is-visible');
+      shownFor = null;
+    };
+    const place = target => {
+      if (!tip || !target) return;
+      const box = target.getBoundingClientRect();
+      tip.style.left = Math.max(6, Math.min(window.innerWidth - tip.offsetWidth - 6, box.left + box.width / 2 - tip.offsetWidth / 2)) + 'px';
+      tip.style.top = Math.max(6, box.top - tip.offsetHeight - 6) + 'px';
+    };
+    document.addEventListener('pointerover', event => {
+      const target = event.target.closest?.(selector);
+      if (!target || target === shownFor || target.disabled) return;
+      hide(); shownFor = target;
+      timer = setTimeout(() => {
+        if (shownFor !== target) return;
+        const label = target.dataset.lexiaTooltip || target.getAttribute('aria-label');
+        if (!label) return;
+        if (!tip) { tip = el('div', {className: 'lexia-action-tooltip', role: 'tooltip'}); document.body.append(tip); }
+        tip.textContent = label; tip.classList.add('is-visible'); place(target);
+      }, 120);
+    });
+    document.addEventListener('pointerout', event => {
+      const target = event.target.closest?.(selector);
+      if (target && (!event.relatedTarget || !target.contains(event.relatedTarget))) hide();
     });
   }
   function initialize() {
     style(); createPage(); navigation(); navigationExit(); installHomeCasesCard();
+    installQuickActionTooltips();
     installDocumentActions(document);
     new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
       if (node.nodeType === 1) installDocumentActions(node);
