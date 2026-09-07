@@ -136,6 +136,21 @@ def load_state(workdir: Path) -> dict[str, Any]:
     return value
 
 
+def save_state(workdir: Path, state: dict[str, Any]) -> None:
+    (workdir / "batch_state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def batch_snapshot(batch: Any) -> dict[str, Any]:
+    return {
+        "batch_id": batch.id,
+        "status": batch.status,
+        "input_file_id": getattr(batch, "input_file_id", None),
+        "output_file_id": getattr(batch, "output_file_id", None),
+        "error_file_id": getattr(batch, "error_file_id", None),
+        "request_counts": batch.request_counts.model_dump() if getattr(batch, "request_counts", None) is not None else None,
+    }
+
+
 def cmd_prepare(args: argparse.Namespace) -> int:
     rows = load_jsonl(args.candidates)
     if args.limit is not None:
@@ -185,8 +200,8 @@ def cmd_submit(args: argparse.Namespace) -> int:
     with request_path.open("rb") as fh:
         uploaded = client.files.create(file=fh, purpose="batch")
     batch = client.batches.create(input_file_id=uploaded.id, endpoint="/v1/responses", completion_window="24h", metadata={"purpose": "lexia-standards-canonicalization"})
-    state = {"batch_id": batch.id, "input_file_id": uploaded.id, "status": batch.status}
-    (args.workdir / "batch_state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    state = batch_snapshot(batch)
+    save_state(args.workdir, state)
     print(json.dumps(state, ensure_ascii=False, indent=2))
     return 0
 
@@ -195,15 +210,20 @@ def cmd_status(args: argparse.Namespace) -> int:
     client = require_sdk()
     state = load_state(args.workdir)
     batch = client.batches.retrieve(str(state["batch_id"]))
-    result = {
-        "batch_id": batch.id,
-        "status": batch.status,
-        "output_file_id": getattr(batch, "output_file_id", None),
-        "error_file_id": getattr(batch, "error_file_id", None),
-        "request_counts": batch.request_counts.model_dump() if getattr(batch, "request_counts", None) is not None else None,
-    }
+    result = batch_snapshot(batch)
     state.update(result)
-    (args.workdir / "batch_state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    save_state(args.workdir, state)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_cancel(args: argparse.Namespace) -> int:
+    client = require_sdk()
+    state = load_state(args.workdir)
+    batch = client.batches.cancel(str(state["batch_id"]))
+    result = batch_snapshot(batch)
+    state.update(result)
+    save_state(args.workdir, state)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
@@ -212,24 +232,37 @@ def cmd_collect(args: argparse.Namespace) -> int:
     client = require_sdk()
     state = load_state(args.workdir)
     batch = client.batches.retrieve(str(state["batch_id"]))
-    if batch.status != "completed":
+    if batch.status not in {"completed", "cancelled", "expired"}:
         print(json.dumps({"batch_id": batch.id, "status": batch.status}, ensure_ascii=False, indent=2))
         return 2
     output_file_id = getattr(batch, "output_file_id", None)
     if not output_file_id:
-        raise RuntimeError("Batch completado sin output_file_id")
+        raise RuntimeError(f"Batch {batch.status} sin output_file_id; todavía no hay resultados parciales recuperables")
     manifest = json.loads((args.workdir / "manifest.json").read_text(encoding="utf-8"))
-    by_custom = {row["custom_id"]: row for row in manifest.get("rows", [])}
+    manifest_rows = manifest.get("rows", []) if isinstance(manifest.get("rows"), list) else []
+    by_custom = {row["custom_id"]: row for row in manifest_rows if isinstance(row, dict) and row.get("custom_id")}
     raw_content = client.files.content(output_file_id).read()
     raw_text = raw_content.decode("utf-8") if isinstance(raw_content, bytes) else str(raw_content)
     (args.workdir / "batch_output.jsonl").write_text(raw_text, encoding="utf-8")
     results: list[dict[str, Any]] = []
-    summary = {"completed": 0, "valid_json": 0, "failed": 0, "input_tokens": 0, "output_tokens": 0, "relations": {name: 0 for name in RELATIONS}}
+    seen_custom_ids: set[str] = set()
+    summary = {
+        "batch_status": batch.status,
+        "expected": len(by_custom),
+        "completed": 0,
+        "valid_json": 0,
+        "failed": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "relations": {name: 0 for name in RELATIONS},
+    }
     for raw in raw_text.splitlines():
         if not raw.strip():
             continue
         record = json.loads(raw)
         custom_id = str(record.get("custom_id") or "")
+        if custom_id:
+            seen_custom_ids.add(custom_id)
         meta = by_custom.get(custom_id)
         response_info = record.get("response") if isinstance(record.get("response"), dict) else {}
         body = response_info.get("body") if isinstance(response_info.get("body"), dict) else {}
@@ -260,17 +293,66 @@ def cmd_collect(args: argparse.Namespace) -> int:
         if valid:
             summary["valid_json"] += 1
             summary["relations"][str(parsed["relation"])] += 1
+
+    missing_custom_ids = [custom_id for custom_id in by_custom if custom_id not in seen_custom_ids]
+    summary["missing"] = len(missing_custom_ids)
+    summary["missing_custom_ids"] = missing_custom_ids
+
     results_dir = args.workdir / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     (results_dir / "classifications.jsonl").write_text("\n".join(json.dumps(x, ensure_ascii=False, separators=(",", ":")) for x in results) + ("\n" if results else ""), encoding="utf-8")
+    (results_dir / "missing_custom_ids.json").write_text(json.dumps(missing_custom_ids, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (results_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if summary["failed"] == 0 and summary["valid_json"] == summary["completed"] else 1
 
 
+def cmd_prepare_missing(args: argparse.Namespace) -> int:
+    source_workdir = args.source_workdir
+    missing_path = source_workdir / "results" / "missing_custom_ids.json"
+    if not missing_path.exists():
+        raise RuntimeError(f"No existe {missing_path}; ejecute primero collect sobre el batch original")
+    missing = json.loads(missing_path.read_text(encoding="utf-8"))
+    if not isinstance(missing, list):
+        raise RuntimeError("missing_custom_ids.json inválido")
+    missing_ids = {str(x) for x in missing}
+    if not missing_ids:
+        print(json.dumps({"prepared": 0, "message": "No hay requests faltantes"}, ensure_ascii=False, indent=2))
+        return 0
+
+    original_requests = load_jsonl(source_workdir / "batch_input.jsonl")
+    original_manifest = json.loads((source_workdir / "manifest.json").read_text(encoding="utf-8"))
+    selected_requests = [row for row in original_requests if str(row.get("custom_id") or "") in missing_ids]
+    manifest_rows = original_manifest.get("rows", []) if isinstance(original_manifest.get("rows"), list) else []
+    selected_manifest = [row for row in manifest_rows if isinstance(row, dict) and str(row.get("custom_id") or "") in missing_ids]
+
+    found_ids = {str(row.get("custom_id") or "") for row in selected_requests}
+    unresolved = sorted(missing_ids - found_ids)
+    if unresolved:
+        raise RuntimeError(f"No se encontraron requests originales para: {unresolved}")
+
+    args.workdir.mkdir(parents=True, exist_ok=True)
+    (args.workdir / "batch_input.jsonl").write_text("\n".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) for row in selected_requests) + "\n", encoding="utf-8")
+    retry_manifest = {
+        "model": original_manifest.get("model"),
+        "reasoning_effort": original_manifest.get("reasoning_effort"),
+        "requests": len(selected_manifest),
+        "retry_of": str(source_workdir.resolve()),
+        "rows": selected_manifest,
+    }
+    (args.workdir / "manifest.json").write_text(json.dumps(retry_manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({
+        "prepared": len(selected_requests),
+        "custom_ids": [row.get("custom_id") for row in selected_requests],
+        "workdir": str(args.workdir.resolve()),
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Clasifica candidatos de canonicalización mediante Batch + Structured Outputs.")
     sub = parser.add_subparsers(dest="command", required=True)
+
     p = sub.add_parser("prepare")
     p.add_argument("--candidates", type=Path, default=DEFAULT_CANDIDATES)
     p.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
@@ -279,7 +361,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--reasoning-effort", default="medium")
     p.add_argument("--max-output-tokens", type=int, default=700)
     p.set_defaults(func=cmd_prepare)
-    for name, func in (("submit", cmd_submit), ("status", cmd_status), ("collect", cmd_collect)):
+
+    pm = sub.add_parser("prepare-missing")
+    pm.add_argument("--source-workdir", type=Path, required=True)
+    pm.add_argument("--workdir", type=Path, required=True)
+    pm.set_defaults(func=cmd_prepare_missing)
+
+    for name, func in (("submit", cmd_submit), ("status", cmd_status), ("cancel", cmd_cancel), ("collect", cmd_collect)):
         q = sub.add_parser(name)
         q.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
         q.set_defaults(func=func)
