@@ -94,7 +94,7 @@
       '#searchpage #realSearchResults .result-actions{display:grid!important;grid-template-columns:repeat(6,28px)!important;grid-template-rows:28px 20px!important;width:188px!important;min-width:188px!important;justify-content:end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-investigate-file{border-color:#5146f6!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-investigate-file:hover{border-color:#4035da!important;background:#4035da!important}#searchpage #realSearchResults .result-actions .score{grid-column:6!important;grid-row:2!important;display:grid!important;place-items:center!important;width:28px!important;min-width:28px!important;height:20px!important;margin:0!important;padding:0!important;font-size:9px!important;line-height:1!important;overflow:visible!important;white-space:nowrap!important}#searchpage #realSearchResults .result-actions .lexia-ocr-status{grid-column:1 / 6!important;grid-row:2!important;align-self:center!important;overflow:hidden!important;color:#7c5a00!important;font-size:8px!important;line-height:1!important;text-overflow:ellipsis!important;white-space:nowrap!important}',
       '#searchpage #realSearchResults .result-card{grid-template-columns:28px minmax(0,1fr) 122px!important;overflow:hidden!important}#searchpage #realSearchResults .result-actions{grid-template-columns:repeat(5,22px)!important;grid-template-rows:22px 19px!important;width:122px!important;min-width:122px!important;max-width:122px!important;gap:3px!important;margin-right:1px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions .search-investigate-file,#searchpage #realSearchResults .result-actions .search-file-info,#searchpage #realSearchResults .result-actions .search-delete-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link],#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]{width:22px!important;min-width:22px!important;height:22px!important;min-height:22px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#e5ae00!important;background:#f5c542!important;color:#5c4600!important}#searchpage #realSearchResults .result-actions .search-open-file:hover,#searchpage #realSearchResults .result-actions [data-lexia-case-link]:hover{border-color:#c89500!important;background:#ffd761!important}#searchpage #realSearchResults .result-actions .search-open-file::before{content:"↗"!important;font-size:14px!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]::before{content:"⇥"!important;font-size:15px!important}#searchpage #realSearchResults .result-actions .search-investigate-file::before,#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]::before{font-size:14px!important}#searchpage #realSearchResults .result-actions .search-file-info::before{font-size:12px!important}#searchpage #realSearchResults .result-actions .search-delete-file::before{font-size:15px!important}#searchpage #realSearchResults .result-actions .score{grid-column:5!important;grid-row:2!important;width:22px!important;min-width:22px!important;height:19px!important}#searchpage #realSearchResults .result-actions .lexia-ocr-status{grid-column:1 / 5!important;grid-row:2!important}.lexia-action-tooltip{position:fixed;z-index:10090;max-width:220px;padding:5px 7px;border-radius:6px;background:#222a45;color:#fff;box-shadow:0 4px 15px rgba(20,28,56,.24);font:10px/1.25 system-ui,sans-serif;pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .08s ease,transform .08s ease}.lexia-action-tooltip.is-visible{opacity:1;transform:translateY(0)}',
       '#searchpage #realSearchResults .result-actions .search-open-file{border-color:#128447!important;background:#169b55!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-open-file:hover{border-color:#0f753e!important;background:#128847!important}#searchpage #realSearchResults .result-actions .search-open-file:not(.search-investigate-file)::before{content:"↑"!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#b57c0c!important;background:#d49a19!important;color:#2f2200!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]:hover{border-color:#996708!important;background:#e5ad2d!important}#searchpage #realSearchResults .result-actions .search-open-file.search-investigate-file{border-color:#4035da!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-open-file.search-investigate-file::before{content:"↗"!important}#searchpage #realSearchResults .result-actions .search-open-file.search-investigate-file:hover{border-color:#342ac7!important;background:#4035da!important}',
-      '#' + PAGE_ID + ' .evidence-reader{cursor:text!important;resize:none!important;-webkit-user-select:text!important;user-select:text!important}#' + PAGE_ID + ' .evidence-reader::selection{background:#f1d64f;color:#202944}#' + PAGE_ID + ' .evidence-existing-mark{background:#fff19c;color:inherit;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #e1c542;pointer-events:none;-webkit-user-select:text;user-select:text}',
+      '::highlight(lexia-evidence-current){background:#fff19c;color:#202944}::highlight(lexia-evidence-new){background:#f1d64f;color:#202944}#' + PAGE_ID + ' .evidence-reader{cursor:text!important;-webkit-user-select:text!important;user-select:text!important}#' + PAGE_ID + ' .evidence-reader::selection{background:#f1d64f;color:#202944}#' + PAGE_ID + ' .evidence-existing-mark{background:#fff19c;color:inherit;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #e1c542;-webkit-user-select:text;user-select:text}#' + PAGE_ID + ' .evidence-new-mark{background:#f1d64f;color:inherit;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #d0ad16;-webkit-user-select:text;user-select:text}',
       '#' + PAGE_ID + ' .primary-head{gap:9px;padding:9px 11px}#' + PAGE_ID + ' .branch-mark{width:24px;height:24px;font-size:12px}#' + PAGE_ID + ' .branch-title b{font-size:13px;line-height:1.25}#' + PAGE_ID + ' .branch-title small{margin-top:2px;font-size:10px}#' + PAGE_ID + ' .branch-questions{padding:8px 10px 10px}#' + PAGE_ID + ' .question-row{gap:9px;padding:8px 9px;margin-top:6px}#' + PAGE_ID + ' .question-row strong{font-size:12px;line-height:1.28}#' + PAGE_ID + ' .question-row small{margin-top:2px;max-width:none;font-size:10px;line-height:1.3}#' + PAGE_ID + ' .question-row-active strong{font-size:13px}',
       '#' + PAGE_ID + ' .question-row-active{position:relative;z-index:1;margin-top:7px;padding:8px 9px;border-color:#8e85ff;background:#fbfaff;box-shadow:0 0 0 2px rgba(93,81,244,.10)}#' + PAGE_ID + ' .question-row-active strong{font-size:13px;color:#25305a;white-space:normal;overflow:visible}#' + PAGE_ID + ' .question-row-active small{display:none}#' + PAGE_ID + ' .case-workspace-inline{margin:0!important;border:1px solid #8e85ff!important;border-top:0!important;border-radius:0 0 8px 8px!important;box-shadow:0 2px 7px rgba(72,62,184,.08)!important}#' + PAGE_ID + ' .question-row-active + .case-workspace-inline{margin-top:-1px!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-layout{min-height:0!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-editor{padding-top:9px!important}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
@@ -704,22 +704,56 @@
     window.open('/api/file-preview?path=' + encodeURIComponent(path), '_blank', 'noopener');
   }
   function selectionOffsets(reader) {
-    if (reader instanceof HTMLTextAreaElement) {
-      const rawStart = Number(reader.selectionStart || 0), rawEnd = Number(reader.selectionEnd || 0);
-      if (rawEnd <= rawStart) return null;
-      const raw = reader.value.slice(rawStart, rawEnd), leading = raw.length - raw.trimStart().length;
-      const text = raw.trim(); if (!text) return null;
-      const start = rawStart + leading;
-      return {text, start, end: start + text.length};
-    }
     const selection = window.getSelection(); if (!selection || !selection.rangeCount || !selection.toString().trim()) return null;
     const range = selection.getRangeAt(0); if (!reader.contains(range.commonAncestorContainer)) return null;
     const prefix = range.cloneRange(); prefix.selectNodeContents(reader); prefix.setEnd(range.startContainer, range.startOffset);
-    const selected = selection.toString().trim(), start = prefix.toString().length;
-    return {text: selected, start, end: start + selected.length};
+    const raw = selection.toString(), leading = raw.length - raw.trimStart().length;
+    const text = raw.trim(); if (!text) return null;
+    const start = prefix.toString().length + leading;
+    return {text, start, end: start + text.length};
+  }
+  function evidenceDomRange(reader, start, end) {
+    const range = document.createRange(), walker = document.createTreeWalker(reader, NodeFilter.SHOW_TEXT);
+    let node, offset = 0, startNode = null, endNode = null, startOffset = 0, endOffset = 0;
+    while ((node = walker.nextNode())) {
+      const next = offset + node.data.length;
+      if (!startNode && start >= offset && start <= next) { startNode = node; startOffset = Math.min(node.data.length, start - offset); }
+      if (end >= offset && end <= next) { endNode = node; endOffset = Math.min(node.data.length, end - offset); break; }
+      offset = next;
+    }
+    if (!startNode || !endNode) return null;
+    range.setStart(startNode, startOffset); range.setEnd(endNode, endOffset); return range;
+  }
+  function clearEvidenceHighlights() {
+    if (window.CSS?.highlights) {
+      CSS.highlights.delete('lexia-evidence-current');
+      CSS.highlights.delete('lexia-evidence-new');
+    }
+  }
+  function paintEvidenceHighlights(reader, currentRanges, newRanges) {
+    clearEvidenceHighlights();
+    if (window.CSS?.highlights && typeof window.Highlight === 'function') {
+      const current = currentRanges.map(item => evidenceDomRange(reader, item.start, item.end)).filter(Boolean);
+      const fresh = newRanges.map(item => evidenceDomRange(reader, item.start, item.end)).filter(Boolean);
+      if (current.length) CSS.highlights.set('lexia-evidence-current', new window.Highlight(...current));
+      if (fresh.length) CSS.highlights.set('lexia-evidence-new', new window.Highlight(...fresh));
+      return;
+    }
+    const source = String(reader.textContent || ''), tagged = [];
+    currentRanges.forEach(item => tagged.push(Object.assign({kind: 'current'}, item)));
+    newRanges.forEach(item => tagged.push(Object.assign({kind: 'new'}, item)));
+    const boundaries = [...new Set([0, source.length, ...tagged.flatMap(item => [item.start, item.end])])].filter(value => value >= 0 && value <= source.length).sort((a, b) => a - b);
+    const nodes = [];
+    for (let index = 0; index < boundaries.length - 1; index += 1) {
+      const start = boundaries[index], end = boundaries[index + 1], active = tagged.filter(item => item.start < end && item.end > start);
+      const text = source.slice(start, end); if (!text) continue;
+      if (!active.length) nodes.push(document.createTextNode(text));
+      else nodes.push(el('mark', {className: active.some(item => item.kind === 'new') ? 'evidence-new-mark' : 'evidence-existing-mark', textContent: text}));
+    }
+    reader.replaceChildren(...nodes);
   }
   function revealExistingHighlight(reader, savedText) {
-    const source = String(reader instanceof HTMLTextAreaElement ? reader.value : reader.textContent || ''), exact = String(savedText || '').trim();
+    const source = String(reader.textContent || ''), exact = String(savedText || '').trim();
     if (!exact) return false;
     let start = source.indexOf(exact), length = exact.length;
     if (start < 0) {
@@ -748,25 +782,14 @@
       }
     }
     if (start < 0) return false;
-    if (reader instanceof HTMLTextAreaElement) {
-      reader.focus({preventScroll: true});
-      reader.setSelectionRange(start, start + length);
-      const lineHeight = Number.parseFloat(getComputedStyle(reader).lineHeight) || 16;
-      const precedingLines = source.slice(0, start).split('\n').length - 1;
-      reader.scrollTop = Math.max(0, precedingLines * lineHeight - reader.clientHeight * .42);
-      return true;
-    }
-    const mark = el('mark', {className: 'evidence-existing-mark', textContent: source.slice(start, start + length)});
-    reader.replaceChildren(
-      document.createTextNode(source.slice(0, start)),
-      mark,
-      document.createTextNode(source.slice(start + length))
-    );
+    const located = {text: source.slice(start, start + length), start, end: start + length};
+    paintEvidenceHighlights(reader, [located], []);
     requestAnimationFrame(() => {
-      const readerBox = reader.getBoundingClientRect(), markBox = mark.getBoundingClientRect();
-      reader.scrollTop += markBox.top - readerBox.top - Math.max(0, (reader.clientHeight - markBox.height) / 2);
+      const range = evidenceDomRange(reader, located.start, located.end); if (!range) return;
+      const readerBox = reader.getBoundingClientRect(), rangeBox = range.getBoundingClientRect();
+      reader.scrollTop += rangeBox.top - readerBox.top - Math.max(0, (reader.clientHeight - rangeBox.height) / 2);
     });
-    return true;
+    return located;
   }
   function formatEvidenceText(rawText, path) {
     const raw = String(rawText || '').replace(/\r\n?/g, '\n');
@@ -784,26 +807,27 @@
   }
   function openEvidenceDialog(snapshot, node, block, documents, existing) {
     if (!documents.length) return alert('Primero cargá o vinculá un archivo a la rama del caso.');
-    const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('textarea', {className: 'evidence-reader', readonly: 'readonly', spellcheck: 'false', value: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar.'});
+    const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('pre', {className: 'evidence-reader', tabindex: '0', textContent: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar. Mantené Shift para sumar otro pasaje separado.'});
     reader.style.cssText = 'box-sizing:border-box;display:block;width:100%;max-width:100%;min-width:0;white-space:pre-wrap;overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;word-break:break-word;';
     documents.forEach(doc => select.append(el('option', {value: String(doc.id), textContent: doc.document_name})));
     if (existing) select.value = String(existing.case_document_id);
     const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'}), changeSelection = existing ? el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cambiar selección'}) : null, save = el('button', {type: 'button', className: 'cases-button', textContent: existing ? 'Reemplazar resaltado' : 'Incorporar resaltado'});
-    let selected = null, preview = null, displayWasReformatted = false;
+    let selectedRanges = [], existingRange = null, preview = null, displayWasReformatted = false, changingSelection = !existing, selectionStartedWithShift = false;
     const selectedDocument = () => documents.find(item => String(item.id) === select.value);
     const enableNewSelection = () => {
-      selected = null;
+      changingSelection = true; selectedRanges = [];
+      paintEvidenceHighlights(reader, existingRange ? [existingRange] : [], selectedRanges);
+      const selection = window.getSelection(); if (selection) selection.removeAllRanges();
+      status.textContent = 'El resaltado anterior se conserva como referencia. Marcá el nuevo pasaje; mantené Shift para sumar otros separados.';
       reader.focus({preventScroll: true});
-      reader.setSelectionRange(0, 0);
-      status.textContent = 'Ahora seleccioná con el mouse el nuevo pasaje y pulsá “Reemplazar resaltado”.';
     };
     const load = async () => {
-      selected = null; status.textContent = 'Cargando el texto indexado de LexIA…'; reader.value = '';
+      selectedRanges = []; existingRange = null; changingSelection = !existing; clearEvidenceHighlights(); status.textContent = 'Cargando el texto indexado de LexIA…'; reader.textContent = '';
       try {
         const doc = selectedDocument(), data = await api('/api/catalog-text-preview?path=' + encodeURIComponent(doc.document_path));
         preview = data;
         const formatted = formatEvidenceText(data.text || '', doc.document_path);
-        displayWasReformatted = formatted.reformatted; reader.value = formatted.text;
+        displayWasReformatted = formatted.reformatted; reader.textContent = formatted.text;
         status.textContent = displayWasReformatted
           ? 'La vista de Word fue separada en párrafos para facilitar la selección. Seleccioná el pasaje exacto que querés conservar.'
           : 'Seleccioná con el mouse el pasaje exacto que querés conservar.';
@@ -811,7 +835,8 @@
           let anchor = {};
           try { anchor = JSON.parse(existing.anchor_data || '{}') || {}; } catch (_) { anchor = {}; }
           const viewerText = String(anchor.viewer_text || existing.selected_text || '').trim();
-          if (revealExistingHighlight(reader, viewerText)) {
+          existingRange = revealExistingHighlight(reader, viewerText) || null;
+          if (existingRange) {
             status.textContent = anchor.user_approved_ai && anchor.viewer_text
               ? 'LexIA resaltó el pasaje OCR más cercano para compararlo con la cita elegida de la IA. Podés seleccionar otro texto y reemplazarlo.'
               : 'Este es el pasaje actualmente incorporado. Podés seleccionar otro texto y reemplazarlo.';
@@ -819,31 +844,53 @@
             status.textContent = 'No se pudo ubicar automáticamente el pasaje anterior. Seleccioná el texto que querés conservar.';
           }
         });
-      } catch (error) { preview = null; reader.value = ''; status.textContent = 'No se pudo cargar texto seleccionable: ' + error.message; }
+      } catch (error) { preview = null; reader.textContent = ''; status.textContent = 'No se pudo cargar texto seleccionable: ' + error.message; }
     };
-    // La selección nativa suele desaparecer cuando el usuario activa el botón
-    // con Enter o con el mouse. Se conserva su último rango válido antes de que
-    // el foco abandone el lector.
-    const capture = () => {
-      const range = selectionOffsets(reader);
-      if (range) { selected = range; status.textContent = selected.text.length + ' caracteres seleccionados. Se guardará exactamente ese texto.'; }
+    const mergeSelectedRanges = values => {
+      const source = String(reader.textContent || ''), sorted = values.slice().sort((a, b) => a.start - b.start), merged = [];
+      sorted.forEach(item => {
+        const previous = merged[merged.length - 1];
+        if (previous && item.start <= previous.end) previous.end = Math.max(previous.end, item.end);
+        else merged.push({start: item.start, end: item.end});
+      });
+      return merged.map(item => ({start: item.start, end: item.end, text: source.slice(item.start, item.end).trim()})).filter(item => item.text);
     };
-    const stopSelectionTracking = () => document.removeEventListener('selectionchange', capture);
-    document.addEventListener('selectionchange', capture);
-    reader.addEventListener('select', capture); reader.addEventListener('mouseup', capture); reader.addEventListener('keyup', capture); select.addEventListener('change', load);
+    const capture = append => {
+      const range = selectionOffsets(reader); if (!range) return false;
+      changingSelection = true;
+      selectedRanges = mergeSelectedRanges(append ? selectedRanges.concat(range) : [range]);
+      paintEvidenceHighlights(reader, existingRange ? [existingRange] : [], selectedRanges);
+      const selection = window.getSelection(); if (selection) selection.removeAllRanges();
+      const total = selectedRanges.reduce((sum, item) => sum + item.text.length, 0);
+      status.textContent = selectedRanges.length + ' pasaje(s) seleccionado(s), ' + total + ' caracteres. Mantené Shift al marcar para sumar otro pasaje separado.';
+      return true;
+    };
+    const stopSelectionTracking = clearEvidenceHighlights;
+    reader.addEventListener('mousedown', event => { selectionStartedWithShift = event.shiftKey; });
+    reader.addEventListener('mouseup', event => capture(event.shiftKey || selectionStartedWithShift));
+    reader.addEventListener('keyup', event => { if (event.shiftKey) capture(true); });
+    select.addEventListener('change', load);
     if (changeSelection) changeSelection.addEventListener('click', enableNewSelection);
-    save.addEventListener('pointerdown', capture); save.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') capture(); });
+    save.addEventListener('pointerdown', () => capture(false)); save.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') capture(false); });
     close.addEventListener('click', () => { stopSelectionTracking(); dialog.close(); dialog.remove(); });
     dialog.addEventListener('close', stopSelectionTracking, {once: true});
     save.addEventListener('click', async () => {
-      selected = selectionOffsets(reader) || selected;
-      if (!selected || !selected.text) return alert('Seleccioná un pasaje del documento antes de incorporarlo.');
-      const doc = selectedDocument(), segment = displayWasReformatted ? null : (preview?.segments || []).find(item => selected.start < Number(item.end_char || 0) && selected.end > Number(item.start_char || 0)), payload = {case_id: snapshot.case.id, selected_text: selected.text, page_start: segment?.page_start || null, page_end: segment?.page_end || null, anchor_data: JSON.stringify({start_char: selected.start, end_char: selected.end, display_reformatted: displayWasReformatted})};
+      const live = selectionOffsets(reader); if (live) capture(false);
+      if (!selectedRanges.length) return alert('Seleccioná uno o más pasajes del documento antes de incorporarlos.');
+      const doc = selectedDocument();
+      const payloadFor = selected => {
+        const overlaps = displayWasReformatted ? [] : (preview?.segments || []).filter(item => selected.start < Number(item.end_char || 0) && selected.end > Number(item.start_char || 0));
+        return {case_id: snapshot.case.id, selected_text: selected.text, page_start: overlaps[0]?.page_start || null, page_end: overlaps[overlaps.length - 1]?.page_end || overlaps[0]?.page_start || null, anchor_data: JSON.stringify({start_char: selected.start, end_char: selected.end, display_reformatted: displayWasReformatted, multi_selection: selectedRanges.length > 1})};
+      };
       save.disabled = true;
       try {
         let response;
-        if (existing) response = await api('/api/cases/block/highlight/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {highlight_id: existing.id}))});
-        else response = await api('/api/cases/block/highlight', {method: 'POST', body: JSON.stringify(Object.assign(payload, {block_id: block.id, case_document_id: doc.id}))});
+        for (let index = 0; index < selectedRanges.length; index += 1) {
+          const payload = payloadFor(selectedRanges[index]);
+          response = existing && index === 0
+            ? await api('/api/cases/block/highlight/update', {method: 'POST', body: JSON.stringify(Object.assign(payload, {highlight_id: existing.id}))})
+            : await api('/api/cases/block/highlight', {method: 'POST', body: JSON.stringify(Object.assign(payload, {block_id: block.id, case_document_id: doc.id}))});
+        }
         stopSelectionTracking(); currentCase = response.case; dialog.close(); dialog.remove(); await loadCases(false);
       } catch (error) { alert(error.message); } finally { save.disabled = false; }
     });
