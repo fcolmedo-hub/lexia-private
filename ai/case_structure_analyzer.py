@@ -158,10 +158,62 @@ REGLAS ESTRICTAS:
         try:
             value = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise CaseStructureError("La IA no devolvió una estructura JSON válida.") from exc
+            # Una respuesta útil puede traer comillas rectas dentro de una cita
+            # (p. ej. una carátula o una expresión textual) sin escaparlas. No
+            # modificamos la estructura ni inventamos contenido: sólo las
+            # convertimos en comillas tipográficas cuando claramente no pueden
+            # cerrar una cadena JSON y reintentamos el análisis.
+            repaired = CaseStructureAnalyzer._repair_inner_quotes(text)
+            if repaired != text:
+                try:
+                    value = json.loads(repaired)
+                except json.JSONDecodeError:
+                    value = None
+            else:
+                value = None
+            if value is None:
+                raise CaseStructureError(
+                    "La IA no devolvió una estructura JSON válida. Copiá únicamente su respuesta, sin explicaciones."
+                ) from exc
         if not isinstance(value, dict):
             raise CaseStructureError("La respuesta de la IA no contiene una estructura de cuestiones.")
         return value
+
+    @staticmethod
+    def _repair_inner_quotes(text: str) -> str:
+        """Convierte comillas internas manifiestamente inválidas en tipográficas.
+
+        Una comilla que cierra una cadena JSON sólo puede estar seguida por una
+        coma, cierre de objeto/lista, dos puntos o fin de texto. Si le sigue
+        una letra o signo propio de la cita, necesariamente es una comilla
+        interna que el modelo omitió escapar.
+        """
+        out, in_string, escaped = [], False, False
+        for index, char in enumerate(text):
+            if not in_string:
+                out.append(char)
+                if char == '"':
+                    in_string = True
+                continue
+            if escaped:
+                out.append(char)
+                escaped = False
+                continue
+            if char == "\\":
+                out.append(char)
+                escaped = True
+                continue
+            if char != '"':
+                out.append(char)
+                continue
+            following = text[index + 1:]
+            next_char = next((item for item in following if not item.isspace()), "")
+            if next_char and next_char not in ",}]:":
+                out.append("“" if not any(item == "“" for item in out[-100:]) else "”")
+                continue
+            out.append(char)
+            in_string = False
+        return "".join(out)
 
     @classmethod
     def validate_proposal(cls, payload: dict, source_text: str, include_own: bool = True) -> dict:
