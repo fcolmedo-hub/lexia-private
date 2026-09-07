@@ -1,6 +1,11 @@
 from core.document_extractor import DocumentExtractor
 
 
+class _OCRText:
+    def extract_pdf_pages(self, _path, _pages, **_kwargs):
+        return {1: "Texto OCR legible aunque sea más corto."}
+
+
 def test_native_pdf_with_one_short_page_does_not_require_ocr() -> None:
     extractor = DocumentExtractor()
     pages = {
@@ -40,3 +45,11 @@ def test_corrupted_pdf_text_layer_requires_ocr_even_when_it_is_long() -> None:
         2: "Texto jurídico suficiente. " * 30,
     }
     assert extractor._pages_requiring_ocr(pages) == [1]
+
+
+def test_ocr_replaces_longer_corrupted_native_text(monkeypatch, tmp_path) -> None:
+    extractor = DocumentExtractor(ocr_service=_OCRText())
+    monkeypatch.setattr(extractor, "_extract_pdf_native", lambda _path: {1: "□" * 700})
+    result = extractor._extract_pdf(tmp_path / "ilegible.pdf", allow_ocr=True)
+    assert result.text == "--- PÁGINA 1 ---\nTexto OCR legible aunque sea más corto."
+    assert result.method == "ocr_pdf"
