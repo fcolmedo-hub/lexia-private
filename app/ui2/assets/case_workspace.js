@@ -714,10 +714,35 @@
     if (!exact) return false;
     let start = source.indexOf(exact), length = exact.length;
     if (start < 0) {
+      const words = exact.split(/\s+/).filter(Boolean).map(word => word.replace(/[|\\{}()[\]^$+*?.-]/g, '\\    if (start < 0) {
       const words = exact.split(/\s+/).filter(Boolean).map(word => word.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&'));
       if (words.length) {
         const match = source.match(new RegExp(words.join('\\s+')));
         if (match && Number.isInteger(match.index)) { start = match.index; length = match[0].length; }
+      }
+    }
+    if (start < 0) return false;'));
+      if (words.length) {
+        const match = source.match(new RegExp(words.join('\\s+')));
+        if (match && Number.isInteger(match.index)) { start = match.index; length = match[0].length; }
+      }
+    }
+    if (start < 0) {
+      const keyWithPositions = value => {
+        const chars = [], positions = [];
+        Array.from(String(value || '')).forEach((char, index) => {
+          char.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().split('').forEach(normalized => {
+            if (/[a-z0-9]/i.test(normalized)) { chars.push(normalized); positions.push(index); }
+          });
+        });
+        return {key: chars.join(''), positions};
+      };
+      const sourceKey = keyWithPositions(source), exactKey = keyWithPositions(exact).key;
+      const keyStart = exactKey ? sourceKey.key.indexOf(exactKey) : -1;
+      if (keyStart >= 0) {
+        start = sourceKey.positions[keyStart];
+        const last = sourceKey.positions[keyStart + exactKey.length - 1];
+        length = last - start + 1;
       }
     }
     if (start < 0) return false;
