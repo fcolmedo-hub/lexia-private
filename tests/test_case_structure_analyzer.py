@@ -74,6 +74,13 @@ def test_manual_package_and_response_validation_need_no_api():
     assert proposal["issues"][0]["blocks"]["contraparte"][0]["highlights"]
 
 
+def test_parser_repairs_unescaped_quotes_inside_ai_quote():
+    raw = '''{"issues":[{"title":"Medida","adversary_blocks":[{"content":"Contenido","quotes":["La tutela"(CNFed., "Arrazola").-"]}],"own_blocks":[]}]}'''
+    parsed = CaseStructureAnalyzer._parse_json(raw)
+    quote = parsed["issues"][0]["adversary_blocks"][0]["quotes"][0]
+    assert "Arrazola" in quote
+
+
 def test_repository_applies_ai_structure_atomically(tmp_path):
     repository = CaseRepository(tmp_path / "cases.sqlite3")
     case_id = repository.create_case("Caso de prueba")
