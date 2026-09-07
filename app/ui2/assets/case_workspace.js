@@ -89,7 +89,8 @@
       '.case-ai-dialog[open]{box-sizing:border-box;width:min(900px,94vw);max-height:88vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);overflow:hidden}.case-ai-dialog::backdrop{background:rgba(24,31,56,.38)}.case-ai-dialog .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.case-ai-dialog .evidence-dialog-body{box-sizing:border-box;max-height:calc(88vh - 48px);padding:13px;overflow:auto}.case-ai-dialog .cases-button,.case-ai-dialog .cases-button-secondary{box-sizing:border-box;font:inherit;font-size:10px;line-height:1.1;font-weight:800;cursor:pointer;border-radius:6px;padding:7px 9px}.case-ai-dialog .cases-button{background:#5146f6;color:#fff;border:1px solid #5146f6}.case-ai-dialog .cases-button-secondary{background:#fff;color:#465176;border:1px solid #d8deed}.case-ai-intro{color:#596583;font-size:11px;line-height:1.45;margin:0 0 12px}.case-ai-option{display:flex;align-items:flex-start;gap:7px;padding:10px;border:1px solid #e1e5ef;border-radius:8px;background:#fafaff;color:#374162;font-size:11px}.case-ai-option input{margin-top:2px}.case-ai-status{min-height:18px;margin:9px 0;color:#6659e8;font-size:10px}.case-ai-preview-meta{margin:0 0 10px;color:#697493;font-size:10px}.case-ai-issue{margin:7px 0;padding:9px;border:1px solid #dfe4ef;border-radius:9px;background:#fff}.case-ai-issue-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:center}.case-ai-issue-head input[type=text]{box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid #dce1ed;border-radius:6px;font:inherit;font-size:11px;font-weight:800;color:#293357}.case-ai-side{margin:7px 0 0;padding-top:6px;border-top:1px solid #edf0f5}.case-ai-side h4{margin:0 0 4px;color:#687492;font-size:9px;text-transform:uppercase}.case-ai-block{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;margin:3px 0;padding:5px;background:#fafaff;border-radius:6px}.case-ai-block textarea{box-sizing:border-box;width:100%;min-height:45px;resize:vertical;padding:5px 6px;border:1px solid #e0e4ee;border-radius:5px;font:10px/1.35 inherit;color:#303a5e}.case-ai-quote{margin:4px 0 0;padding:5px 7px;border-left:2px solid #7c70f7;background:#f5f3ff;color:#56607d;font-size:9px;line-height:1.35;white-space:pre-wrap}.case-ai-dialog .cases-form-actions{position:sticky;bottom:-13px;margin:10px -13px -13px;padding:10px 13px;background:#fff;border-top:1px solid #e7eaf2}',
       '.case-ai-manual-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.case-ai-manual-response{box-sizing:border-box;width:100%;min-height:145px;margin-top:8px;padding:8px 9px;border:1px solid #dce2ee;border-radius:7px;resize:vertical;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#293357}.case-ai-api-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:13px;padding-top:10px;border-top:1px solid #e8ebf3;color:#7a84a0;font-size:9px}',
       '#searchpage #realSearchResults .result-actions{width:auto!important;min-width:0!important;flex-direction:row!important;align-items:center!important;justify-content:flex-end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions .search-investigate-file,#searchpage #realSearchResults .result-actions .search-file-info,#searchpage #realSearchResults .result-actions .search-delete-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link]{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border-radius:7px!important;font-size:0!important;line-height:1!important}#searchpage #realSearchResults .result-actions .search-open-file{border-color:#e5ae00!important;background:#f5c542!important;color:#5c4600!important}#searchpage #realSearchResults .result-actions .search-open-file:hover{border-color:#c89500!important;background:#ffd761!important}#searchpage #realSearchResults .result-actions .search-open-file::before{content:"↗";font-size:17px;line-height:1;font-weight:900}#searchpage #realSearchResults .result-actions .search-investigate-file::before{content:"⌕";font-size:17px;line-height:1;font-weight:800}#searchpage #realSearchResults .result-actions .search-file-info::before{content:"i";font-size:14px;line-height:1;font-family:Georgia,serif;font-weight:800}#searchpage #realSearchResults .result-actions .search-delete-file::before{content:"×";font-size:18px;line-height:1;font-weight:700}#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#169b55!important;background:#169b55!important;color:#fff!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]::before{content:"+";font-size:18px;line-height:1;font-weight:800}',
-      '#searchpage #realSearchResults .result-actions{display:grid!important;grid-template-columns:repeat(5,28px)!important;grid-template-rows:28px 20px!important;width:156px!important;min-width:156px!important;justify-content:end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-investigate-file{border-color:#5146f6!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-investigate-file:hover{border-color:#4035da!important;background:#4035da!important}#searchpage #realSearchResults .result-actions .score{grid-column:5!important;grid-row:2!important;display:grid!important;place-items:center!important;width:28px!important;min-width:28px!important;height:20px!important;margin:0!important;padding:0!important;font-size:9px!important;line-height:1!important;overflow:visible!important;white-space:nowrap!important}',
+      '#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border:1px solid #d6a83f!important;border-radius:7px!important;background:#fff8df!important;color:#7c5a00!important;font-size:0!important;line-height:1!important}#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]::before{content:"↻";font-size:17px;line-height:1;font-weight:800}#searchpage #realSearchResults .result-actions [data-lexia-ocr-reprocess]:disabled{opacity:.65;cursor:wait}',
+      '#searchpage #realSearchResults .result-actions{display:grid!important;grid-template-columns:repeat(6,28px)!important;grid-template-rows:28px 20px!important;width:188px!important;min-width:188px!important;justify-content:end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-investigate-file{border-color:#5146f6!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-investigate-file:hover{border-color:#4035da!important;background:#4035da!important}#searchpage #realSearchResults .result-actions .score{grid-column:6!important;grid-row:2!important;display:grid!important;place-items:center!important;width:28px!important;min-width:28px!important;height:20px!important;margin:0!important;padding:0!important;font-size:9px!important;line-height:1!important;overflow:visible!important;white-space:nowrap!important}#searchpage #realSearchResults .result-actions .lexia-ocr-status{grid-column:1 / 6!important;grid-row:2!important;align-self:center!important;overflow:hidden!important;color:#7c5a00!important;font-size:8px!important;line-height:1!important;text-overflow:ellipsis!important;white-space:nowrap!important}',
       '#' + PAGE_ID + ' .question-row-active{position:relative;z-index:1;margin-top:7px;padding:8px 9px;border-color:#8e85ff;background:#fbfaff;box-shadow:0 0 0 2px rgba(93,81,244,.10)}#' + PAGE_ID + ' .question-row-active strong{font-size:12px;color:#25305a;white-space:normal;overflow:visible}#' + PAGE_ID + ' .question-row-active small{display:none}#' + PAGE_ID + ' .case-workspace-inline{margin:0!important;border:1px solid #8e85ff!important;border-top:0!important;border-radius:0 0 8px 8px!important;box-shadow:0 2px 7px rgba(72,62,184,.08)!important}#' + PAGE_ID + ' .question-row-active + .case-workspace-inline{margin-top:-1px!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-layout{min-height:0!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-editor{padding-top:9px!important}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
@@ -390,9 +391,6 @@
     const upload = actionIcon('files', 'Cargar archivos en esta rama');
     const replace = node.primary_document_id ? actionIcon('replace', 'Reemplazar documento inicial') : null;
     const analyze = node.primary_document_id ? actionIcon('ai', 'Armar árbol con IA') : null;
-    const primaryDocument = (snapshot.documents || []).find(item => Number(item.id) === Number(node.primary_document_id));
-    const reprocess = primaryDocument && /\.pdf$/i.test(String(primaryDocument.document_name || primaryDocument.document_path || ''))
-      ? actionIcon('refresh', 'Reprocesar OCR del documento inicial') : null;
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
     const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
     addQuestion.disabled = !canAddQuestion;
@@ -401,12 +399,11 @@
     upload.addEventListener('click', () => input.click());
     if (replace) replace.addEventListener('click', () => replacePrimaryDocument(snapshot, node));
     if (analyze) analyze.addEventListener('click', () => openAiStructureDialog(snapshot, node));
-    if (reprocess) reprocess.addEventListener('click', () => reprocessPdfDocument(primaryDocument, reprocess));
     input.addEventListener('change', () => { if (input.files?.length) importBranchFiles(snapshot, node, input.files, upload); input.value = ''; });
     addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); openQuestionDialog(snapshot, node.id); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
-    const head = el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, reprocess, analyze, addQuestion, edit, remove));
+    const head = el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, analyze, addQuestion, edit, remove));
     enableDoubleClickToggle(head, togglePrimary); article.append(input, head);
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
@@ -495,11 +492,42 @@
   async function reprocessPdfDocument(document, button) {
     if (!confirm('¿Reprocesar este PDF con OCR?\n\nSe corregirá el texto indexado y luego podrá usarse en búsqueda e IA.')) return;
     button.disabled = true;
+    const actions = button.closest('.result-actions,.source-actions');
+    let statusLabel = actions && actions.querySelector('[data-lexia-ocr-status]');
+    if (!statusLabel && actions) {
+      statusLabel = el('span', {'data-lexia-ocr-status': '1', className: 'lexia-ocr-status'});
+      actions.append(statusLabel);
+    }
+    const showStatus = state => {
+      const message = String((state || {}).status || 'Procesando OCR…');
+      button.title = message;
+      if (statusLabel) statusLabel.textContent = message;
+    };
     try {
-      await api('/api/navigator-operation', {method: 'POST', body: JSON.stringify({operation: 'reprocess_file', path: document.document_path})});
-      alert('OCR iniciado para “' + document.document_name + '”. Esperá a que termine y recargá Casos antes de armar el árbol.');
+      const started = await api('/api/navigator-operation', {method: 'POST', body: JSON.stringify({operation: 'reprocess_file', path: document.document_path})});
+      const jobId = String(started.job_id || '');
+      showStatus((started || {}).state);
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 20 * 60 * 1000) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        const response = await api('/api/navigator-operation-status?ts=' + Date.now());
+        const state = (response || {}).state || {};
+        if (jobId && state.job_id && String(state.job_id) !== jobId) continue;
+        showStatus(state);
+        if (state.phase === 'completed') {
+          if (statusLabel) statusLabel.textContent = 'OCR actualizado';
+          alert('OCR completado para “' + document.document_name + '”. Ya podés abrir la vista rápida o armar el árbol con IA.');
+          return;
+        }
+        if (state.phase === 'error') throw new Error(state.error || state.status || 'El OCR no se pudo completar.');
+      }
+      throw new Error('El OCR sigue trabajando. Consultá este archivo nuevamente en unos minutos.');
     } catch (error) { alert('No se pudo iniciar el OCR.\n\n' + error.message); }
-    finally { button.disabled = false; }
+    finally {
+      button.disabled = false;
+      button.title = 'Reprocesar OCR de este PDF';
+      if (statusLabel) setTimeout(() => statusLabel.remove(), 5000);
+    }
   }
   function replacePrimaryDocument(snapshot, node) {
     const choices = (snapshot.documents || []).filter(document => Number(document.id) !== Number(node.primary_document_id));
@@ -592,11 +620,6 @@
         openEvidenceDialog(snapshot, node, block, [doc]);
       });
       const actions = [choose];
-      if (/\.pdf$/i.test(String(doc.document_name || doc.document_path || ''))) {
-        const reprocess = actionIcon('refresh', 'Reprocesar OCR de este PDF');
-        reprocess.addEventListener('click', () => reprocessPdfDocument(doc, reprocess));
-        actions.push(reprocess);
-      }
       if (!protectedDocuments.has(Number(doc.id))) {
         const remove = actionIcon('remove', 'Eliminar archivo del caso', 'cases-danger');
         remove.addEventListener('click', () => deleteCaseDocument(snapshot, doc)); actions.push(remove);
@@ -877,10 +900,24 @@
     if (root?.querySelectorAll) cards.push(...root.querySelectorAll('.result-card,.source-item'));
     cards.forEach(card => {
       const actions = card.querySelector('.result-actions,.source-actions');
-      if (!actions || actions.querySelector('[data-lexia-case-link]')) return;
-      const button = el('button', {type: 'button', 'data-lexia-case-link': '1', className: 'lexia-case-link', textContent: 'Al caso', title: 'Vincular esta fuente y su extracto a un caso'});
-      button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); addCardToCase(card, button); });
-      actions.append(button);
+      if (!actions) return;
+      if (!actions.querySelector('[data-lexia-case-link]')) {
+        const button = el('button', {type: 'button', 'data-lexia-case-link': '1', className: 'lexia-case-link', textContent: 'Al caso', title: 'Vincular esta fuente y su extracto a un caso'});
+        button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); addCardToCase(card, button); });
+        actions.append(button);
+      }
+      if (!actions.querySelector('[data-lexia-ocr-reprocess]')) {
+        const ocr = el('button', {type: 'button', 'data-lexia-ocr-reprocess': '1', className: 'lexia-ocr-reprocess', textContent: 'OCR', title: 'Reprocesar OCR de este PDF'});
+        ocr.addEventListener('click', async event => {
+          event.preventDefault(); event.stopPropagation();
+          try {
+            const document = await cardDocument(card);
+            if (!/\.pdf$/i.test(String(document.name || document.path || ''))) return alert('El reproceso OCR sólo está disponible para archivos PDF.');
+            await reprocessPdfDocument({document_name: document.name, document_path: document.path}, ocr);
+          } catch (error) { alert('No se pudo preparar el OCR.\n\n' + error.message); }
+        });
+        actions.append(ocr);
+      }
     });
   }
   function initialize() {
