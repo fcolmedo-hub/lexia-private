@@ -31,6 +31,7 @@
       edit: '<path d="m5 19 3.5-.8L18 8.7 15.3 6 5.8 15.5z"></path><path d="m14.8 6.5 2.7 2.7"></path>',
       ai: '<path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"></path><path d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"></path>',
       replace: '<path d="M7 7h10l-3-3"></path><path d="M17 7l-3 3"></path><path d="M17 17H7l3 3"></path><path d="M7 17l3-3"></path>',
+      refresh: '<path d="M20 11a8 8 0 1 0 2 5"></path><path d="M20 4v7h-7"></path>',
       remove: '<path d="M5 7h14M10 7V5h4v2M8 7l.7 12h6.6L16 7M10 11v5M14 11v5"></path>',
     };
     const button = el('button', {
@@ -578,6 +579,19 @@
         openEvidenceDialog(snapshot, node, block, [doc]);
       });
       const actions = [choose];
+      if (/\.pdf$/i.test(String(doc.document_name || doc.document_path || ''))) {
+        const reprocess = actionIcon('refresh', 'Reprocesar OCR de este PDF');
+        reprocess.addEventListener('click', async () => {
+          if (!confirm('¿Reprocesar este PDF con OCR?\n\nSe corregirá el texto indexado y luego podrá usarse en búsqueda e IA.')) return;
+          reprocess.disabled = true;
+          try {
+            await api('/api/navigator-operation', {method: 'POST', body: JSON.stringify({operation: 'reprocess_file', path: doc.document_path})});
+            alert('OCR iniciado para “' + doc.document_name + '”. Esperá a que termine y recargá Casos antes de armar el árbol.');
+          } catch (error) { alert('No se pudo iniciar el OCR.\n\n' + error.message); }
+          finally { reprocess.disabled = false; }
+        });
+        actions.push(reprocess);
+      }
       if (!protectedDocuments.has(Number(doc.id))) {
         const remove = actionIcon('remove', 'Eliminar archivo del caso', 'cases-danger');
         remove.addEventListener('click', () => deleteCaseDocument(snapshot, doc)); actions.push(remove);
