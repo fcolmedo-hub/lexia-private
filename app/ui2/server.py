@@ -2234,6 +2234,20 @@ def _case_write_manual_prompt(document_name, prompt):
     return target
 
 
+def _case_open_manual_prompt(path):
+    """Open the exported TXT so the desktop workflow has visible feedback."""
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+        return True
+    except Exception:
+        return False
+
+
 def _case_ai_enrich_pages(proposal, segments, *, model="", response_id=""):
     for issue in proposal.get("issues") or []:
         for blocks in (issue.get("blocks") or {}).values():
@@ -3187,6 +3201,7 @@ class Handler(SimpleHTTPRequestHandler):
                 export_path = _case_write_manual_prompt(
                     str(document.get("document_name", "Documento inicial")), package["prompt"]
                 )
+                export_opened = _case_open_manual_prompt(export_path)
                 return self._json({
                     "ok": True,
                     "root_node_id": int(root["id"]),
@@ -3195,6 +3210,7 @@ class Handler(SimpleHTTPRequestHandler):
                     "prompt": package["prompt"],
                     "export_name": export_path.name,
                     "export_path": str(export_path),
+                    "export_opened": export_opened,
                     "document_truncated": package["document_truncated"],
                     "analyzed_chars": len(package["source_text"]),
                 })
