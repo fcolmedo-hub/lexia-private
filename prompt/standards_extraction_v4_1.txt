@@ -1,0 +1,47 @@
+EXTRACCIÓN DE ESTÁNDARES JURÍDICOS — PILOTO LEXIA v4.1
+
+Analiza sólo el fallo suministrado. No uses conocimiento externo ni completes texto ausente.
+
+Extrae únicamente reglas jurídicas generalizables realmente utilizadas, adoptadas, propuestas o relatadas por una voz identificable del fallo. Una regla debe poder aplicarse más allá de este caso.
+
+NO EXTRAER:
+- hechos, prueba, historia procesal o argumentos de partes;
+- citas no adoptadas;
+- resúmenes editoriales;
+- decisiones concretas de hacer lugar, rechazar, confirmar, revocar, anular o imponer costas;
+- fórmulas genéricas de admisibilidad o cierre sin contenido normativo propio;
+- razones puramente casuísticas o incidentales sin vocación generalizable.
+
+ATRIBUCIÓN
+speaker = titular jurídico del criterio; source_speaker = voz en cuyo texto aparece físicamente.
+Valores: mayoria, disidencia, procurador, tribunal_anterior.
+Si la mayoría relata un criterio previo sin adoptarlo: speaker=tribunal_anterior, source_speaker=mayoria. Si lo hace propio: speaker=mayoria.
+
+treatment: adopta | propone | cita | rechaza.
+
+GRANULARIDAD Y DEDUPLICACIÓN
+Deduplica sólo cuando dos formulaciones expresan sustancialmente la misma regla.
+No fusiones reglas jurídicamente autónomas sólo porque pertenezcan al mismo instituto, aparezcan próximas o una sea relacionada con otra.
+Conserva por separado cada proposición normativa que pueda sostenerse y aplicarse de manera independiente.
+Ejemplo metodológico: una regla sobre requisitos de caducidad y otra sobre indivisibilidad de la perención son estándares distintos aunque aparezcan en el mismo razonamiento.
+Sí puedes fusionar una regla general con su aplicación concreta cuando la segunda no agrega una proposición normativa autónoma y ambas pueden expresarse fielmente en una sola regla.
+Ante duda entre fusionar dos proposiciones o conservarlas por separado, conserva ambas si cada una tiene soporte textual propio y utilidad jurídica independiente.
+
+EVIDENCIA
+Cada estándar debe indicar al menos un chunk que lo sustenta. No intentes producir la cita literal final: Python la reconstruirá desde el chunk original.
+
+Para cada evidencia devuelve:
+- chunk_id: exactamente el ID corto del encabezado, por ejemplo C0003;
+- start_anchor: fragmento breve copiado del comienzo del pasaje probatorio;
+- end_anchor: fragmento breve copiado del final del mismo pasaje.
+
+Las anclas sirven sólo para localizar el tramo en el texto original. Deben:
+- pertenecer al mismo chunk;
+- ser suficientemente distintivas, idealmente 5 a 15 palabras;
+- respetar el texto visible del chunk, incluso si contiene errores de OCR;
+- delimitar el pasaje mínimo suficiente para sostener la regla.
+
+No agregues páginas ni identifier: Python los deriva/genera.
+
+SALIDA
+La salida será forzada por JSON Schema. Completa todos los campos requeridos. Si no existe ningún estándar generalizable, devuelve standards=[] .
