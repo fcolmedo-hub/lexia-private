@@ -24,6 +24,7 @@ PROJECT_ROOT = ensure_project_on_syspath()
 os.chdir(HERE)
 
 from config.settings import SETTINGS
+from services.docx_exporter import DocxExporter
 from storage.case_repository import CaseRepository
 RUNTIME_ROOT = Path(SETTINGS.runtime_path).expanduser()
 RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
@@ -2234,6 +2235,21 @@ def _case_write_manual_prompt(document_name, prompt):
     return target
 
 
+def _case_write_final_response(case_name, branch_title, title, content):
+    """Export the final branch response to an editable Word document."""
+    downloads = Path.home() / "Downloads"
+    downloads.mkdir(parents=True, exist_ok=True)
+    raw_name = f"Contestacion_{case_name}_{branch_title}"
+    safe_name = "".join(
+        char if (char.isalnum() or char in " -_.") else "_"
+        for char in raw_name
+    ).strip(" ._") or "Contestacion_LexIA"
+    target = downloads / f"{safe_name[:140]}.docx"
+    return DocxExporter().export_markdown_like(
+        str(title or f"Contestación · {branch_title}"), str(content or ""), target
+    )
+
+
 def _case_open_manual_prompt(path):
     """Open the exported TXT so the desktop workflow has visible feedback."""
     try:
@@ -3319,6 +3335,54 @@ class Handler(SimpleHTTPRequestHandler):
             except KeyError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 404)
             except (TypeError, ValueError, CaseStructureError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
+        if path == "/api/cases/node/ai-output/export":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                node_id = int(body.get("node_id"))
+                content = str(body.get("content", "") or "").strip()
+                if not content:
+                    raise ValueError("La contestación está vacía.")
+                snapshot = CASES.case_snapshot(case_id)
+                root = next(
+                    (item for item in snapshot.get("nodes", []) if int(item.get("id", 0)) == node_id),
+                    None,
+                )
+                if root is None or str(root.get("node_kind", "")) != "hito":
+                    raise ValueError("La rama principal elegida no pertenece al caso.")
+                existing_output = root.get("ai_output")
+                if existing_output:
+                    CASES.update_ai_output(
+                        case_id, int(existing_output["id"]), content=content, status="definitivo"
+                    )
+                else:
+                    CASES.save_ai_output(
+                        case_id, node_id, prompt="", source_package="", content=content,
+                        status="definitivo",
+                    )
+                export_path = _case_write_final_response(
+                    str(snapshot.get("case", {}).get("name", "Caso")),
+                    str(root.get("title", "Rama")),
+                    str(body.get("title", "") or ""),
+                    content,
+                )
+                export_opened = _case_open_manual_prompt(export_path)
+                return self._json({
+                    "ok": True,
+                    "export_name": export_path.name,
+                    "export_path": str(export_path),
+                    "export_opened": export_opened,
+                    "case": CASES.case_snapshot(case_id),
+                })
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
                 return self._json({"ok": False, "error": str(exc)}, 400)
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
