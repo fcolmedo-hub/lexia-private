@@ -2274,6 +2274,8 @@ def _case_ai_enrich_pages(proposal, segments, *, model="", response_id=""):
                         "origin": "ai_structure",
                         "model": str(model or ""),
                         "response_id": str(response_id or ""),
+                        "user_approved_ai": bool(highlight.get("user_approved_ai")),
+                        "viewer_text": str(highlight.get("viewer_text", "") or ""),
                     }, ensure_ascii=False)
     return proposal
 
