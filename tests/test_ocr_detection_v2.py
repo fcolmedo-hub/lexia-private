@@ -31,3 +31,12 @@ def test_fully_native_pdf_does_not_require_ocr() -> None:
         3: "Texto jurídico suficiente. " * 30,
     }
     assert extractor._pages_requiring_ocr(pages) == []
+
+
+def test_corrupted_pdf_text_layer_requires_ocr_even_when_it_is_long() -> None:
+    extractor = DocumentExtractor()
+    pages = {
+        1: "□" * 700,
+        2: "Texto jurídico suficiente. " * 30,
+    }
+    assert extractor._pages_requiring_ocr(pages) == [1]
