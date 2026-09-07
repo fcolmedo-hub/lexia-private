@@ -186,6 +186,11 @@ class DocumentExtractor:
         total_pages = len(native_pages)
 
         pages_requiring_ocr = self._pages_requiring_ocr(path, native_pages)
+        unreadable_pages = {
+            page_number
+            for page_number, text in native_pages.items()
+            if self._native_text_is_unreadable(text)
+        }
 
         if not pages_requiring_ocr:
             return ExtractionResult(
@@ -219,8 +224,15 @@ class DocumentExtractor:
         merged_pages = dict(native_pages)
 
         for page_number, ocr_text in ocr_pages.items():
-            if len(ocr_text.strip()) > len(
-                merged_pages.get(page_number, "").strip()
+            # Ante una capa de texto ilegible la salida OCR es preferible aun
+            # cuando sea más corta: medir sólo caracteres preservaba los
+            # cuadrados del PDF y contaminaba la vista rápida, la búsqueda y
+            # los insumos de IA.
+            if (
+                page_number in unreadable_pages
+                or len(ocr_text.strip()) > len(
+                    merged_pages.get(page_number, "").strip()
+                )
             ):
                 merged_pages[page_number] = ocr_text
 
