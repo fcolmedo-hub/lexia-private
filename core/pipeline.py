@@ -347,7 +347,10 @@ class DocumentPipeline:
             self.catalog.save(document)
             return
 
-        if force_ocr and document.has_text:
+        # Un reproceso explícito debe atravesar la extracción aunque el PDF
+        # anuncie una capa de texto: esa capa puede estar dañada (cuadrados o
+        # glifos privados) y es precisamente el caso que se intenta reparar.
+        if force_ocr and document.has_text and not force_reprocess:
             self.ocr_queue.mark_completed(
                 str(document.path.resolve())
             )
