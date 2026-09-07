@@ -274,11 +274,24 @@ REGLAS ESTRICTAS:
                 elif isinstance(quote, dict) and bool(quote.get("user_approved_ai")) and quote_text:
                     # Excepción deliberada y trazable: el usuario comparó el
                     # dato de LexIA con el de la IA y eligió esta última cita.
+                    # Se conserva también el pasaje OCR de LexIA para que el
+                    # visor pueda ubicar y resaltar evidencia real del archivo.
+                    candidate = quote.get("lexia_candidate")
+                    viewer_text = str(
+                        candidate.get("selected_text", "")
+                        if isinstance(candidate, dict) else ""
+                    ).strip()
+                    try:
+                        viewer_start = int(candidate.get("start_char", -1)) if viewer_text else -1
+                        viewer_end = int(candidate.get("end_char", -1)) if viewer_text else -1
+                    except (TypeError, ValueError):
+                        viewer_start = viewer_end = -1
                     highlights.append({
                         "selected_text": quote_text,
-                        "start_char": -1,
-                        "end_char": -1,
+                        "start_char": viewer_start,
+                        "end_char": viewer_end,
                         "user_approved_ai": True,
+                        "viewer_text": viewer_text,
                     })
                 elif quote_text:
                     # No se descarta la estructura por una divergencia OCR/IA:
