@@ -11,10 +11,17 @@ def load_json(path: Path) -> Any:
 
 
 def load_response(path: Path) -> list[dict[str, Any]]:
+    """Carga V2 (array raíz) o V4 (objeto con standards=array)."""
     value = load_json(path)
-    if not isinstance(value, list):
-        raise RuntimeError(f"La raíz de {path} no es un array")
-    return [x for x in value if isinstance(x, dict)]
+    if isinstance(value, list):
+        rows = value
+    elif isinstance(value, dict) and isinstance(value.get("standards"), list):
+        rows = value["standards"]
+    else:
+        raise RuntimeError(
+            f"Formato no reconocido en {path}: se esperaba array o objeto con standards=array"
+        )
+    return [x for x in rows if isinstance(x, dict)]
 
 
 def statements(rows: list[dict[str, Any]]) -> list[str]:
