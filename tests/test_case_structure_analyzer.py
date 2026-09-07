@@ -44,8 +44,16 @@ def test_analyzer_rejects_non_literal_adversary_quote():
             "own_blocks": [],
         }]
     }
-    with pytest.raises(CaseStructureError, match="no aparece literalmente"):
+    with pytest.raises(CaseStructureError, match="no pudo verificarse"):
         CaseStructureAnalyzer(FakeClient(payload)).analyze("demanda.pdf", "Texto real del documento", False)
+
+
+def test_analyzer_accepts_quote_with_ocr_joined_words_and_missing_accents():
+    source = "Dichasexpresionesnosoloresultanfalaces,sinoquetambiendananprofundamenteelbuennombre."
+    quote = "Dichas expresiones no sólo resultan falaces, sino que también dañan profundamente el buen nombre."
+    located = CaseStructureAnalyzer.locate_quote(source, quote)
+    assert located is not None
+    assert located["selected_text"].startswith("Dichasexpresiones")
 
 
 def test_manual_package_and_response_validation_need_no_api():
