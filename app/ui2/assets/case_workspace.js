@@ -89,6 +89,7 @@
       '.case-ai-manual-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.case-ai-manual-response{box-sizing:border-box;width:100%;min-height:145px;margin-top:8px;padding:8px 9px;border:1px solid #dce2ee;border-radius:7px;resize:vertical;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#293357}.case-ai-api-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:13px;padding-top:10px;border-top:1px solid #e8ebf3;color:#7a84a0;font-size:9px}',
       '#searchpage #realSearchResults .result-actions{width:auto!important;min-width:0!important;flex-direction:row!important;align-items:center!important;justify-content:flex-end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-open-file,#searchpage #realSearchResults .result-actions .search-investigate-file,#searchpage #realSearchResults .result-actions .search-file-info,#searchpage #realSearchResults .result-actions .search-delete-file,#searchpage #realSearchResults .result-actions [data-lexia-case-link]{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border-radius:7px!important;font-size:0!important;line-height:1!important}#searchpage #realSearchResults .result-actions .search-open-file{border-color:#e5ae00!important;background:#f5c542!important;color:#5c4600!important}#searchpage #realSearchResults .result-actions .search-open-file:hover{border-color:#c89500!important;background:#ffd761!important}#searchpage #realSearchResults .result-actions .search-open-file::before{content:"↗";font-size:17px;line-height:1;font-weight:900}#searchpage #realSearchResults .result-actions .search-investigate-file::before{content:"⌕";font-size:17px;line-height:1;font-weight:800}#searchpage #realSearchResults .result-actions .search-file-info::before{content:"i";font-size:14px;line-height:1;font-family:Georgia,serif;font-weight:800}#searchpage #realSearchResults .result-actions .search-delete-file::before{content:"×";font-size:18px;line-height:1;font-weight:700}#searchpage #realSearchResults .result-actions [data-lexia-case-link]{border-color:#169b55!important;background:#169b55!important;color:#fff!important}#searchpage #realSearchResults .result-actions [data-lexia-case-link]::before{content:"+";font-size:18px;line-height:1;font-weight:800}',
       '#searchpage #realSearchResults .result-actions{display:grid!important;grid-template-columns:repeat(5,28px)!important;grid-template-rows:28px 20px!important;width:156px!important;min-width:156px!important;justify-content:end!important;gap:4px!important}#searchpage #realSearchResults .result-actions .search-investigate-file{border-color:#5146f6!important;background:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-actions .search-investigate-file:hover{border-color:#4035da!important;background:#4035da!important}#searchpage #realSearchResults .result-actions .score{grid-column:5!important;grid-row:2!important;display:grid!important;place-items:center!important;width:28px!important;min-width:28px!important;height:20px!important;margin:0!important;padding:0!important;font-size:9px!important;line-height:1!important;overflow:visible!important;white-space:nowrap!important}',
+      '#' + PAGE_ID + ' .question-row-active{position:relative;z-index:1;margin-top:7px;padding:8px 9px;border-color:#8e85ff;background:#fbfaff;box-shadow:0 0 0 2px rgba(93,81,244,.10)}#' + PAGE_ID + ' .question-row-active strong{font-size:12px;color:#25305a;white-space:normal;overflow:visible}#' + PAGE_ID + ' .question-row-active small{display:none}#' + PAGE_ID + ' .case-workspace-inline{margin:0!important;border:1px solid #8e85ff!important;border-top:0!important;border-radius:0 0 8px 8px!important;box-shadow:0 2px 7px rgba(72,62,184,.08)!important}#' + PAGE_ID + ' .question-row-active + .case-workspace-inline{margin-top:-1px!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-layout{min-height:0!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-editor{padding-top:9px!important}',
       '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
@@ -417,18 +418,25 @@
   }
   function questionRow(snapshot, node) {
     const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
-    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = actionIcon(expandedNodeId === node.id ? 'hide' : 'show', expandedNodeId === node.id ? 'Ocultar cuestión' : 'Mostrar cuestión');
-    const toggleQuestion = () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.case-workspace'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); };
+    const active = expandedNodeId === node.id;
+    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = actionIcon(active ? 'hide' : 'show', active ? 'Ocultar cuestión' : 'Mostrar cuestión');
+    const toggleQuestion = () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.question-row-active'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); };
     open.addEventListener('click', toggleQuestion);
     const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
     const addChild = actionIcon('add', canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión');
     addChild.disabled = !canAddChild;
     addChild.addEventListener('click', () => openQuestionDialog(snapshot, node.id));
-    const row = el('div', {className: 'question-row'}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), open, addChild);
+    const row = el('div', {className: 'question-row' + (active ? ' question-row-active' : '')}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), open, addChild);
+    if (active) {
+      const edit = actionIcon('edit', 'Editar nombre de la cuestión'), remove = actionIcon('remove', 'Eliminar cuestión', 'cases-danger');
+      edit.addEventListener('click', async () => { const title = prompt('Nombre de la cuestión jurídica:', node.title); if (title === null) return; try { await updateNode(Object.assign({}, node, {title, adversary_text: node.adversary_text || '', own_position: node.own_position || ''})); } catch (error) { alert(error.message); } });
+      remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también sus bloques, resaltados y resultado de IA.'));
+      row.append(edit, remove);
+    }
     enableDoubleClickToggle(row, toggleQuestion);
     const article = el('article', {});
     article.append(row);
-    if (expandedNodeId === node.id) article.append(workspace(snapshot, node));
+    if (active) article.append(workspace(snapshot, node, true));
     const children = el('div', {style: 'margin-left:22px'});
     (node.children || []).forEach(child => children.append(questionRow(snapshot, child)));
     article.append(children);
@@ -503,11 +511,12 @@
     enableDoubleClickToggle(details, () => { details.open = !details.open; });
     return details;
   }
-  function workspace(snapshot, node) {
+  function workspace(snapshot, node, inline) {
     const box = el('section', {className: 'cases-card case-workspace'}), edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'}), hide = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Ocultar'});
     edit.addEventListener('click', async () => { const title = prompt('Nombre de la cuestión jurídica:', node.title); if (title === null) return; try { await updateNode(Object.assign({}, node, {title, adversary_text: node.adversary_text || '', own_position: node.own_position || ''})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también sus bloques, resaltados y resultado de IA.')); hide.addEventListener('click', () => { expandedNodeId = null; render({cases: caseList}); });
-    box.append(el('header', {className: 'workspace-head'}, el('div', {}, el('small', {textContent: 'Cuestión jurídica'}), el('h2', {textContent: node.title})), el('div', {className: 'case-actions'}, edit, remove, hide)));
+    if (inline) box.classList.add('case-workspace-inline');
+    else box.append(el('header', {className: 'workspace-head'}, el('div', {}, el('small', {textContent: 'Cuestión jurídica'}), el('h2', {textContent: node.title})), el('div', {className: 'case-actions'}, edit, remove, hide)));
     const editor = el('section', {className: 'workspace-editor'});
     editor.append(argumentSection(snapshot, node, 'contraparte', 'Planteo de la contraparte'));
     editor.append(argumentSection(snapshot, node, 'propia', 'Nuestra postura y fundamentos'));
