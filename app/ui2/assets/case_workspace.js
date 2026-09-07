@@ -75,7 +75,7 @@
     const css = [
       '#' + PAGE_ID + '{display:none;position:fixed;z-index:20;inset:0 0 0 var(--global-side,0px);background:#f6f7fb;color:#202a48;overflow:auto;box-sizing:border-box}',
       '#' + PAGE_ID + ' .cases-main{box-sizing:border-box;width:100%;max-width:none;margin:0;padding:18px 24px 34px}',
-      '#' + PAGE_ID + ' .cases-toolbar{display:flex;gap:8px;margin-bottom:12px}#' + PAGE_ID + ' .cases-picker{flex:1;min-width:180px}#' + PAGE_ID + ' .cases-picker input{box-sizing:border-box;width:100%;padding:8px 10px;border:1px solid #dce1ed;border-radius:8px;background:#fff;font:inherit;font-size:11px;color:#263154}',
+      '#' + PAGE_ID + ' .cases-toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:flex-start}#' + PAGE_ID + ' .cases-picker{position:relative;flex:1;min-width:180px}#' + PAGE_ID + ' .cases-picker summary{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:8px 11px;border:1px solid #dce1ed;border-radius:8px;background:#fff;color:#263154;cursor:pointer;font-size:12px;font-weight:800;list-style:none}#' + PAGE_ID + ' .cases-picker summary::-webkit-details-marker{display:none}#' + PAGE_ID + ' .cases-picker summary:after{content:"▾";margin-left:auto;color:#6257dc;font-size:12px}#' + PAGE_ID + ' .cases-picker[open] summary{border-color:#8176fa;border-radius:8px 8px 0 0;box-shadow:0 0 0 2px rgba(93,81,244,.1)}#' + PAGE_ID + ' .cases-picker[open] summary:after{transform:rotate(180deg)}#' + PAGE_ID + ' .cases-picker-menu{position:absolute;z-index:60;top:100%;left:0;right:0;padding:7px;border:1px solid #8176fa;border-top:0;border-radius:0 0 8px 8px;background:#fff;box-shadow:0 10px 22px rgba(34,42,79,.16)}#' + PAGE_ID + ' .cases-picker-menu input{box-sizing:border-box;width:100%;padding:7px 8px;border:1px solid #dce1ed;border-radius:6px;background:#fafaff;font:inherit;font-size:11px;color:#263154}#' + PAGE_ID + ' .cases-picker-list{display:grid;gap:2px;max-height:245px;margin-top:6px;overflow:auto}#' + PAGE_ID + ' .cases-picker-option{display:flex;align-items:center;gap:7px;width:100%;padding:7px 8px;border:0;border-radius:6px;background:transparent;color:#303a60;text-align:left;cursor:pointer;font:inherit;font-size:11px}#' + PAGE_ID + ' .cases-picker-option:hover{background:#f1efff}#' + PAGE_ID + ' .cases-picker-option.is-current{background:#f0efff;color:#493de2;font-weight:800}#' + PAGE_ID + ' .cases-picker-check{width:13px;color:#5146f6;font-weight:900;text-align:center}',
       '#' + PAGE_ID + ' .cases-button,#' + PAGE_ID + ' .cases-button-secondary,#' + PAGE_ID + ' .cases-icon{box-sizing:border-box;min-height:0;font:inherit!important;font-size:9px!important;line-height:1.1!important;font-weight:800;cursor:pointer;border-radius:6px;padding:5px 7px!important}#' + PAGE_ID + ' .cases-button{background:#5146f6;color:#fff;border:1px solid #5146f6}#' + PAGE_ID + ' .cases-button:hover{background:#4136df}#' + PAGE_ID + ' .cases-button-secondary{background:#fff;color:#465176;border:1px solid #d8deed}#' + PAGE_ID + ' .cases-button-secondary:hover{border-color:#6459f4;color:#493de2}#' + PAGE_ID + ' .cases-icon{background:transparent;color:#5f6989;border:0;padding:4px 5px!important}#' + PAGE_ID + ' .cases-icon:hover{background:#f0efff;color:#493de2}#' + PAGE_ID + ' .cases-danger{border-color:#f0c7ce;color:#b23848}#' + PAGE_ID + ' .cases-danger:hover{background:#fff4f5;border-color:#df7786;color:#9d2939}',
       '.cases-card{background:#fff;border:1px solid #e0e5ef;border-radius:14px;box-shadow:0 3px 14px rgba(31,39,76,.045)}.cases-empty{padding:22px;color:#74809d;font-size:13px;text-align:center}.cases-create{margin-bottom:16px;padding:16px}.cases-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.cases-field{display:grid;gap:5px}.cases-field.wide{grid-column:1/-1}.cases-field label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.035em;color:#6b7593}.cases-field input,.cases-field textarea,.cases-field select{box-sizing:border-box;width:100%;border:1px solid #dce1ed;border-radius:8px;padding:9px 10px;font:inherit;font-size:12px;color:#273153;background:#fff}.cases-field textarea{min-height:74px;resize:vertical}.cases-form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}',
       '.case-identification{padding:14px 16px;margin-bottom:12px}.case-identification-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.case-identification h1{margin:0;font-size:18px}.case-summary{margin:6px 0 0;max-width:930px;white-space:pre-wrap;color:#5f6b8c;font-size:11px;line-height:1.4}.case-actions{display:flex;gap:5px;flex-wrap:wrap}.case-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #edf0f5}.case-fact small{display:block;font-size:9px;font-weight:800;color:#7a84a0;text-transform:uppercase;letter-spacing:.035em;margin-bottom:2px}.case-fact span{display:block;font-size:11px;color:#313b5e;overflow-wrap:anywhere}',
@@ -212,12 +212,27 @@
     else root.append(el('section', {className: 'cases-card cases-empty', textContent: 'Elegí un caso desde el buscador o creá uno nuevo para comenzar.'}));
   }
   function toolbar() {
-    const input = el('input', {type: 'search', list: 'lexiaCaseOptions', placeholder: 'Buscar o seleccionar un caso…', value: currentCase && currentCase.case ? currentCase.case.name : ''});
-    const list = el('datalist', {id: 'lexiaCaseOptions'}); caseList.forEach(item => list.append(el('option', {value: item.name})));
-    input.addEventListener('change', () => { const found = caseList.find(item => item.name === input.value.trim()); if (found) loadCase(found.id); });
+    const currentId = Number(currentCase?.case?.id || 0), currentName = String(currentCase?.case?.name || 'Elegir un caso');
+    const picker = el('details', {className: 'cases-picker'}), summary = el('summary', {textContent: currentName});
+    const input = el('input', {type: 'search', placeholder: 'Buscar casos…', autocomplete: 'off'}), list = el('div', {className: 'cases-picker-list'});
+    const draw = filter => {
+      const term = String(filter || '').trim().toLocaleLowerCase('es');
+      list.replaceChildren();
+      const visible = caseList.filter(item => !term || String(item.name || '').toLocaleLowerCase('es').includes(term));
+      if (!visible.length) list.append(el('p', {className: 'sources-empty', textContent: 'No hay casos que coincidan.'}));
+      visible.forEach(item => {
+        const selected = Number(item.id) === currentId;
+        const option = el('button', {type: 'button', className: 'cases-picker-option' + (selected ? ' is-current' : '')}, el('span', {className: 'cases-picker-check', textContent: selected ? '✓' : ''}), el('span', {textContent: item.name}));
+        option.addEventListener('click', () => { picker.open = false; if (!selected) loadCase(item.id); });
+        list.append(option);
+      });
+    };
+    draw(''); input.addEventListener('input', () => draw(input.value));
+    picker.addEventListener('toggle', () => { if (picker.open) setTimeout(() => input.focus(), 0); else { input.value = ''; draw(''); } });
+    picker.append(summary, el('div', {className: 'cases-picker-menu'}, input, list));
     const add = el('button', {type: 'button', className: 'cases-button', textContent: '+ Caso'});
     add.addEventListener('click', openNewCaseDialog);
-    return el('header', {className: 'cases-toolbar'}, el('div', {className: 'cases-picker'}, input, list), add);
+    return el('header', {className: 'cases-toolbar'}, picker, add);
   }
   function newCaseForm(close) {
     const form = el('form', {className: 'cases-card cases-create'});
