@@ -97,10 +97,20 @@ def quote_excerpt(conn: sqlite3.Connection, standard_uid: str, max_chars: int = 
 
 def build_candidates(
     conn: sqlite3.Connection,
-    min_score: float,
-    min_shared_terms: int,
+    cross_min_score: float,
+    cross_min_shared_terms: int,
     top_k_terms: int,
 ) -> list[dict[str, Any]]:
+    """Preselector deliberadamente orientado a recall.
+
+    Reglas:
+    - Dentro de un mismo documento se conservan TODOS los pares. En una sentencia,
+      reglas próximas pueden ser general/especial, excepción, apoyo o duplicado aunque
+      compartan poco vocabulario literal.
+    - Entre documentos se exige al menos una señal léxica: términos informativos
+      compartidos y un score mínimo bajo. La decisión jurídica queda para la etapa
+      posterior y nunca se infiere aquí.
+    """
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         """
@@ -130,6 +140,7 @@ def build_candidates(
     n = max(len(rows), 1)
     idf = {term: math.log((n + 1) / (freq + 1)) + 1.0 for term, freq in df.items()}
 
+    # Índice invertido sólo para generar candidatos cross-document de forma barata.
     inverted: dict[str, set[str]] = {}
     for uid, toks in token_lists.items():
         unique = sorted(set(toks), key=lambda t: (-idf.get(t, 0.0), t))[:top_k_terms]
@@ -143,24 +154,42 @@ def build_candidates(
             for j in range(i + 1, len(ordered)):
                 pair_shared[(ordered[i], ordered[j])] += 1
 
+    # Garantiza todos los pares dentro del mismo documento.
+    by_document: dict[int, list[str]] = {}
+    for row in rows:
+        by_document.setdefault(int(row["document_id"]), []).append(str(row["standard_uid"]))
+
+    all_pairs: dict[tuple[str, str], int] = dict(pair_shared)
+    for members in by_document.values():
+        ordered = sorted(members)
+        for i in range(len(ordered)):
+            for j in range(i + 1, len(ordered)):
+                all_pairs.setdefault((ordered[i], ordered[j]), 0)
+
     output: list[dict[str, Any]] = []
-    for (a_uid, b_uid), shared_terms in pair_shared.items():
-        if shared_terms < min_shared_terms:
-            continue
+    for (a_uid, b_uid), shared_terms in all_pairs.items():
         a = by_uid[a_uid]
         b = by_uid[b_uid]
+        same_document = int(a["document_id"]) == int(b["document_id"])
+
         token_score = weighted_jaccard(counters[a_uid], counters[b_uid], idf)
         char_score = SequenceMatcher(None, normalize(a["statement"]), normalize(b["statement"])).ratio()
         score = round(0.72 * token_score + 0.28 * char_score, 6)
-        if score < min_score:
-            continue
+
+        if same_document:
+            inclusion_reason = "same_document_recall"
+        else:
+            if shared_terms < cross_min_shared_terms or score < cross_min_score:
+                continue
+            inclusion_reason = "cross_document_lexical"
 
         output.append(
             {
                 "candidate_id": pair_uid(a_uid, b_uid),
                 "score": score,
                 "shared_index_terms": int(shared_terms),
-                "same_document": int(a["document_id"]) == int(b["document_id"]),
+                "same_document": same_document,
+                "inclusion_reason": inclusion_reason,
                 "a": {
                     "standard_uid": a_uid,
                     "statement": a["statement"],
@@ -186,7 +215,13 @@ def build_candidates(
             }
         )
 
-    output.sort(key=lambda x: (-float(x["score"]), str(x["candidate_id"])))
+    output.sort(
+        key=lambda x: (
+            -int(bool(x["same_document"])),
+            -float(x["score"]),
+            str(x["candidate_id"]),
+        )
+    )
     return output
 
 
@@ -197,9 +232,9 @@ def main() -> int:
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY)
-    parser.add_argument("--min-score", type=float, default=0.20)
-    parser.add_argument("--min-shared-terms", type=int, default=2)
-    parser.add_argument("--top-k-terms", type=int, default=18)
+    parser.add_argument("--cross-min-score", type=float, default=0.08)
+    parser.add_argument("--cross-min-shared-terms", type=int, default=1)
+    parser.add_argument("--top-k-terms", type=int, default=24)
     args = parser.parse_args()
 
     if not args.db.exists():
@@ -207,7 +242,12 @@ def main() -> int:
 
     conn = sqlite3.connect(args.db)
     try:
-        candidates = build_candidates(conn, args.min_score, args.min_shared_terms, args.top_k_terms)
+        candidates = build_candidates(
+            conn,
+            args.cross_min_score,
+            args.cross_min_shared_terms,
+            args.top_k_terms,
+        )
         validated = conn.execute(
             "SELECT COUNT(*) FROM standards WHERE review_status='validated' AND publication_status IN ('ready','published')"
         ).fetchone()[0]
@@ -224,9 +264,10 @@ def main() -> int:
         "candidate_pairs": len(candidates),
         "same_document_pairs": sum(1 for x in candidates if x["same_document"]),
         "cross_document_pairs": sum(1 for x in candidates if not x["same_document"]),
-        "min_score": args.min_score,
-        "min_shared_terms": args.min_shared_terms,
+        "cross_min_score": args.cross_min_score,
+        "cross_min_shared_terms": args.cross_min_shared_terms,
         "top_k_terms": args.top_k_terms,
+        "same_document_policy": "all_pairs_for_recall",
         "decision_policy": "prefilter_only_no_automatic_legal_relation",
         "output": str(args.output.resolve()),
     }
