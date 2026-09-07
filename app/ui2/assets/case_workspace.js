@@ -390,6 +390,9 @@
     const upload = actionIcon('files', 'Cargar archivos en esta rama');
     const replace = node.primary_document_id ? actionIcon('replace', 'Reemplazar documento inicial') : null;
     const analyze = node.primary_document_id ? actionIcon('ai', 'Armar árbol con IA') : null;
+    const primaryDocument = (snapshot.documents || []).find(item => Number(item.id) === Number(node.primary_document_id));
+    const reprocess = primaryDocument && /\.pdf$/i.test(String(primaryDocument.document_name || primaryDocument.document_path || ''))
+      ? actionIcon('refresh', 'Reprocesar OCR del documento inicial') : null;
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
     const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
     addQuestion.disabled = !canAddQuestion;
@@ -398,11 +401,12 @@
     upload.addEventListener('click', () => input.click());
     if (replace) replace.addEventListener('click', () => replacePrimaryDocument(snapshot, node));
     if (analyze) analyze.addEventListener('click', () => openAiStructureDialog(snapshot, node));
+    if (reprocess) reprocess.addEventListener('click', () => reprocessPdfDocument(primaryDocument, reprocess));
     input.addEventListener('change', () => { if (input.files?.length) importBranchFiles(snapshot, node, input.files, upload); input.value = ''; });
     addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); openQuestionDialog(snapshot, node.id); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
-    const head = el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, analyze, addQuestion, edit, remove));
+    const head = el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, reprocess, analyze, addQuestion, edit, remove));
     enableDoubleClickToggle(head, togglePrimary); article.append(input, head);
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach(question => questions.append(questionRow(snapshot, question)));
@@ -487,6 +491,15 @@
       currentCase = response.case; await loadCases(false);
       if ((response.pending_cleanup || []).length) alert('El archivo fue quitado del caso, pero su eliminación física quedó pendiente porque LexIA estaba ocupada.');
     } catch (error) { alert(error.message); }
+  }
+  async function reprocessPdfDocument(document, button) {
+    if (!confirm('¿Reprocesar este PDF con OCR?\n\nSe corregirá el texto indexado y luego podrá usarse en búsqueda e IA.')) return;
+    button.disabled = true;
+    try {
+      await api('/api/navigator-operation', {method: 'POST', body: JSON.stringify({operation: 'reprocess_file', path: document.document_path})});
+      alert('OCR iniciado para “' + document.document_name + '”. Esperá a que termine y recargá Casos antes de armar el árbol.');
+    } catch (error) { alert('No se pudo iniciar el OCR.\n\n' + error.message); }
+    finally { button.disabled = false; }
   }
   function replacePrimaryDocument(snapshot, node) {
     const choices = (snapshot.documents || []).filter(document => Number(document.id) !== Number(node.primary_document_id));
@@ -581,15 +594,7 @@
       const actions = [choose];
       if (/\.pdf$/i.test(String(doc.document_name || doc.document_path || ''))) {
         const reprocess = actionIcon('refresh', 'Reprocesar OCR de este PDF');
-        reprocess.addEventListener('click', async () => {
-          if (!confirm('¿Reprocesar este PDF con OCR?\n\nSe corregirá el texto indexado y luego podrá usarse en búsqueda e IA.')) return;
-          reprocess.disabled = true;
-          try {
-            await api('/api/navigator-operation', {method: 'POST', body: JSON.stringify({operation: 'reprocess_file', path: doc.document_path})});
-            alert('OCR iniciado para “' + doc.document_name + '”. Esperá a que termine y recargá Casos antes de armar el árbol.');
-          } catch (error) { alert('No se pudo iniciar el OCR.\n\n' + error.message); }
-          finally { reprocess.disabled = false; }
-        });
+        reprocess.addEventListener('click', () => reprocessPdfDocument(doc, reprocess));
         actions.push(reprocess);
       }
       if (!protectedDocuments.has(Number(doc.id))) {
