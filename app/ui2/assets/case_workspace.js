@@ -714,14 +714,7 @@
     if (!exact) return false;
     let start = source.indexOf(exact), length = exact.length;
     if (start < 0) {
-      const words = exact.split(/\s+/).filter(Boolean).map(word => word.replace(/[|\\{}()[\]^$+*?.-]/g, '\\    if (start < 0) {
       const words = exact.split(/\s+/).filter(Boolean).map(word => word.replace(/[|\\{}()[\]^$+*?.-]/g, '\\$&'));
-      if (words.length) {
-        const match = source.match(new RegExp(words.join('\\s+')));
-        if (match && Number.isInteger(match.index)) { start = match.index; length = match[0].length; }
-      }
-    }
-    if (start < 0) return false;'));
       if (words.length) {
         const match = source.match(new RegExp(words.join('\\s+')));
         if (match && Number.isInteger(match.index)) { start = match.index; length = match[0].length; }
