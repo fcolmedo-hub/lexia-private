@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib import request as urllib_request
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
+STANDARDS_PORT = os.environ.get("LEXIA_STANDARDS_PORT", "8515")
 BASE_URL = f"http://127.0.0.1:{PORT}"
 URL = BASE_URL + "/?lexia_app=1"
 BRIDGE_PORT = 8513
@@ -72,7 +73,6 @@ def ensure_docker() -> None:
             check=False,
         )
 
-    # Best effort: ocultar cualquier ventana de Docker sin condicionar el arranque.
     hide_script = (
         'tell application "System Events"\n'
         'if exists process "Docker Desktop" then set visible of process "Docker Desktop" to false\n'
@@ -103,6 +103,7 @@ def kill_stale(root: Path) -> None:
         root / "run_lexia_services.py",
         root / "app" / "ui2" / "server.py",
         root / "app" / "ui2" / "launch_ui2.py",
+        root / "app" / "ui2" / "standards_api.py",
     ):
         subprocess.run(
             ["/usr/bin/pkill", "-f", str(target)],
@@ -118,6 +119,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     index = here / "index.html"
     jurisprudence = here / "assets" / "jurisprudence_search.js"
     app_runtime = here / "assets" / "app_runtime.js"
+    standards_ui = here / "assets" / "standards_ui.js"
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
@@ -136,6 +138,10 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if "assets/app_runtime.js" not in patched:
         body_tags.append('<script src="assets/app_runtime.js?v=app-runtime-2"></script>')
+
+    if standards_ui.exists() and "assets/standards_ui.js" not in patched:
+        body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>')
+        body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-1"></script>')
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
@@ -190,6 +196,22 @@ def stop_process(process: subprocess.Popen | None) -> None:
         process.wait(timeout=3)
 
 
+def start_standards_api(root: Path, py: Path, env: dict[str, str]) -> subprocess.Popen | None:
+    script = root / "app" / "ui2" / "standards_api.py"
+    if not script.exists():
+        return None
+    api_env = dict(env)
+    api_env["LEXIA_STANDARDS_PORT"] = STANDARDS_PORT
+    return subprocess.Popen(
+        [str(py), str(script)],
+        cwd=str(root),
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
 def main() -> int:
     root = project_root()
     py = venv_python(root)
@@ -212,6 +234,7 @@ def main() -> int:
     )
 
     server: subprocess.Popen | None = None
+    standards_api: subprocess.Popen | None = None
     original_index: str | None = None
     try:
         if not wait_tcp(BRIDGE_PORT, 35):
@@ -222,6 +245,9 @@ def main() -> int:
         original_index = ensure_ui_assets(root)
         env = os.environ.copy()
         env["LEXIA_UI2_PORT"] = PORT
+        env["LEXIA_STANDARDS_PORT"] = STANDARDS_PORT
+
+        standards_api = start_standards_api(root, py, env)
         server = subprocess.Popen(
             [str(py), str(root / "app" / "ui2" / "server.py")],
             cwd=str(root),
@@ -242,12 +268,11 @@ def main() -> int:
             min_size=(1000, 700),
             resizable=True,
         )
-        # PyWebView usa modo privado por defecto. Desactivarlo conserva
-        # localStorage entre sesiones (p. ej. Indicaciones recientes).
         webview.start(gui="cocoa", private_mode=False)
         return 0
     finally:
         stop_process(server)
+        stop_process(standards_api)
         stop_process(services)
         services_log.close()
         restore_ui_assets(root, original_index)
@@ -257,7 +282,6 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        # En una aplicación windowed no hay consola. Dejar un log legible.
         root = Path.home() / "Library" / "Application Support" / "LexIA" / "logs"
         root.mkdir(parents=True, exist_ok=True)
         (root / "lexia_app_error.log").write_text(str(exc) + "\n", encoding="utf-8")
