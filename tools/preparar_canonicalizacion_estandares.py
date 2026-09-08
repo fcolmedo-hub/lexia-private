@@ -100,6 +100,7 @@ def build_candidates(
     cross_min_score: float,
     cross_min_shared_terms: int,
     top_k_terms: int,
+    exclude_candidate_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Preselector deliberadamente orientado a recall.
 
@@ -166,8 +167,12 @@ def build_candidates(
             for j in range(i + 1, len(ordered)):
                 all_pairs.setdefault((ordered[i], ordered[j]), 0)
 
+    excluded = exclude_candidate_ids or set()
     output: list[dict[str, Any]] = []
     for (a_uid, b_uid), shared_terms in all_pairs.items():
+        candidate_id = pair_uid(a_uid, b_uid)
+        if candidate_id in excluded:
+            continue
         a = by_uid[a_uid]
         b = by_uid[b_uid]
         same_document = int(a["document_id"]) == int(b["document_id"])
@@ -185,7 +190,7 @@ def build_candidates(
 
         output.append(
             {
-                "candidate_id": pair_uid(a_uid, b_uid),
+                "candidate_id": candidate_id,
                 "score": score,
                 "shared_index_terms": int(shared_terms),
                 "same_document": same_document,
@@ -235,6 +240,11 @@ def main() -> int:
     parser.add_argument("--cross-min-score", type=float, default=0.08)
     parser.add_argument("--cross-min-shared-terms", type=int, default=1)
     parser.add_argument("--top-k-terms", type=int, default=24)
+    parser.add_argument(
+        "--include-classified",
+        action="store_true",
+        help="Incluye pares ya registrados en relation_decisions (por defecto se omiten).",
+    )
     args = parser.parse_args()
 
     if not args.db.exists():
@@ -242,11 +252,20 @@ def main() -> int:
 
     conn = sqlite3.connect(args.db)
     try:
+        excluded_candidate_ids: set[str] = set()
+        decisions_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='relation_decisions'"
+        ).fetchone()
+        if decisions_table and not args.include_classified:
+            excluded_candidate_ids = {
+                str(row[0]) for row in conn.execute("SELECT candidate_id FROM relation_decisions")
+            }
         candidates = build_candidates(
             conn,
             args.cross_min_score,
             args.cross_min_shared_terms,
             args.top_k_terms,
+            excluded_candidate_ids,
         )
         validated = conn.execute(
             "SELECT COUNT(*) FROM standards WHERE review_status='validated' AND publication_status IN ('ready','published')"
@@ -262,6 +281,7 @@ def main() -> int:
     summary = {
         "standards_considered": int(validated),
         "candidate_pairs": len(candidates),
+        "classified_pair_ids_loaded": len(excluded_candidate_ids),
         "same_document_pairs": sum(1 for x in candidates if x["same_document"]),
         "cross_document_pairs": sum(1 for x in candidates if not x["same_document"]),
         "cross_min_score": args.cross_min_score,

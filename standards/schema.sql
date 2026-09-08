@@ -87,6 +87,30 @@ CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(from_standard_uid);
 CREATE INDEX IF NOT EXISTS idx_relations_to ON relations(to_standard_uid);
 CREATE INDEX IF NOT EXISTS idx_relations_type ON relations(relation_type);
 
+-- Registro durable de todas las decisiones del clasificador, incluso `none`.
+-- `relations` conserva solamente los vínculos positivos que usa el producto;
+-- esta tabla evita volver a pagar/clasificar el mismo par y deja trazabilidad.
+CREATE TABLE IF NOT EXISTS relation_decisions (
+    candidate_id TEXT PRIMARY KEY,
+    a_standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
+    b_standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
+    relation_type TEXT NOT NULL CHECK(relation_type IN ('none','duplicate_of','specializes','generalizes','exception_to','related_to','supports','contradicts')),
+    direction TEXT NOT NULL CHECK(direction IN ('a_to_b','b_to_a','symmetric','not_applicable')),
+    confidence TEXT CHECK(confidence IS NULL OR confidence IN ('high','medium','low')),
+    rationale TEXT,
+    decision_status TEXT NOT NULL DEFAULT 'automated' CHECK(decision_status IN ('automated','reviewed')),
+    relation_id INTEGER REFERENCES relations(relation_id) ON DELETE SET NULL,
+    classifier_model TEXT,
+    source_file TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_relation_decisions_pair
+    ON relation_decisions(a_standard_uid, b_standard_uid);
+CREATE INDEX IF NOT EXISTS idx_relation_decisions_relation
+    ON relation_decisions(relation_type, decision_status);
+
 CREATE TABLE IF NOT EXISTS tags (
     tag_id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE
