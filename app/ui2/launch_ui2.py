@@ -15,8 +15,10 @@ if str(ROOT) not in sys.path:
 from app.ui2.portability import venv_python
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
+STANDARDS_PORT = os.environ.get("LEXIA_STANDARDS_PORT", "8515")
 BASE_URL = f"http://127.0.0.1:{PORT}"
 URL = BASE_URL + "/?lexia_app=1"
+STANDARDS_URL = f"http://127.0.0.1:{STANDARDS_PORT}"
 py = venv_python(ROOT)
 
 if not py.exists():
@@ -30,6 +32,7 @@ def _ensure_ui_assets() -> str | None:
     index = HERE / "index.html"
     jurisprudence = HERE / "assets" / "jurisprudence_search.js"
     app_runtime = HERE / "assets" / "app_runtime.js"
+    standards_ui = HERE / "assets" / "standards_ui.js"
     study_layout_guard = HERE / "assets" / "study_layout_guard.js"
     startup_frame_guard = HERE / "assets" / "startup_frame_guard.css"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
@@ -60,6 +63,14 @@ def _ensure_ui_assets() -> str | None:
     if "assets/app_runtime.js" not in patched:
         body_tags.append(
             '<script src="assets/app_runtime.js?v=app-runtime-2"></script>'
+        )
+
+    if standards_ui.exists() and "assets/standards_ui.js" not in patched:
+        body_tags.append(
+            f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>'
+        )
+        body_tags.append(
+            '<script src="assets/standards_ui.js?v=standards-ui-1"></script>'
         )
 
     if (
@@ -122,8 +133,8 @@ def _wait_for_ui(url: str, process: subprocess.Popen, timeout: float = 20.0) -> 
     raise RuntimeError("UI2 no respondió dentro del tiempo esperado.")
 
 
-def _stop_process(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
+def _stop_process(process: subprocess.Popen | None) -> None:
+    if process is None or process.poll() is not None:
         return
     process.terminate()
     try:
@@ -155,16 +166,32 @@ def _start_windows_core_bridge():
     return application
 
 
+def _start_standards_api(env: dict[str, str], popen_kwargs: dict) -> subprocess.Popen | None:
+    api_script = HERE / "standards_api.py"
+    if not api_script.exists():
+        return None
+    api_env = dict(env)
+    api_env["LEXIA_STANDARDS_PORT"] = STANDARDS_PORT
+    kwargs = dict(popen_kwargs)
+    kwargs["env"] = api_env
+    return subprocess.Popen(
+        [str(py), str(api_script)],
+        **kwargs,
+    )
+
+
 def main() -> int:
     print("LexIA UI2 Desktop")
     print("Proyecto:", ROOT)
     print("UI2:", URL)
+    print("Estándares:", STANDARDS_URL)
 
     original_index = _ensure_ui_assets()
     core_application = _start_windows_core_bridge()
 
     env = os.environ.copy()
     env["LEXIA_UI2_PORT"] = PORT
+    env["LEXIA_STANDARDS_PORT"] = STANDARDS_PORT
 
     popen_kwargs = {
         "cwd": str(ROOT),
@@ -173,6 +200,7 @@ def main() -> int:
     if os.name == "nt":
         popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
+    standards_api = _start_standards_api(env, popen_kwargs)
     server = subprocess.Popen(
         [str(py), str(HERE / "server.py")],
         **popen_kwargs,
@@ -203,6 +231,7 @@ def main() -> int:
         return 0
     finally:
         _stop_process(server)
+        _stop_process(standards_api)
         _restore_ui_assets(original_index)
         # Mantiene una referencia viva durante toda la sesión; al cerrar la
         # ventana, el proceso termina y con él el servidor daemon del puente.
