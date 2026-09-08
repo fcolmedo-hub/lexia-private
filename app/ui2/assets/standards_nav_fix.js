@@ -6,6 +6,21 @@
     return document.getElementById('lexiaStandardsShell');
   }
 
+  function installVisualFixes(){
+    if(document.getElementById('lexiaStandardsNativeVisualFix'))return;
+    const style=document.createElement('style');
+    style.id='lexiaStandardsNativeVisualFix';
+    style.textContent=`
+      #lexiaStandardsShell .std-kicker{display:none!important}
+      #lexiaStandardsShell .std-wrap{max-width:none!important;margin:0!important;padding:22px 18px 38px!important}
+      #lexiaStandardsShell .std-head{margin-bottom:14px!important}
+      #lexiaStandardsShell .std-title{margin-top:0!important}
+      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}}
+      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}}
+    `;
+    document.head.appendChild(style);
+  }
+
   function syncStandardsInset(){
     const sidebar=document.getElementById('globalSidebar');
     const shell=standardsShell();
@@ -22,6 +37,7 @@
   function openStandards(){
     const shell=standardsShell();
     if(!shell)return;
+    installVisualFixes();
     syncStandardsInset();
     const nav=document.querySelector('#globalSidebar .nav');
     if(nav)nav.querySelectorAll('button').forEach(item=>item.classList.remove('active'));
@@ -59,6 +75,7 @@
   }
 
   function install(){
+    installVisualFixes();
     const nav=document.querySelector('#globalSidebar .nav');
     if(!nav)return false;
     if(nav.querySelector('[data-lexia-standards-nav]')){
