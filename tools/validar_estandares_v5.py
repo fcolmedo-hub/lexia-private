@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from validar_estandares_v2 import load_jsonl
+try:
+    from tools.validar_estandares_v2 import load_jsonl
+except ImportError:  # ejecución directa desde tools/
+    from validar_estandares_v2 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FALLOS = REPO_ROOT / "runtime" / "standards_pilot" / "export_50_v5" / "fallos.jsonl"

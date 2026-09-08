@@ -153,12 +153,14 @@ def import_validated_document(
     ready = 0
     blocked = 0
     quotes_count = 0
+    imported_uids: set[str] = set()
 
     for index, standard in enumerate(standards, start=1):
         if not isinstance(standard, dict):
             continue
         fingerprint = standard_fingerprint(source_key, standard)
         standard_uid = standard_uid_from_fingerprint(fingerprint)
+        imported_uids.add(standard_uid)
         has_issue = standard_has_issue(issues, index)
         review_status = "needs_review" if has_issue else "validated"
         publication_status = "blocked" if has_issue else "ready"
@@ -241,7 +243,112 @@ def import_validated_document(
         else:
             ready += 1
 
-    return {"standards": imported, "ready": ready, "blocked": blocked, "quotes": quotes_count}
+    # Una nueva extracción completa del mismo documento reemplaza la versión
+    # automática anterior. No se borran estándares ni relaciones: los que ya
+    # no aparecen quedan ocultos para preservar auditoría e historial. Las
+    # cargas manuales (run_id IS NULL) nunca se tocan.
+    superseded = 0
+    previous_rows = conn.execute(
+        "SELECT standard_uid FROM standards WHERE document_id=? AND run_id IS NOT NULL",
+        (document_id,),
+    ).fetchall()
+    for previous in previous_rows:
+        previous_uid = str(previous[0])
+        if previous_uid in imported_uids:
+            continue
+        conn.execute(
+            "UPDATE standards SET publication_status='hidden',updated_at=CURRENT_TIMESTAMP WHERE standard_uid=?",
+            (previous_uid,),
+        )
+        superseded += 1
+
+    return {
+        "standards": imported,
+        "ready": ready,
+        "blocked": blocked,
+        "quotes": quotes_count,
+        "superseded": superseded,
+    }
+
+
+def import_validated_run(
+    *,
+    validated_dir: Path,
+    fallos_path: Path,
+    db_path: Path,
+    schema_path: Path = DEFAULT_SCHEMA,
+    run_id: str | None = None,
+    model: str = "gpt-5.6-luna",
+    reasoning_effort: str = "medium",
+) -> dict[str, Any]:
+    docs = load_jsonl(fallos_path)
+    by_id = {int(row.get("pilot_id")): row for row in docs if row.get("pilot_id") is not None}
+    files = sorted(validated_dir.glob("*_validado.json"))
+    if not files:
+        raise RuntimeError(f"No hay *_validado.json en {validated_dir}")
+
+    resolved_run_id = run_id or f"v5-{uuid.uuid4().hex[:12]}"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        ensure_schema(conn, schema_path)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO extraction_runs(
+                run_id, extractor_version, model, reasoning_effort, source_dir, notes
+            ) VALUES(?,?,?,?,?,?)
+            """,
+            (
+                resolved_run_id,
+                "v5",
+                model,
+                reasoning_effort,
+                str(validated_dir.resolve()),
+                "evidence_mode=deterministic_unit_ids",
+            ),
+        )
+
+        totals = {
+            "documents": 0,
+            "standards": 0,
+            "ready": 0,
+            "blocked": 0,
+            "quotes": 0,
+            "superseded": 0,
+        }
+        with conn:
+            for path in files:
+                try:
+                    pilot_id = int(path.name.split("_", 1)[0])
+                except ValueError:
+                    continue
+                doc = by_id.get(pilot_id)
+                if doc is None:
+                    raise RuntimeError(f"pilot_id {pilot_id} no existe en {fallos_path}")
+                result = json.loads(path.read_text(encoding="utf-8"))
+                stats = import_validated_document(conn, doc, pilot_id, result, resolved_run_id)
+                totals["documents"] += 1
+                for key in ("standards", "ready", "blocked", "quotes", "superseded"):
+                    totals[key] += stats[key]
+
+        database = {
+            "documents": conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+            "standards": conn.execute("SELECT COUNT(*) FROM standards").fetchone()[0],
+            "quotes": conn.execute("SELECT COUNT(*) FROM quotes").fetchone()[0],
+            "ready": conn.execute("SELECT COUNT(*) FROM standards WHERE publication_status='ready'").fetchone()[0],
+            "blocked": conn.execute("SELECT COUNT(*) FROM standards WHERE publication_status='blocked'").fetchone()[0],
+            "hidden": conn.execute("SELECT COUNT(*) FROM standards WHERE publication_status='hidden'").fetchone()[0],
+        }
+        return {
+            "run_id": resolved_run_id,
+            "imported": totals,
+            "database": database,
+            "db_path": str(db_path.resolve()),
+        }
+    finally:
+        conn.close()
 
 
 def main() -> int:
@@ -262,63 +369,19 @@ def main() -> int:
     if not args.schema.exists():
         parser.error(f"No existe schema.sql: {args.schema}")
 
-    docs = load_jsonl(args.fallos)
-    by_id = {int(row.get("pilot_id")): row for row in docs if row.get("pilot_id") is not None}
-    files = sorted(args.validated.glob("*_validado.json"))
-    if not files:
-        parser.error(f"No hay *_validado.json en {args.validated}")
-
-    run_id = args.run_id or f"v5-{uuid.uuid4().hex[:12]}"
-    args.db.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(args.db)
     try:
-        conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute("PRAGMA journal_mode=WAL")
-        ensure_schema(conn, args.schema)
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO extraction_runs(
-                run_id, extractor_version, model, reasoning_effort, source_dir, notes
-            ) VALUES(?,?,?,?,?,?)
-            """,
-            (run_id, "v5", args.model, args.reasoning_effort, str(args.validated.resolve()), "evidence_mode=deterministic_unit_ids"),
+        result = import_validated_run(
+            validated_dir=args.validated,
+            fallos_path=args.fallos,
+            db_path=args.db,
+            schema_path=args.schema,
+            run_id=args.run_id,
+            model=args.model,
+            reasoning_effort=args.reasoning_effort,
         )
-
-        totals = {"documents": 0, "standards": 0, "ready": 0, "blocked": 0, "quotes": 0}
-        with conn:
-            for path in files:
-                try:
-                    pilot_id = int(path.name.split("_", 1)[0])
-                except ValueError:
-                    continue
-                doc = by_id.get(pilot_id)
-                if doc is None:
-                    raise RuntimeError(f"pilot_id {pilot_id} no existe en {args.fallos}")
-                result = json.loads(path.read_text(encoding="utf-8"))
-                stats = import_validated_document(conn, doc, pilot_id, result, run_id)
-                totals["documents"] += 1
-                for key in ("standards", "ready", "blocked", "quotes"):
-                    totals[key] += stats[key]
-                print(
-                    f"{path.name}: estándares={stats['standards']}, ready={stats['ready']}, "
-                    f"blocked={stats['blocked']}, citas={stats['quotes']}"
-                )
-
-        db_counts = {
-            "documents": conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
-            "standards": conn.execute("SELECT COUNT(*) FROM standards").fetchone()[0],
-            "quotes": conn.execute("SELECT COUNT(*) FROM quotes").fetchone()[0],
-            "ready": conn.execute("SELECT COUNT(*) FROM standards WHERE publication_status='ready'").fetchone()[0],
-            "blocked": conn.execute("SELECT COUNT(*) FROM standards WHERE publication_status='blocked'").fetchone()[0],
-        }
-        print(json.dumps({
-            "run_id": run_id,
-            "imported": totals,
-            "database": db_counts,
-            "db_path": str(args.db.resolve()),
-        }, ensure_ascii=False, indent=2))
-    finally:
-        conn.close()
+    except RuntimeError as exc:
+        parser.error(str(exc))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -6,7 +6,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from preparar_estandares_v2 import compact_metadata, dump_jsonl, load_jsonl
+try:
+    from tools.preparar_estandares_v2 import compact_metadata, dump_jsonl, load_jsonl
+except ImportError:  # ejecución directa desde tools/
+    from preparar_estandares_v2 import compact_metadata, dump_jsonl, load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = REPO_ROOT / "runtime" / "standards_pilot" / "export_50" / "fallos.jsonl"

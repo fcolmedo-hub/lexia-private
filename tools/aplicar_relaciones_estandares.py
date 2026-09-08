@@ -16,6 +16,11 @@ DEFAULT_DB = REPO_ROOT / "runtime" / "standards" / "standards.sqlite3"
 DEFAULT_CLASSIFICATIONS = (
     REPO_ROOT / "runtime" / "standards" / "canonicalization_batch" / "results" / "classifications.jsonl"
 )
+DEFAULT_AUDITS = [
+    REPO_ROOT / "runtime" / "standards" / "canonicalization_audit_priority.jsonl",
+    REPO_ROOT / "runtime" / "standards" / "canonicalization_audit_supports.jsonl",
+    REPO_ROOT / "runtime" / "standards" / "canonicalization_audit_related.jsonl",
+]
 
 
 def main() -> int:
@@ -27,7 +32,13 @@ def main() -> int:
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("--classifications", type=Path, default=DEFAULT_CLASSIFICATIONS)
-    parser.add_argument("--audit", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--audit",
+        type=Path,
+        action="append",
+        default=None,
+        help="JSONL de revisión; puede repetirse. Si se omite, detecta las auditorías históricas.",
+    )
     parser.add_argument("--model", default=None)
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
@@ -40,7 +51,7 @@ def main() -> int:
     result = apply_relation_decisions(
         args.db,
         load_jsonl(args.classifications),
-        audit_paths=args.audit,
+        audit_paths=args.audit if args.audit is not None else DEFAULT_AUDITS,
         classifier_model=args.model,
         source_file=str(args.classifications.resolve()),
         apply=args.apply,
