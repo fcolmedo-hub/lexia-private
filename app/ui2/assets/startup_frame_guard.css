@@ -21,3 +21,42 @@
     padding-top:58px!important;
   }
 }
+
+/* Search by content: the compact three-dot action menu must not collapse the
+   text excerpt underneath the filename. Keep filename-only results unchanged. */
+#searchpage #realSearchResults .result-card:has(.result-body p){
+  grid-auto-rows:auto!important;
+  min-height:84px!important;
+  height:auto!important;
+  max-height:none!important;
+  align-items:start!important;
+  overflow:visible!important;
+}
+#searchpage #realSearchResults .result-card:has(.result-body p) .result-body{
+  position:static!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:3px!important;
+  min-width:0!important;
+  min-height:0!important;
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+#searchpage #realSearchResults .result-card:has(.result-body p) .result-body>*{
+  position:static!important;
+  inset:auto!important;
+  transform:none!important;
+}
+#searchpage #realSearchResults .result-card:has(.result-body p) .result-body p{
+  display:-webkit-box!important;
+  margin:2px 0 0!important;
+  min-height:1.35em!important;
+  max-height:2.7em!important;
+  line-height:1.35!important;
+  white-space:normal!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+}
