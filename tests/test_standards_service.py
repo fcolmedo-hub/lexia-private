@@ -45,6 +45,30 @@ def test_search_filters_and_visibility(tmp_path):
     assert result['items'][0]['standard_uid'] == 'STD-A'
 
 
+def test_search_accepts_free_form_legal_punctuation(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    result = service.search(text='¿reserva legal, art. 17?')
+
+    assert result['total'] == 1
+    assert result['items'][0]['standard_uid'] == 'STD-A'
+
+
+def test_search_uses_recall_oriented_terms(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    result = service.search(text='reserva exportación')
+
+    assert result['total'] == 2
+    assert {item['standard_uid'] for item in result['items']} == {'STD-A', 'STD-B'}
+
+
+def test_count_matches_searchable_standards(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    assert service.count() == 2
+
+
 def test_detail_quotes_and_publication_policy(tmp_path):
     service = StandardsService(make_db(tmp_path))
     detail = service.get_standard('STD-A')

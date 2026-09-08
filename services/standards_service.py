@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,19 @@ from config.settings import SETTINGS
 
 WEAK_PROPOSED_RELATIONS = {"related_to", "supports"}
 STRONG_RELATIONS = {"duplicate_of", "specializes", "generalizes", "exception_to", "contradicts"}
+
+
+def _fts_query(value: str) -> str:
+    """Turn free-form legal text into a safe, recall-oriented FTS5 query."""
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for token in re.findall(r"[^\W_]+", str(value or ""), flags=re.UNICODE):
+        key = token.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        tokens.append(token.replace('"', '""'))
+    return " OR ".join(f'"{token}"' for token in tokens)
 
 
 def _ro_connect(path: Path) -> sqlite3.Connection:
@@ -48,6 +62,15 @@ class StandardsService:
     def _base_visibility_sql(self) -> str:
         return "s.review_status='validated' AND s.publication_status IN ('ready','published')"
 
+    def count(self) -> int:
+        """Return the standards exposed by the dictionary, never fragment counts."""
+        if not self.available():
+            return 0
+        with _ro_connect(self.db_path) as con:
+            return int(con.execute(
+                "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
+            ).fetchone()[0])
+
     def search(
         self,
         *,
@@ -72,10 +95,14 @@ class StandardsService:
         score_sql = "0.0 AS rank"
 
         if text:
-            joins.append("JOIN standards_fts f ON f.standard_uid=s.standard_uid")
-            where.append("f.standards_fts MATCH ?")
-            params.append(text)
-            score_sql = "bm25(standards_fts) AS rank"
+            fts_query = _fts_query(text)
+            if fts_query:
+                joins.append("JOIN standards_fts f ON f.standard_uid=s.standard_uid")
+                where.append("f.standards_fts MATCH ?")
+                params.append(fts_query)
+                score_sql = "bm25(standards_fts) AS rank"
+            else:
+                where.append("0")
         if court:
             where.append("LOWER(COALESCE(d.court,'')) LIKE LOWER(?)")
             params.append(f"%{court.strip()}%")

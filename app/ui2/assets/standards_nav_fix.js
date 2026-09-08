@@ -9,6 +9,7 @@
   function standardsShell(){return document.getElementById('lexiaStandardsShell');}
   function norm(value){return String(value||'').replace(/\s+/g,' ').trim().toLowerCase();}
   function esc(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+  function setText(node,value){if(node&&node.textContent!==value)node.textContent=value;}
 
   function installVisualFixes(){
     if(document.getElementById('lexiaStandardsNativeVisualFix'))return;
@@ -19,7 +20,8 @@
       #lexiaStandardsShell .std-wrap{max-width:none!important;margin:0!important;padding:22px 18px 38px!important}
       #lexiaStandardsShell .std-head{margin-bottom:14px!important}
       #lexiaStandardsShell .std-title{margin-top:0!important}
-      #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(3,minmax(150px,1fr)) auto auto auto!important}
+      #lexiaStandardsShell .std-grid.primary{grid-template-columns:minmax(280px,1fr) auto auto auto!important}
+      #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(6,minmax(110px,1fr))!important;margin-top:10px!important}
       #lexiaStandardsShell .std-recent-row{display:flex;align-items:center;gap:8px;margin-top:10px}
       #lexiaStandardsShell .std-recent-label{font-size:11px;font-weight:800;color:#687492;white-space:nowrap}
       #lexiaStandardsShell #stdRecent{max-width:420px}
@@ -34,8 +36,9 @@
       #lexiaStandardsManualModal .std-manual-actions{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px}
       #lexiaStandardsManualModal .std-manual-status{margin:0 16px 12px;padding:9px 10px;border-radius:9px;background:#f7f5ff;color:#625c7b;font-size:11px;display:none}
       [data-lexia-standards-home]{cursor:pointer!important}
-      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:1fr 1fr!important}}
-      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}#lexiaStandardsShell .std-recent-row{display:grid}}
+      [data-lexia-standards-home]:hover{transform:translateY(-2px);border-color:#d8d3ff!important;box-shadow:0 10px 24px rgba(81,70,246,.12)!important}
+      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(3,1fr)!important}}
+      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}#lexiaStandardsShell .std-grid.primary{grid-template-columns:repeat(3,1fr)!important}#lexiaStandardsShell .std-grid.primary .std-input{grid-column:1/-1}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:1fr!important}#lexiaStandardsShell .std-recent-row{display:grid}}
     `;
     document.head.appendChild(style);
   }
@@ -89,11 +92,6 @@
     syncStandardsInset();return true;
   }
 
-  function cloneWithoutListeners(id){
-    const old=document.getElementById(id);if(!old||old.dataset.lexiaCleanClone==='1')return old;
-    const fresh=old.cloneNode(true);fresh.dataset.lexiaCleanClone='1';old.replaceWith(fresh);return fresh;
-  }
-
   function clearFields(){
     ['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].forEach(id=>{const node=document.getElementById(id);if(node)node.value='';});
   }
@@ -123,13 +121,25 @@
   function installSearchUx(){
     const shell=standardsShell();if(!shell||shell.dataset.lexiaSearchUx==='1')return;
     shell.dataset.lexiaSearchUx='1';
-    const q=cloneWithoutListeners('stdQ'),court=cloneWithoutListeners('stdCourt'),speaker=cloneWithoutListeners('stdSpeaker'),treatment=cloneWithoutListeners('stdTreatment'),from=cloneWithoutListeners('stdFrom'),to=cloneWithoutListeners('stdTo'),tag=cloneWithoutListeners('stdTag'),clear=cloneWithoutListeners('stdClear');
+    const court=document.getElementById('stdCourt'),speaker=document.getElementById('stdSpeaker'),treatment=document.getElementById('stdTreatment'),from=document.getElementById('stdFrom'),to=document.getElementById('stdTo'),clear=document.getElementById('stdClear'),search=document.getElementById('stdSearch');
     if(from){from.type='date';from.removeAttribute('placeholder');}
     if(to){to.type='date';to.removeAttribute('placeholder');}
-    if(clear)clear.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();clearFields();});
-    if(q)q.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();document.getElementById('stdSearch')?.click();}});
 
     const firstGrid=shell.querySelector('.std-search .std-grid');
+    const secondary=shell.querySelector('.std-grid.secondary');
+    if(firstGrid){
+      firstGrid.classList.add('primary');
+      if(secondary)secondary.prepend(...[court,speaker,treatment].filter(Boolean));
+      let add=document.getElementById('stdManualAdd');
+      if(!add){add=document.createElement('button');add.type='button';add.id='stdManualAdd';add.className='std-btn ghost';}
+      add.textContent='Nuevo estándar';
+      if(add.dataset.lexiaManualHandler!=='1'){
+        add.dataset.lexiaManualHandler='1';
+        add.addEventListener('click',openManualModal);
+      }
+      firstGrid.append(...[clear,search,add].filter(Boolean));
+    }
+
     if(firstGrid&&!document.getElementById('stdRecent')){
       const row=document.createElement('div');row.className='std-recent-row';
       row.innerHTML='<span class="std-recent-label">Últimas búsquedas</span><select class="std-select" id="stdRecent"><option value="">Últimas búsquedas…</option></select>';
@@ -138,12 +148,6 @@
       refreshRecentSelect();
     }
 
-    const secondary=shell.querySelector('.std-grid.secondary');
-    if(secondary&&!document.getElementById('stdManualAdd')){
-      const add=document.createElement('button');add.type='button';add.id='stdManualAdd';add.className='std-btn ghost';add.textContent='Agregar estándar';add.addEventListener('click',openManualModal);secondary.appendChild(add);
-    }
-
-    const search=document.getElementById('stdSearch');
     if(search)search.addEventListener('click',()=>saveRecentSearch(),true);
 
     const results=document.getElementById('stdResults');
@@ -165,7 +169,7 @@
   function openManualModal(){
     document.getElementById('lexiaStandardsManualModal')?.remove();
     const modal=document.createElement('div');modal.id='lexiaStandardsManualModal';modal.className='std-modal-backdrop';
-    modal.innerHTML=`<div class="std-modal"><div class="std-modal-head"><h2>Agregar estándar</h2><button class="std-modal-close" type="button" data-close>✕</button></div><div class="std-manual-grid">
+    modal.innerHTML=`<div class="std-modal"><div class="std-modal-head"><h2>Nuevo estándar</h2><button class="std-modal-close" type="button" data-close>✕</button></div><div class="std-manual-grid">
       <div class="std-manual-field wide"><label>Estándar jurídico</label><textarea id="stdMStatement" required></textarea></div>
       <div class="std-manual-field"><label>Documento fuente</label><input id="stdMDocument" placeholder="Nombre del archivo" required></div>
       <div class="std-manual-field"><label>Ruta local (opcional)</label><input id="stdMPath" placeholder="/ruta/al/documento.pdf"></div>
@@ -199,20 +203,38 @@
     finally{button.disabled=false;}
   }
 
+  function homeStandardsCard(){
+    const card=document.querySelector('#home [data-lexia-standards-home]')||document.querySelector('#home .hr-metrics article[data-home-target="search-fragments"]');
+    if(!card)return null;
+    if(card.hasAttribute('data-home-target'))card.removeAttribute('data-home-target');
+    if(card.dataset.lexiaStandardsHome!=='1')card.dataset.lexiaStandardsHome='1';
+    setText(card.querySelector('.hr-mhead b'),'Estándares');
+    const count=card.querySelector('#liveStandards')||card.querySelector('#liveFragments')||card.querySelector('strong');
+    if(count&&count.id!=='liveStandards')count.id='liveStandards';
+    setText(card.querySelector('.hr-line span'),'Disponibles');
+    card.querySelector('.hr-line em')?.remove();
+    setText(card.querySelector('small'),'Diccionario jurídico');
+    setText(card.querySelector('p'),'Jurisprudencia estructurada');
+    return card;
+  }
+
   async function updateHomeStandardsCard(){
     try{
-      const response=await fetch(API+'/api/search?limit=1',{headers:{Accept:'application/json'}});if(!response.ok)return;
-      const data=await response.json(),total=Number(data.total||0);
-      const labels=[...document.querySelectorAll('body *')].filter(node=>node.children.length===0&&norm(node.textContent)==='fragmentos');
-      const label=labels[0];if(!label)return;
-      label.textContent='Estándares';
-      let card=label.closest('button,a,[role="button"],.card,.stat,.metric,.home-card,.summary-card')||label.parentElement;
-      for(let i=0;i<3&&card&&card.parentElement&&!card.querySelector('button,a');i+=1){if(card.querySelectorAll('*').length>12)break;card=card.parentElement;}
-      if(!card)return;card.dataset.lexiaStandardsHome='1';
-      const nums=[...card.querySelectorAll('*')].filter(node=>node.children.length===0&&/^\s*\d[\d.,]*\s*$/.test(node.textContent||''));
-      if(nums[0])nums[0].textContent=String(total);
-      if(!card.dataset.lexiaStandardsClick){card.dataset.lexiaStandardsClick='1';card.addEventListener('click',event=>{event.preventDefault();document.querySelector('#globalSidebar .nav [data-lexia-standards-nav]')?.click();},true);}
+      const card=homeStandardsCard();if(!card)return;
+      const response=await fetch(API+'/api/stats',{headers:{Accept:'application/json'}});if(!response.ok)return;
+      const data=await response.json(),total=Number(data.standards||0);
+      setText(card.querySelector('#liveStandards')||card.querySelector('strong'),total.toLocaleString('es-AR'));
     }catch(_){}
+  }
+
+  function installHomeCardHandler(){
+    if(window.__lexiaStandardsHomeHandler)return;window.__lexiaStandardsHomeHandler=true;
+    homeStandardsCard();
+    window.addEventListener('click',event=>{
+      const target=event.target instanceof Element?event.target:null;
+      if(!target?.closest('#home [data-lexia-standards-home]'))return;
+      event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();openStandards();
+    },true);
   }
 
   function installExitHandler(){
@@ -221,7 +243,7 @@
   }
 
   function boot(){
-    install();installExitHandler();installSearchUx();adjustDetail();updateHomeStandardsCard();
+    install();installExitHandler();installHomeCardHandler();installSearchUx();adjustDetail();updateHomeStandardsCard();
     window.addEventListener('resize',syncStandardsInset,{passive:true});
     const observer=new MutationObserver(()=>{install();installSearchUx();adjustDetail();updateHomeStandardsCard();});observer.observe(document.body,{childList:true,subtree:true});
     window.setTimeout(()=>{install();installSearchUx();adjustDetail();updateHomeStandardsCard();},150);

@@ -30,19 +30,14 @@
   }
 
   async function api(path){const response=await fetch(API+path,{headers:{Accept:'application/json'}});if(!response.ok){let msg=`HTTP ${response.status}`;try{const data=await response.json();if(data.error)msg=data.error;}catch(_){}throw new Error(msg);}return response.json();}
-  function fieldsBlank(node){return ['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].every(id=>!String(node.querySelector('#'+id)?.value||'').trim());}
-
   function shell(){
     let node=document.getElementById('lexiaStandardsShell');if(node)return node;
     node=document.createElement('section');node.id='lexiaStandardsShell';node.setAttribute('aria-label','Estándares jurídicos');
     node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p></div></div><div class="std-panel std-search"><div class="std-grid"><input class="std-input" id="stdQ" placeholder="Buscar estándar por texto jurídico…"><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear">Limpiar</button><button class="std-btn" id="stdSearch">Buscar</button></div></div><div class="std-layout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"><div class="std-empty">Buscando estándares…</div></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
     document.body.appendChild(node);
     node.querySelector('#stdSearch').addEventListener('click',search);
-    node.querySelector('#stdClear').addEventListener('click',()=>{['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].forEach(id=>{const f=node.querySelector('#'+id);if(f)f.value='';});search();});
+    node.querySelector('#stdClear').addEventListener('click',()=>{['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].forEach(id=>{const f=node.querySelector('#'+id);if(f)f.value='';});});
     node.querySelector('#stdQ').addEventListener('keydown',event=>{if(event.key==='Enter')search();});
-    let timer=null;const maybeShowAll=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(fieldsBlank(node))search();},140);};
-    node.querySelectorAll('#stdQ,#stdFrom,#stdTo,#stdTag').forEach(f=>f.addEventListener('input',maybeShowAll));
-    node.querySelectorAll('#stdCourt,#stdSpeaker,#stdTreatment').forEach(f=>f.addEventListener('change',maybeShowAll));
     return node;
   }
 
@@ -95,7 +90,7 @@
   function findMaintenanceNav(){const candidates=[...document.querySelectorAll('button,a,[role="button"],li,div')];return candidates.find(node=>norm(node.textContent)==='mantenimiento'&&node.children.length<8)||null;}
   function installNav(){if(document.querySelector('[data-lexia-standards-nav="1"]'))return true;const maintenance=findMaintenanceNav();if(!maintenance)return false;const button=maintenance.cloneNode(true);button.dataset.lexiaStandardsNav='1';button.removeAttribute('id');button.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));const walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);let textNode=null;while(walker.nextNode()){if(norm(walker.currentNode.nodeValue)==='mantenimiento'){textNode=walker.currentNode;break;}}if(textNode)textNode.nodeValue=textNode.nodeValue.replace(/Mantenimiento/i,'Estándares');else button.textContent='Estándares';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();open();},true);maintenance.parentNode.insertBefore(button,maintenance);return true;}
   function setNavActive(active){const nav=document.querySelector('[data-lexia-standards-nav="1"]');if(!nav)return;nav.classList.toggle('active',active);nav.setAttribute('aria-current',active?'page':'false');}
-  function open(){state.open=true;setNavActive(true);shell().classList.add('open');search();}
+  function open(){state.open=true;setNavActive(true);shell().classList.add('open');}
   function close(){if(!state.open)return;state.open=false;setNavActive(false);closeGraph();document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const stdNav=event.target.closest?.('[data-lexia-standards-nav="1"]');if(stdNav)return;const nav=event.target.closest?.('button,a,[role="button"]');if(!nav)return;const text=norm(nav.textContent);if(['inicio','buscar','casos','investigación','investigacion','mantenimiento'].includes(text))close();},true);}
   function boot(){installStyles();shell();installNav();watchOtherNavigation();if(!state.installed){state.installed=true;const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}

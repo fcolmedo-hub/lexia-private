@@ -219,6 +219,12 @@ class Handler(BaseHTTPRequestHandler):
                     "available": SERVICE.available(),
                     "db_path": str(SERVICE.db_path),
                 })
+            if parsed.path == "/api/stats":
+                return self._json({
+                    "ok": True,
+                    "available": SERVICE.available(),
+                    "standards": SERVICE.count(),
+                })
             if parsed.path == "/api/search":
                 tags = [value for value in qs.get("tag", []) if value]
                 return self._json(SERVICE.search(
