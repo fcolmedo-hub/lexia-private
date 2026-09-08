@@ -32,10 +32,10 @@
 #searchpage #realSearchResults .result-card:has(.result-actions > .score){
   box-sizing:border-box!important;
   grid-auto-rows:auto!important;
-  min-height:116px!important;
+  min-height:124px!important;
   height:auto!important;
   max-height:none!important;
-  padding:14px 14px 18px!important;
+  padding:14px 14px 22px!important;
   align-items:start!important;
   overflow:hidden!important;
 }
@@ -48,7 +48,7 @@
   min-height:0!important;
   height:auto!important;
   max-height:none!important;
-  padding-bottom:2px!important;
+  padding-bottom:4px!important;
   overflow:hidden!important;
 }
 #searchpage #realSearchResults .result-card:has(.result-actions > .score) .result-body>*{
@@ -67,4 +67,20 @@
   text-overflow:ellipsis!important;
   -webkit-box-orient:vertical;
   -webkit-line-clamp:2;
+}
+
+/* Menú de acciones de Buscar.
+   La acción Investigar puede conservar también la clase histórica
+   search-open-file; por eso la regla se apoya en search-investigate-file y
+   tiene prioridad visual sobre Abrir. Esto unifica Buscar por nombre y por
+   contenido. */
+#searchpage #realSearchResults button.result-menu-item.search-open-file:not(.search-investigate-file)::before{
+  content:"↑"!important;
+  background:#e7f7ee!important;
+  color:#128447!important;
+}
+#searchpage #realSearchResults button.result-menu-item.search-investigate-file::before{
+  content:"↗"!important;
+  background:#eceaff!important;
+  color:#5146f6!important;
 }
