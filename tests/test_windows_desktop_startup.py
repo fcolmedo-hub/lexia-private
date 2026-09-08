@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import io
 import sqlite3
 import tempfile
 import unittest
@@ -95,6 +97,59 @@ class WindowsDesktopStartupTests(unittest.TestCase):
         launcher = _load_launcher()
         if launcher.os.name != "nt":
             self.assertEqual(launcher.acquire_startup_mutex(), (True, None))
+
+    def test_windows_launcher_injects_current_standards_assets(self) -> None:
+        launcher = _load_launcher()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            ui = root / "app" / "ui2"
+            assets = ui / "assets"
+            assets.mkdir(parents=True)
+            for name in (
+                "jurisprudence_search.js",
+                "windows_live_badge_cleanup.js",
+                "app_runtime.js",
+            ):
+                (assets / name).write_text("", encoding="utf-8")
+            standards_ui = assets / "standards_ui.js"
+            standards_nav = assets / "standards_nav_fix.js"
+            standards_ui.write_text("window.windowsStandards=true;", encoding="utf-8")
+            standards_nav.write_text("window.windowsStandardsNav=true;", encoding="utf-8")
+            index = ui / "index.html"
+            original = "<html><body></body></html>"
+            index.write_text(original, encoding="utf-8")
+
+            saved = launcher.ensure_ui_assets(root)
+            patched = index.read_text(encoding="utf-8")
+            ui_hash = hashlib.sha256(standards_ui.read_bytes()).hexdigest()[:12]
+            nav_hash = hashlib.sha256(standards_nav.read_bytes()).hexdigest()[:12]
+
+            self.assertEqual(saved, original)
+            self.assertIn("window.LEXIA_STANDARDS_PORT=8515", patched)
+            self.assertIn(f"standards_ui.js?v=standards-ui-{ui_hash}", patched)
+            self.assertIn(f"standards_nav_fix.js?v=standards-nav-fix-{nav_hash}", patched)
+            launcher.restore_ui_assets(root, saved)
+            self.assertEqual(index.read_text(encoding="utf-8"), original)
+
+    def test_windows_launcher_starts_standards_api_with_expected_port(self) -> None:
+        launcher = _load_launcher()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            script = root / "app" / "ui2" / "standards_api.py"
+            script.parent.mkdir(parents=True)
+            script.write_text("", encoding="utf-8")
+            py = root / ".venv" / "Scripts" / "python.exe"
+            process = object()
+            with patch.object(launcher.subprocess, "Popen", return_value=process) as popen:
+                result = launcher.start_standards_api(
+                    root, py, {"BASE": "1"}, 123, io.BytesIO()
+                )
+
+            self.assertIs(result, process)
+            args, kwargs = popen.call_args
+            self.assertEqual(args[0], [str(py), str(script)])
+            self.assertEqual(kwargs["env"]["LEXIA_STANDARDS_PORT"], "8515")
+            self.assertEqual(kwargs["creationflags"], 123)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,22 @@ $ExeTarget = Join-Path $InstallDir "$AppName.exe"
 if (-not (Test-Path $Py)) { throw "No se encontró $Py" }
 if (-not (Test-Path $Entry)) { throw "No se encontró $Entry" }
 
+$RequiredStandardsFiles = @(
+    (Join-Path $Root 'app\ui2\standards_api.py'),
+    (Join-Path $Root 'app\ui2\assets\standards_ui.js'),
+    (Join-Path $Root 'app\ui2\assets\standards_nav_fix.js'),
+    (Join-Path $Root 'services\standards_service.py')
+)
+$MissingStandardsFiles = @(
+    $RequiredStandardsFiles | Where-Object { -not (Test-Path $_) }
+)
+if ($MissingStandardsFiles.Count -gt 0) {
+    throw (
+        "No se puede construir LexIA Windows: faltan componentes de Estándares:`n" +
+        ($MissingStandardsFiles -join "`n")
+    )
+}
+
 New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 Remove-Item -Recurse -Force $Dist,$Work -ErrorAction SilentlyContinue
 Remove-Item -Force $Spec -ErrorAction SilentlyContinue
