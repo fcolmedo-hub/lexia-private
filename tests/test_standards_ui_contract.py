@@ -13,6 +13,10 @@ def test_search_controls_and_empty_initial_state():
     assert "function resetSearch()" in source
     assert "node.querySelector('#stdResults')?.replaceChildren()" in source
     assert "api('/api/search?'+p.toString())" in source
+    assert ".std-layout{display:none" in source
+    assert ".std-layout.has-results{display:grid}" in source
+    assert "layout?.classList.add('has-results')" in source
+    assert "event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button')" in source
 
 
 def test_recent_searches_use_the_main_search_popover():
@@ -22,5 +26,7 @@ def test_recent_searches_use_the_main_search_popover():
     assert "firstGrid.classList.remove('primary')" in source
     assert "stdHistoryMenu" in source
     assert "q.addEventListener('click',toggleHistory)" in source
+    assert "||'Todos los estándares'" in source
+    assert "toggle.hidden=false" in source
     assert "stdRecent" not in source
     assert "Ingresá criterios o dejá los campos vacíos" not in source

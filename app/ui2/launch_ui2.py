@@ -71,7 +71,7 @@ def _ensure_ui_assets() -> str | None:
             f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>'
         )
         body_tags.append(
-            '<script src="assets/standards_ui.js?v=standards-ui-3"></script>'
+            '<script src="assets/standards_ui.js?v=standards-ui-4"></script>'
         )
 
     if (
@@ -79,7 +79,7 @@ def _ensure_ui_assets() -> str | None:
         and "assets/standards_nav_fix.js" not in patched
     ):
         body_tags.append(
-            '<script src="assets/standards_nav_fix.js?v=standards-nav-fix-3"></script>'
+            '<script src="assets/standards_nav_fix.js?v=standards-nav-fix-4"></script>'
         )
 
     if (

@@ -142,10 +142,10 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if standards_ui.exists() and "assets/standards_ui.js" not in patched:
         body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>')
-        body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-3"></script>')
+        body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-4"></script>')
 
     if standards_nav_fix.exists() and "assets/standards_nav_fix.js" not in patched:
-        body_tags.append('<script src="assets/standards_nav_fix.js?v=standards-nav-fix-3"></script>')
+        body_tags.append('<script src="assets/standards_nav_fix.js?v=standards-nav-fix-4"></script>')
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')

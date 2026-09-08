@@ -30,6 +30,7 @@
       #lexiaStandardsShell .std-history-menu.open{display:grid;gap:3px}
       #lexiaStandardsShell .std-history-item{width:100%;border:0;border-radius:8px;padding:9px 10px;background:#fff;color:#252b4b;font:inherit;font-size:12px;line-height:1.35;text-align:left;cursor:pointer}
       #lexiaStandardsShell .std-history-item:hover,#lexiaStandardsShell .std-history-item:focus{background:#f0efff;color:#5146f6;outline:none}
+      #lexiaStandardsShell .std-history-empty{padding:9px 10px;color:#7b829b;font-size:12px}
       #lexiaStandardsShell .std-detail-actions{display:flex;justify-content:flex-end;margin-bottom:10px}
       #lexiaStandardsShell .std-notice[data-lexia-strong-relations]{display:none!important}
       #lexiaStandardsManualModal .std-manual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:16px}
@@ -107,9 +108,9 @@
   }
 
   function recentSearches(){try{const raw=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');return Array.isArray(raw)?raw:[];}catch(_){return [];}}
-  function recentLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ');}
+  function recentLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ')||'Todos los estándares';}
   function saveRecentSearch(){
-    const criteria=readCriteria();if(!Object.keys(criteria).length)return;
+    const criteria=readCriteria();
     const label=recentLabel(criteria);let items=recentSearches().filter(item=>JSON.stringify(item.criteria)!==JSON.stringify(criteria));
     items.unshift({label,criteria,at:Date.now()});items=items.slice(0,12);localStorage.setItem(RECENT_KEY,JSON.stringify(items));refreshRecentMenu();
   }
@@ -122,13 +123,14 @@
   function refreshRecentMenu(){
     const menu=document.getElementById('stdHistoryMenu'),toggle=document.getElementById('stdHistoryToggle');if(!menu)return;
     menu.replaceChildren();
-    recentSearches().forEach((item,index)=>{
+    const items=recentSearches();items.forEach((item,index)=>{
       const button=document.createElement('button');button.type='button';button.className='std-history-item';button.textContent=item.label;button.dataset.recentIndex=String(index);
+      button.setAttribute('role','option');
       button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();setHistoryOpen(false);applyRecent(index);});
       menu.appendChild(button);
     });
-    if(toggle)toggle.hidden=!menu.childElementCount;
-    if(!menu.childElementCount)setHistoryOpen(false);
+    if(!items.length){const empty=document.createElement('div');empty.className='std-history-empty';empty.textContent='Sin búsquedas recientes';menu.appendChild(empty);}
+    if(toggle)toggle.hidden=false;
   }
   function applyRecent(index){
     const item=recentSearches()[Number(index)];if(!item)return;
