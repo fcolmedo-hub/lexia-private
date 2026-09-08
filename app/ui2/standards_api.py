@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
@@ -12,6 +13,7 @@ ROOT = HERE.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from config.settings import SETTINGS
 from services.standards_service import StandardsService
 
 HOST = "127.0.0.1"
@@ -24,9 +26,65 @@ def _one(values: dict[str, list[str]], name: str, default: str = "") -> str:
     return items[0] if items else default
 
 
+def _candidate_document_paths(detail: dict) -> list[Path]:
+    out: list[Path] = []
+    raw = str(detail.get("document_path") or "").strip()
+    name = str(detail.get("document_name") or "").strip()
+
+    if raw:
+        out.append(Path(raw).expanduser())
+        normalized = raw.replace("\\", "/")
+        lower = normalized.lower()
+        marker = "/data_test/"
+        if marker in lower:
+            rel = normalized[lower.index(marker) + len(marker):]
+            if rel:
+                out.append(SETTINGS.library_path / PurePosixPath(rel))
+                out.append(ROOT / "data_test" / PurePosixPath(rel))
+
+    if name:
+        out.append(SETTINGS.library_path / name)
+        out.append(ROOT / "data_test" / name)
+
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for candidate in out:
+        key = str(candidate)
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return unique
+
+
+def _resolve_document_path(detail: dict) -> Path | None:
+    for candidate in _candidate_document_paths(detail):
+        try:
+            if candidate.is_file():
+                return candidate.resolve()
+        except OSError:
+            pass
+
+    name = str(detail.get("document_name") or "").strip()
+    if not name or not SETTINGS.library_path.exists():
+        return None
+    try:
+        return next((p.resolve() for p in SETTINGS.library_path.rglob(name) if p.is_file()), None)
+    except OSError:
+        return None
+
+
+def _open_document(path: Path) -> None:
+    if sys.platform == "darwin":
+        subprocess.Popen(["/usr/bin/open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif os.name == "nt":
+        os.startfile(str(path))  # type: ignore[attr-defined]
+    else:
+        subprocess.Popen(["xdg-open", str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 class Handler(BaseHTTPRequestHandler):
     def _cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "http://127.0.0.1:*" if False else "*")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
@@ -74,6 +132,21 @@ class Handler(BaseHTTPRequestHandler):
                     _one(qs, "uid"),
                     depth=int(_one(qs, "depth", "1") or 1),
                 ))
+            if parsed.path == "/api/open-document":
+                uid = _one(qs, "uid").strip()
+                detail = SERVICE.get_standard(uid)
+                if not detail:
+                    return self._json({"ok": False, "error": "standard_not_found"}, 404)
+                resolved = _resolve_document_path(detail)
+                if resolved is None:
+                    return self._json({
+                        "ok": False,
+                        "error": "document_not_found",
+                        "document_name": detail.get("document_name"),
+                        "stored_path": detail.get("document_path"),
+                    }, 404)
+                _open_document(resolved)
+                return self._json({"ok": True, "path": str(resolved)})
             if parsed.path == "/api/investigation":
                 return self._json({
                     "ok": True,
