@@ -6,9 +6,23 @@
     return document.getElementById('lexiaStandardsShell');
   }
 
+  function syncStandardsInset(){
+    const sidebar=document.getElementById('globalSidebar');
+    const shell=standardsShell();
+    if(!sidebar||!shell)return;
+    const rect=sidebar.getBoundingClientRect();
+    const left=Math.max(0,Math.round(rect.right));
+    shell.style.setProperty('left',left+'px','important');
+    shell.style.setProperty('right','0','important');
+    shell.style.setProperty('top','0','important');
+    shell.style.setProperty('bottom','0','important');
+    shell.style.setProperty('width','auto','important');
+  }
+
   function openStandards(){
     const shell=standardsShell();
     if(!shell)return;
+    syncStandardsInset();
     const nav=document.querySelector('#globalSidebar .nav');
     if(nav)nav.querySelectorAll('button').forEach(item=>item.classList.remove('active'));
     const button=nav&&nav.querySelector('[data-lexia-standards-nav]');
@@ -47,7 +61,10 @@
   function install(){
     const nav=document.querySelector('#globalSidebar .nav');
     if(!nav)return false;
-    if(nav.querySelector('[data-lexia-standards-nav]'))return true;
+    if(nav.querySelector('[data-lexia-standards-nav]')){
+      syncStandardsInset();
+      return true;
+    }
 
     const button=buildButton();
     const buttons=[...nav.querySelectorAll(':scope > button')];
@@ -62,6 +79,7 @@
     }else{
       nav.append(button);
     }
+    syncStandardsInset();
     return true;
   }
 
@@ -78,6 +96,7 @@
   function boot(){
     install();
     installExitHandler();
+    window.addEventListener('resize',syncStandardsInset,{passive:true});
     const observer=new MutationObserver(()=>install());
     observer.observe(document.body,{childList:true,subtree:true});
     window.setTimeout(install,100);
