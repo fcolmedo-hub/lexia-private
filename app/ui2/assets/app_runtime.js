@@ -7,7 +7,7 @@
   function loadCaseWorkspace(){
     if(document.querySelector('script[data-lexia-case-workspace]'))return;
     const caseWorkspace=document.createElement('script');
-    caseWorkspace.src='assets/case_workspace.js?v=case-42';
+    caseWorkspace.src='assets/case_workspace.js?v=case-43';
     caseWorkspace.async=false;
     caseWorkspace.dataset.lexiaCaseWorkspace='1';
     (document.body||document.documentElement).appendChild(caseWorkspace);
