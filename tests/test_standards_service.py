@@ -45,6 +45,15 @@ def test_search_filters_and_visibility(tmp_path):
     assert result['items'][0]['standard_uid'] == 'STD-A'
 
 
+def test_blank_search_returns_every_visible_standard(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    result = service.search()
+
+    assert result['total'] == 2
+    assert {item['standard_uid'] for item in result['items']} == {'STD-A', 'STD-B'}
+
+
 def test_search_accepts_free_form_legal_punctuation(tmp_path):
     service = StandardsService(make_db(tmp_path))
 

@@ -33,20 +33,36 @@
   function shell(){
     let node=document.getElementById('lexiaStandardsShell');if(node)return node;
     node=document.createElement('section');node.id='lexiaStandardsShell';node.setAttribute('aria-label','Estándares jurídicos');
-    node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p></div></div><div class="std-panel std-search"><div class="std-grid"><input class="std-input" id="stdQ" placeholder="Buscar estándar por texto jurídico…"><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear">Limpiar</button><button class="std-btn" id="stdSearch">Buscar</button></div></div><div class="std-layout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"><div class="std-empty">Buscando estándares…</div></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
+    node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p></div></div><div class="std-panel std-search"><div class="std-grid"><input class="std-input" id="stdQ" placeholder="Buscar estándar por texto jurídico…"><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear" type="button">Limpiar</button><button class="std-btn" id="stdSearch" type="button">Buscar</button></div></div><div class="std-layout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
     document.body.appendChild(node);
-    node.querySelector('#stdSearch').addEventListener('click',search);
-    node.querySelector('#stdClear').addEventListener('click',()=>{['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].forEach(id=>{const f=node.querySelector('#'+id);if(f)f.value='';});});
-    node.querySelector('#stdQ').addEventListener('keydown',event=>{if(event.key==='Enter')search();});
+    node.querySelector('#stdSearch').addEventListener('click',event=>{event.preventDefault();search();});
+    node.querySelector('#stdClear').addEventListener('click',event=>{event.preventDefault();resetSearch();});
+    node.querySelector('#stdQ').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();search();}});
     return node;
   }
 
   function fillSelect(id,values){const select=document.getElementById(id);if(!select)return;for(const value of values||[]){if([...select.options].some(o=>o.value===value))continue;const option=document.createElement('option');option.value=value;option.textContent=value;select.appendChild(option);}}
 
+  function resetSearch(){
+    const node=shell();
+    ['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].forEach(id=>{const field=node.querySelector('#'+id);if(field)field.value='';});
+    state.currentUid=null;
+    node.querySelector('#stdSummary')?.replaceChildren();
+    node.querySelector('#stdResults')?.replaceChildren();
+    const detail=node.querySelector('#stdDetail');
+    if(detail)detail.innerHTML='<div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div>';
+    document.getElementById('stdHistoryMenu')?.classList.remove('open');
+    node.querySelector('#stdQ')?.setAttribute('aria-expanded','false');
+    document.getElementById('stdHistoryToggle')?.setAttribute('aria-expanded','false');
+  }
+
   async function search(){
     const node=shell(),p=new URLSearchParams();
     const map=[['stdQ','q'],['stdCourt','court'],['stdSpeaker','speaker'],['stdTreatment','treatment'],['stdFrom','from'],['stdTo','to'],['stdTag','tag']];
     for(const [id,key] of map){const value=String(node.querySelector('#'+id)?.value||'').trim();if(value)p.set(key,value);}p.set('limit','200');
+    document.getElementById('stdHistoryMenu')?.classList.remove('open');
+    node.querySelector('#stdQ')?.setAttribute('aria-expanded','false');
+    document.getElementById('stdHistoryToggle')?.setAttribute('aria-expanded','false');
     const results=node.querySelector('#stdResults');results.innerHTML='<div class="std-empty">Buscando estándares…</div>';
     try{
       const data=await api('/api/search?'+p.toString());const total=Number(data.total||0);
