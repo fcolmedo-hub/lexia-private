@@ -17,6 +17,8 @@ def test_search_controls_and_empty_initial_state():
     assert ".std-layout.has-results{display:grid}" in source
     assert "layout?.classList.add('has-results')" in source
     assert "event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button')" in source
+    assert "window.lexiaStandardsSearch=search" in source
+    assert "window.lexiaStandardsResetSearch=resetSearch" in source
 
 
 def test_recent_searches_use_the_main_search_popover():
@@ -28,5 +30,9 @@ def test_recent_searches_use_the_main_search_popover():
     assert "q.addEventListener('click',toggleHistory)" in source
     assert "||'Todos los estándares'" in source
     assert "toggle.hidden=false" in source
+    assert "function installActionRouter()" in source
+    assert "target.closest('#stdSearch')" in source
+    assert "target.closest('#stdHistoryToggle,#stdQ')" in source
+    assert "recentMemory=items" in source
     assert "stdRecent" not in source
     assert "Ingresá criterios o dejá los campos vacíos" not in source

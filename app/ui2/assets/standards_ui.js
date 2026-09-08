@@ -117,5 +117,6 @@
   function close(){if(!state.open)return;state.open=false;setNavActive(false);closeGraph();document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}
   function boot(){installStyles();shell();installNav();watchOtherNavigation();if(!state.installed){state.installed=true;const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
+  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();

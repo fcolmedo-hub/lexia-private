@@ -5,6 +5,8 @@
   const API_PORT=(window.LEXIA_STANDARDS_PORT||'8515');
   const API=`http://127.0.0.1:${API_PORT}`;
   const RECENT_KEY='lexia_standards_recent_searches_v1';
+  let recentMemory=[];
+  let recentStorageAvailable=true;
 
   function standardsShell(){return document.getElementById('lexiaStandardsShell');}
   function norm(value){return String(value||'').replace(/\s+/g,' ').trim().toLowerCase();}
@@ -107,12 +109,14 @@
     const out={};for(const [key,id] of Object.entries(ids)){const value=String(document.getElementById(id)?.value||'').trim();if(value)out[key]=value;}return out;
   }
 
-  function recentSearches(){try{const raw=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');return Array.isArray(raw)?raw:[];}catch(_){return [];}}
+  function recentSearches(){if(!recentStorageAvailable)return recentMemory;try{const raw=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');if(Array.isArray(raw)){recentMemory=raw;return raw;}}catch(_){recentStorageAvailable=false;}return recentMemory;}
   function recentLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ')||'Todos los estándares';}
   function saveRecentSearch(){
     const criteria=readCriteria();
     const label=recentLabel(criteria);let items=recentSearches().filter(item=>JSON.stringify(item.criteria)!==JSON.stringify(criteria));
-    items.unshift({label,criteria,at:Date.now()});items=items.slice(0,12);localStorage.setItem(RECENT_KEY,JSON.stringify(items));refreshRecentMenu();
+    items.unshift({label,criteria,at:Date.now()});items=items.slice(0,12);recentMemory=items;
+    if(recentStorageAvailable){try{localStorage.setItem(RECENT_KEY,JSON.stringify(items));}catch(_){recentStorageAvailable=false;}}
+    refreshRecentMenu();
   }
   function setHistoryOpen(open){
     const menu=document.getElementById('stdHistoryMenu'),input=document.getElementById('stdQ'),toggle=document.getElementById('stdHistoryToggle');
@@ -135,7 +139,32 @@
   function applyRecent(index){
     const item=recentSearches()[Number(index)];if(!item)return;
     clearFields();for(const [key,value] of Object.entries(item.criteria||{})){const id={q:'stdQ',court:'stdCourt',speaker:'stdSpeaker',treatment:'stdTreatment',from:'stdFrom',to:'stdTo',tag:'stdTag'}[key];const node=document.getElementById(id);if(node)node.value=value;}
-    document.getElementById('stdSearch')?.click();
+    saveRecentSearch();setHistoryOpen(false);
+    if(typeof window.lexiaStandardsSearch==='function')window.lexiaStandardsSearch();
+  }
+
+  function installActionRouter(){
+    if(window.__lexiaStandardsActionRouter)return;window.__lexiaStandardsActionRouter=true;
+    document.addEventListener('click',event=>{
+      const target=event.target instanceof Element?event.target:null;if(!target)return;
+      const recent=target.closest('.std-history-item[data-recent-index]');
+      if(recent){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();applyRecent(recent.dataset.recentIndex);return;}
+      if(target.closest('#stdHistoryToggle,#stdQ')){
+        if(target.closest('#stdHistoryToggle'))event.preventDefault();
+        event.stopPropagation();event.stopImmediatePropagation();refreshRecentMenu();
+        const menu=document.getElementById('stdHistoryMenu');setHistoryOpen(!menu?.classList.contains('open'));return;
+      }
+      if(target.closest('#stdSearch')){
+        event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();saveRecentSearch();setHistoryOpen(false);
+        if(typeof window.lexiaStandardsSearch==='function')window.lexiaStandardsSearch();return;
+      }
+      if(target.closest('#stdClear')){
+        event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();setHistoryOpen(false);
+        if(typeof window.lexiaStandardsResetSearch==='function')window.lexiaStandardsResetSearch();return;
+      }
+      if(!target.closest('.std-query-wrap'))setHistoryOpen(false);
+    },true);
+    document.addEventListener('input',event=>{if(event.target?.id==='stdQ')setHistoryOpen(false);},true);
   }
 
   function installSearchUx(){
@@ -179,6 +208,7 @@
 
     const results=document.getElementById('stdResults');
     if(results&&['buscando estándares','ingresá criterios'].some(text=>norm(results.textContent).includes(text)))results.replaceChildren();
+    installActionRouter();
   }
 
   function adjustDetail(){
