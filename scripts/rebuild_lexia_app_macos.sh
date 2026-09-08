@@ -8,6 +8,10 @@ BUILD_ROOT="$ROOT/.build_lexia_macos"
 ICON_OUT="$BUILD_ROOT/LexIA.icns"
 ENTRY="$ROOT/app/ui2/macos_desktop.py"
 
+# Evitar que LaunchServices reactive una instancia anterior con el mismo nombre.
+/usr/bin/pkill -x LexIA >/dev/null 2>&1 || true
+/bin/sleep 1
+
 if [[ ! -x "$PY" ]]; then
   echo "No se encontró $PY" >&2
   exit 1
@@ -81,9 +85,13 @@ fi
 
 killall Dock >/dev/null 2>&1 || true
 
+# Abrir siempre el bundle recién instalado por su ruta exacta. Las copias de
+# seguridad conservan el mismo nombre interno y no deben resolverse con -a.
+/usr/bin/open -n "$APP"
+
 echo
 echo "LexIA.app instalada correctamente en: $APP"
 if [[ -n "$BACKUP" ]]; then
   echo "Copia de seguridad anterior: $BACKUP"
 fi
-echo "Abrí LexIA desde /Applications o volvé a fijarla en el Dock si fuera necesario."
+echo "LexIA recién instalada abierta desde su ruta exacta."

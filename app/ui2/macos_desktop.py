@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -15,6 +17,22 @@ BASE_URL = f"http://127.0.0.1:{PORT}"
 URL = BASE_URL + "/?lexia_app=1"
 BRIDGE_PORT = 8513
 QDRANT_PORT = 6333
+
+
+def _versioned_script(asset: Path, prefix: str) -> str:
+    digest = hashlib.sha256(asset.read_bytes()).hexdigest()[:12]
+    return f'<script src="assets/{asset.name}?v={prefix}-{digest}"></script>'
+
+
+def _upsert_asset_script(html: str, asset: Path, prefix: str, pending: list[str]) -> str:
+    tag = _versioned_script(asset, prefix)
+    pattern = re.compile(
+        rf'<script\s+src=["\']assets/{re.escape(asset.name)}(?:\?[^"\']*)?["\']\s*></script>'
+    )
+    if pattern.search(html):
+        return pattern.sub(tag, html, count=1)
+    pending.append(tag)
+    return html
 
 
 def project_root() -> Path:
@@ -140,17 +158,18 @@ def ensure_ui_assets(root: Path) -> str | None:
     if "assets/app_runtime.js" not in patched:
         body_tags.append('<script src="assets/app_runtime.js?v=app-runtime-2"></script>')
 
-    if standards_ui.exists() and "assets/standards_ui.js" not in patched:
-        body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>')
-        body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-5"></script>')
+    if standards_ui.exists():
+        if "LEXIA_STANDARDS_PORT" not in patched:
+            body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>')
+        patched = _upsert_asset_script(patched, standards_ui, "standards-ui", body_tags)
 
-    if standards_nav_fix.exists() and "assets/standards_nav_fix.js" not in patched:
-        body_tags.append('<script src="assets/standards_nav_fix.js?v=standards-nav-fix-5"></script>')
+    if standards_nav_fix.exists():
+        patched = _upsert_asset_script(patched, standards_nav_fix, "standards-nav-fix", body_tags)
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
 
-    if not head_tags and not body_tags:
+    if patched == original and not head_tags and not body_tags:
         return None
 
     if head_tags:
