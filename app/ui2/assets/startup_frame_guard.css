@@ -22,35 +22,43 @@
   }
 }
 
-/* Search by content: the compact three-dot action menu must not collapse the
-   text excerpt underneath the filename. Keep filename-only results unchanged. */
-#searchpage #realSearchResults .result-card:has(.result-body p){
+/* Buscar > Contenido.
+   Las versiones estables del 4/5 de septiembre dejaban la altura y el recorte
+   vertical en manos de la tarjeta original. El menú compacto posterior forzó
+   min-height:0/overflow:visible y permitió que el extracto invadiera la fila
+   siguiente. Conservamos el menú de tres puntos, pero devolvemos a los resultados
+   con score una tarjeta alta y cerrada. Los resultados sólo por nombre quedan
+   fuera de este selector. */
+#searchpage #realSearchResults .result-card:has(.result-actions > .score){
+  box-sizing:border-box!important;
   grid-auto-rows:auto!important;
-  min-height:84px!important;
+  min-height:116px!important;
   height:auto!important;
   max-height:none!important;
+  padding:14px 14px 18px!important;
   align-items:start!important;
-  overflow:visible!important;
+  overflow:hidden!important;
 }
-#searchpage #realSearchResults .result-card:has(.result-body p) .result-body{
+#searchpage #realSearchResults .result-card:has(.result-actions > .score) .result-body{
   position:static!important;
   display:flex!important;
   flex-direction:column!important;
-  gap:3px!important;
+  gap:4px!important;
   min-width:0!important;
   min-height:0!important;
   height:auto!important;
   max-height:none!important;
-  overflow:visible!important;
+  padding-bottom:2px!important;
+  overflow:hidden!important;
 }
-#searchpage #realSearchResults .result-card:has(.result-body p) .result-body>*{
+#searchpage #realSearchResults .result-card:has(.result-actions > .score) .result-body>*{
   position:static!important;
   inset:auto!important;
   transform:none!important;
 }
-#searchpage #realSearchResults .result-card:has(.result-body p) .result-body p{
+#searchpage #realSearchResults .result-card:has(.result-actions > .score) .result-body p{
   display:-webkit-box!important;
-  margin:2px 0 0!important;
+  margin:3px 0 0!important;
   min-height:1.35em!important;
   max-height:2.7em!important;
   line-height:1.35!important;
