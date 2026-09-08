@@ -120,6 +120,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     jurisprudence = here / "assets" / "jurisprudence_search.js"
     app_runtime = here / "assets" / "app_runtime.js"
     standards_ui = here / "assets" / "standards_ui.js"
+    standards_nav_fix = here / "assets" / "standards_nav_fix.js"
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
@@ -142,6 +143,9 @@ def ensure_ui_assets(root: Path) -> str | None:
     if standards_ui.exists() and "assets/standards_ui.js" not in patched:
         body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT!r};</script>')
         body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-1"></script>')
+
+    if standards_nav_fix.exists() and "assets/standards_nav_fix.js" not in patched:
+        body_tags.append('<script src="assets/standards_nav_fix.js?v=standards-nav-fix-1"></script>')
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
