@@ -19,6 +19,10 @@ def test_search_controls_and_empty_initial_state():
     assert "event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button')" in source
     assert "window.lexiaStandardsSearch=search" in source
     assert "window.lexiaStandardsResetSearch=resetSearch" in source
+    assert "addEventListener('pointerdown'" in source
+    assert "dataset.lexiaUserEdited" in source
+    assert "cache:'no-store'" in source
+    assert "style.setProperty('display','grid','important')" in source
 
 
 def test_recent_searches_use_the_main_search_popover():
@@ -36,3 +40,13 @@ def test_recent_searches_use_the_main_search_popover():
     assert "dataset.lexiaNativeSearch==='2'" in layout
     assert "stdRecent" not in source
     assert "Ingresá criterios o dejá los campos vacíos" not in source
+
+
+def test_normal_search_results_use_three_dot_action_menu():
+    source = (ROOT / "app/ui2/assets/search_investigation_bridge.js").read_text(encoding="utf-8")
+
+    assert "lexia-result-menu-trigger" in source
+    assert "lexia-result-actions-menu" in source
+    assert "ensureResultActionMenu(card,actions)" in source
+    assert "node.tagName==='BUTTON'" in source
+    assert "trigger.textContent='⋯'" in source
