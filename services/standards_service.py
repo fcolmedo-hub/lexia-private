@@ -98,6 +98,49 @@ class StandardsService:
                 "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
             ).fetchone()[0])
 
+    def inventory(self) -> dict[str, int]:
+        """Return transparent stored/published counts for the product header."""
+        empty = {
+            "canonical_standards_total": 0,
+            "visible_canonical_standards": 0,
+            "occurrences_total": 0,
+            "visible_occurrences": 0,
+            "reserved_occurrences": 0,
+        }
+        if not self.available():
+            return empty
+        with _ro_connect(self.db_path) as con:
+            occurrences_total = int(con.execute(
+                "SELECT COUNT(*) FROM standards WHERE review_status<>'rejected'"
+            ).fetchone()[0])
+            visible_occurrences = int(con.execute(
+                "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
+            ).fetchone()[0])
+            if _canonical_ready(con):
+                canonical_total = int(con.execute(
+                    "SELECT COUNT(*) FROM canonical_standards WHERE status='confirmed'"
+                ).fetchone()[0])
+                visible_canonical = int(con.execute(
+                    """SELECT COUNT(*) FROM canonical_standards c
+                       WHERE c.status='confirmed' AND EXISTS(
+                           SELECT 1 FROM standard_occurrences o
+                           JOIN standards s ON s.standard_uid=o.standard_uid
+                           WHERE o.canonical_uid=c.canonical_uid
+                             AND s.review_status='validated'
+                             AND s.publication_status IN ('ready','published')
+                       )"""
+                ).fetchone()[0])
+            else:
+                canonical_total = occurrences_total
+                visible_canonical = visible_occurrences
+        return {
+            "canonical_standards_total": canonical_total,
+            "visible_canonical_standards": visible_canonical,
+            "occurrences_total": occurrences_total,
+            "visible_occurrences": visible_occurrences,
+            "reserved_occurrences": max(0, occurrences_total - visible_occurrences),
+        }
+
     def search(
         self,
         *,

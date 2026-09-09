@@ -89,6 +89,18 @@ def test_count_matches_searchable_standards(tmp_path):
     assert service.count() == 2
 
 
+def test_inventory_distinguishes_stored_and_published_standards(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    assert service.inventory() == {
+        'canonical_standards_total': 3,
+        'visible_canonical_standards': 2,
+        'occurrences_total': 4,
+        'visible_occurrences': 3,
+        'reserved_occurrences': 1,
+    }
+
+
 def test_detail_quotes_and_publication_policy(tmp_path):
     service = StandardsService(make_db(tmp_path))
     detail = service.get_standard('STD-A')

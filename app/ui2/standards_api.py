@@ -276,12 +276,13 @@ class Handler(BaseHTTPRequestHandler):
                     "db_path": str(SERVICE.db_path),
                 })
             if parsed.path == "/api/stats":
-                standards = SERVICE.count()
+                inventory = SERVICE.inventory()
                 return self._json({
                     "ok": True,
                     "available": SERVICE.available(),
-                    "standards": standards,
-                    "canonical_standards": standards,
+                    "standards": inventory["visible_canonical_standards"],
+                    "canonical_standards": inventory["visible_canonical_standards"],
+                    **inventory,
                 })
             if parsed.path == "/api/search":
                 tags = [value for value in qs.get("tag", []) if value]
