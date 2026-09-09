@@ -78,6 +78,22 @@ if (-not (Test-PythonModule 'webview')) {
     throw 'pywebview sigue sin estar disponible después de la instalación.'
 }
 
+# clr-loader crea el runtime .NET de pywebview mediante CFFI. PyInstaller no
+# siempre detecta el import dinámico del módulo binario _cffi_backend, por lo
+# que comprobamos la dependencia antes de construir y la incluimos de forma
+# explícita más abajo.
+if (-not (Test-PythonModule '_cffi_backend')) {
+    Write-Host 'Instalando CFFI en el entorno virtual de LexIA...'
+    & $Py -m pip install --quiet cffi
+    if ($LASTEXITCODE -ne 0) {
+        throw 'No se pudo instalar CFFI en el entorno virtual de LexIA.'
+    }
+}
+
+if (-not (Test-PythonModule '_cffi_backend')) {
+    throw '_cffi_backend sigue sin estar disponible después de instalar CFFI.'
+}
+
 $IconArgs = @()
 $IconCandidates = @(
     (Join-Path $Root 'LexIA.ico'),
@@ -98,6 +114,7 @@ $Args = @(
     '--windowed',
     '--name',$AppName,
     '--collect-all','webview',
+    '--hidden-import','_cffi_backend',
     '--distpath',$Dist,
     '--workpath',$Work,
     '--specpath',$BuildRoot
@@ -106,6 +123,17 @@ $Args = @(
 & $Py @Args
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $ExeOut)) {
     throw "PyInstaller no pudo generar $AppName.exe"
+}
+
+$InternalDir = Join-Path (Join-Path $Dist $AppName) '_internal'
+$BundledCffiBackend = @(
+    Get-ChildItem -Path $InternalDir -Filter '_cffi_backend*.pyd' -File -ErrorAction SilentlyContinue
+)
+if ($BundledCffiBackend.Count -eq 0) {
+    throw (
+        'El build de LexIA está incompleto: PyInstaller no incluyó ' +
+        '_cffi_backend. No se reemplazó la instalación actual.'
+    )
 }
 
 Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
