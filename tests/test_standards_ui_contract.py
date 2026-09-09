@@ -22,17 +22,17 @@ def test_search_controls_and_empty_initial_state():
 
 
 def test_recent_searches_use_the_main_search_popover():
-    source = (ROOT / "app/ui2/assets/standards_nav_fix.js").read_text(encoding="utf-8")
+    source = (ROOT / "app/ui2/assets/standards_ui.js").read_text(encoding="utf-8")
+    layout = (ROOT / "app/ui2/assets/standards_nav_fix.js").read_text(encoding="utf-8")
 
-    assert "std-primary-row" in source
-    assert "firstGrid.classList.remove('primary')" in source
+    assert "std-primary-row" in layout
+    assert "firstGrid.classList.remove('primary')" in layout
     assert "stdHistoryMenu" in source
-    assert "q.addEventListener('click',toggleHistory)" in source
+    assert "query.addEventListener('click'" in source
     assert "||'Todos los estándares'" in source
-    assert "toggle.hidden=false" in source
-    assert "function installActionRouter()" in source
-    assert "target.closest('#stdSearch')" in source
-    assert "target.closest('#stdHistoryToggle,#stdQ')" in source
-    assert "recentMemory=items" in source
+    assert "saveRecentSearch();setRecentMenuOpen(false);" in source
+    assert "recentMemory=items.slice(0,12)" in source
+    assert "dataset.lexiaNativeSearch='2'" in source
+    assert "dataset.lexiaNativeSearch==='2'" in layout
     assert "stdRecent" not in source
     assert "Ingresá criterios o dejá los campos vacíos" not in source
