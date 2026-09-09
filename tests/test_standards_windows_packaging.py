@@ -11,6 +11,9 @@ def test_windows_onedir_build_requires_standards_components():
     assert "app\\ui2\\standards_api.py" in source
     assert "app\\ui2\\assets\\standards_ui.js" in source
     assert "app\\ui2\\assets\\standards_nav_fix.js" in source
+    assert "app\\ui2\\navigator_3_3_4a.js" in source
+    assert "app\\ui2\\assets\\jurisprudence_search.js" in source
+    assert "app\\ui2\\assets\\search_investigation_bridge.js" in source
     assert "services\\standards_service.py" in source
 
 

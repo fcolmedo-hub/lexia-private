@@ -31,20 +31,49 @@ CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
 
-def _versioned_script(asset: Path, prefix: str) -> str:
+def _versioned_script(
+    asset: Path,
+    prefix: str,
+    *,
+    source: str | None = None,
+    script_id: str | None = None,
+) -> str:
     digest = hashlib.sha256(asset.read_bytes()).hexdigest()[:12]
-    return f'<script src="assets/{asset.name}?v={prefix}-{digest}"></script>'
+    src = source or f"assets/{asset.name}"
+    id_attribute = f' id="{script_id}"' if script_id else ""
+    return f'<script{id_attribute} src="{src}?v={prefix}-{digest}"></script>'
 
 
-def _upsert_asset_script(html: str, asset: Path, prefix: str) -> tuple[str, bool]:
-    tag = _versioned_script(asset, prefix)
+def _upsert_asset_script(
+    html: str,
+    asset: Path,
+    prefix: str,
+    *,
+    source: str | None = None,
+    script_id: str | None = None,
+    before_source: str | None = None,
+) -> tuple[str, bool]:
+    src = source or f"assets/{asset.name}"
+    tag = _versioned_script(
+        asset,
+        prefix,
+        source=src,
+        script_id=script_id,
+    )
     pattern = re.compile(
-        rf'<script\s+src=["\']assets/{re.escape(asset.name)}(?:\?[^"\']*)?["\']\s*></script>',
+        rf'<script\b[^>]*\bsrc=["\']{re.escape(src)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
         flags=re.IGNORECASE,
     )
     if pattern.search(html):
         updated = pattern.sub(tag, html, count=1)
         return updated, updated != html
+    if before_source:
+        anchor = re.compile(
+            rf'<script\b[^>]*\bsrc=["\']{re.escape(before_source)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
+            flags=re.IGNORECASE,
+        ).search(html)
+        if anchor:
+            return html[:anchor.start()] + tag + "\n" + html[anchor.start():], True
     updated = html.replace("</body>", tag + "\n</body>", 1) if "</body>" in html else html + "\n" + tag
     return updated, True
 
@@ -475,7 +504,11 @@ def kill_stale(root: Path) -> None:
 def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
-    script = here / "assets" / "jurisprudence_search.js"
+    jurisprudence_search = here / "assets" / "jurisprudence_search.js"
+    search_investigation_bridge = (
+        here / "assets" / "search_investigation_bridge.js"
+    )
+    navigator = here / "navigator_3_3_4a.js"
     live_badge_cleanup = (
         here / "assets" / "windows_live_badge_cleanup.js"
     )
@@ -485,7 +518,9 @@ def ensure_ui_assets(root: Path) -> str | None:
     standards_nav_fix = here / "assets" / "standards_nav_fix.js"
     if not (
         index.exists()
-        and script.exists()
+        and jurisprudence_search.exists()
+        and search_investigation_bridge.exists()
+        and navigator.exists()
         and live_badge_cleanup.exists()
         and app_runtime.exists()
     ):
@@ -500,10 +535,33 @@ def ensure_ui_assets(root: Path) -> str | None:
         patched = patched.replace("</head>", tag + "</head>", 1) if "</head>" in patched else tag + patched
         changed = True
 
-    if "assets/jurisprudence_search.js" not in patched:
-        tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-7"></script>\n'
-        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
-        changed = True
+    # La UI de Buscar depende de tres piezas que WebView conservaba en caché:
+    # el navegador (menú ⋯), el buscador y el puente que agrega Investigar.
+    # Se versionan por contenido y el puente se coloca antes del buscador para
+    # que su cargador dinámico detecte el id y no lo ejecute dos veces.
+    patched, asset_changed = _upsert_asset_script(
+        patched,
+        navigator,
+        "navigator",
+        source="navigator_3_3_4a.js",
+    )
+    changed = changed or asset_changed
+
+    patched, asset_changed = _upsert_asset_script(
+        patched,
+        search_investigation_bridge,
+        "search-investigation",
+        script_id="lexiaSearchInvestigationBridge",
+        before_source="assets/jurisprudence_search.js",
+    )
+    changed = changed or asset_changed
+
+    patched, asset_changed = _upsert_asset_script(
+        patched,
+        jurisprudence_search,
+        "jurisprudence-search",
+    )
+    changed = changed or asset_changed
 
     # Casos y los ajustes comunes de UI2 se cargan también en Windows.
     # Reemplazamos la versión temporal para impedir que PyWebView reutilice

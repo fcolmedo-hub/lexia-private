@@ -26,6 +26,9 @@ $RequiredStandardsFiles = @(
     (Join-Path $Root 'app\ui2\standards_api.py'),
     (Join-Path $Root 'app\ui2\assets\standards_ui.js'),
     (Join-Path $Root 'app\ui2\assets\standards_nav_fix.js'),
+    (Join-Path $Root 'app\ui2\navigator_3_3_4a.js'),
+    (Join-Path $Root 'app\ui2\assets\jurisprudence_search.js'),
+    (Join-Path $Root 'app\ui2\assets\search_investigation_bridge.js'),
     (Join-Path $Root 'services\standards_service.py')
 )
 $MissingStandardsFiles = @(

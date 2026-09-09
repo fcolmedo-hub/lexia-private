@@ -107,10 +107,13 @@ class WindowsDesktopStartupTests(unittest.TestCase):
             assets.mkdir(parents=True)
             for name in (
                 "jurisprudence_search.js",
+                "search_investigation_bridge.js",
                 "windows_live_badge_cleanup.js",
                 "app_runtime.js",
             ):
                 (assets / name).write_text("", encoding="utf-8")
+            navigator = ui / "navigator_3_3_4a.js"
+            navigator.write_text("window.windowsNavigator=true;", encoding="utf-8")
             standards_ui = assets / "standards_ui.js"
             standards_nav = assets / "standards_nav_fix.js"
             standards_ui.write_text("window.windowsStandards=true;", encoding="utf-8")
@@ -130,6 +133,58 @@ class WindowsDesktopStartupTests(unittest.TestCase):
             self.assertIn(f"standards_nav_fix.js?v=standards-nav-fix-{nav_hash}", patched)
             launcher.restore_ui_assets(root, saved)
             self.assertEqual(index.read_text(encoding="utf-8"), original)
+
+    def test_windows_launcher_refreshes_file_menu_and_investigate_assets(self) -> None:
+        launcher = _load_launcher()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            ui = root / "app" / "ui2"
+            assets = ui / "assets"
+            assets.mkdir(parents=True)
+            required = {
+                "jurisprudence_search.js": "window.search=true;",
+                "search_investigation_bridge.js": "window.investigate=true;",
+                "windows_live_badge_cleanup.js": "",
+                "app_runtime.js": "",
+            }
+            for name, content in required.items():
+                (assets / name).write_text(content, encoding="utf-8")
+            navigator = ui / "navigator_3_3_4a.js"
+            navigator.write_text("window.fileMenu=true;", encoding="utf-8")
+            index = ui / "index.html"
+            original = (
+                '<html><body>'
+                '<script src="navigator_3_3_4a.js?v=old"></script>'
+                '<script src="assets/jurisprudence_search.js?v=old"></script>'
+                '</body></html>'
+            )
+            index.write_text(original, encoding="utf-8")
+
+            saved = launcher.ensure_ui_assets(root)
+            patched = index.read_text(encoding="utf-8")
+            nav_hash = hashlib.sha256(navigator.read_bytes()).hexdigest()[:12]
+            search = assets / "jurisprudence_search.js"
+            search_hash = hashlib.sha256(search.read_bytes()).hexdigest()[:12]
+            bridge = assets / "search_investigation_bridge.js"
+            bridge_hash = hashlib.sha256(bridge.read_bytes()).hexdigest()[:12]
+
+            self.assertEqual(saved, original)
+            self.assertIn(
+                f'navigator_3_3_4a.js?v=navigator-{nav_hash}', patched
+            )
+            self.assertIn(
+                f'jurisprudence_search.js?v=jurisprudence-search-{search_hash}',
+                patched,
+            )
+            bridge_tag = (
+                '<script id="lexiaSearchInvestigationBridge" '
+                f'src="assets/search_investigation_bridge.js?v=search-investigation-{bridge_hash}"></script>'
+            )
+            self.assertIn(bridge_tag, patched)
+            self.assertLess(
+                patched.index(bridge_tag),
+                patched.index("assets/jurisprudence_search.js"),
+            )
 
     def test_windows_launcher_starts_standards_api_with_expected_port(self) -> None:
         launcher = _load_launcher()
