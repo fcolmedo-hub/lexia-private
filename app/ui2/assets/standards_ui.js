@@ -5,6 +5,9 @@
   const API_PORT=(window.LEXIA_STANDARDS_PORT||'8515');
   const API=`http://127.0.0.1:${API_PORT}`;
   const state={installed:false,open:false,filtersLoaded:false,currentUid:null};
+  const RECENT_KEY='lexia_standards_recent_searches_v1';
+  let recentMemory=[];
+  let recentStorageAvailable=true;
   const relLabels={duplicate_of:'Duplica',specializes:'Especializa',generalizes:'Generaliza',exception_to:'Excepción',related_to:'Relacionado',supports:'Apoya',contradicts:'Contradice'};
   const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const norm=value=>String(value||'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -19,7 +22,7 @@
       .std-wrap{max-width:1320px;margin:0 auto;padding:28px 30px 46px}.std-head{margin-bottom:18px}.std-title{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0;color:#111936}.std-sub{margin:6px 0 0;color:var(--std-muted);font-size:14px}.std-kicker{display:inline-flex;padding:5px 10px;border-radius:999px;background:var(--std-lav);color:var(--std-brand);font-size:12px;font-weight:800;margin-bottom:8px}
       .std-panel{background:#fff;border:1px solid var(--std-line);border-radius:16px;box-shadow:0 8px 24px rgba(45,36,120,.05)}.std-search{padding:16px;margin-bottom:16px}.std-grid{display:grid;grid-template-columns:minmax(280px,2fr) repeat(3,minmax(150px,1fr));gap:10px}.std-grid.secondary{grid-template-columns:repeat(3,minmax(160px,1fr)) auto auto;margin-top:10px}.std-input,.std-select{width:100%;height:40px;border:1px solid #d8d7e9;border-radius:10px;padding:0 11px;background:white;color:#1a2140;outline:none}.std-input:focus,.std-select:focus{border-color:#8178ff;box-shadow:0 0 0 3px rgba(98,88,255,.12)}
       .std-btn{height:40px;border:0;border-radius:10px;padding:0 16px;background:linear-gradient(135deg,var(--std-brand),var(--std-brand2));color:white;font-weight:750;cursor:pointer;box-shadow:0 5px 14px rgba(81,70,246,.18)}.std-btn.ghost{background:var(--std-lav);color:var(--std-brand);box-shadow:none}.std-btn.secondary{background:#fff;color:#5146f6;border:1px solid #d8d3ff;box-shadow:none}.std-btn.small{height:32px;padding:0 11px;font-size:12px}
-      .std-search-status{margin-top:10px;padding:9px 11px;border-radius:9px;background:#f7f5ff;color:#625c7b;font-size:12px;border:1px solid #e9e5ff}.std-search-status.error{background:#fff4f8;color:#7d2a56;border-color:#f0dce6}.std-search-status[hidden]{display:none!important}
+      .std-search-status{margin-top:10px;padding:9px 11px;border-radius:9px;background:#f7f5ff;color:#625c7b;font-size:12px;border:1px solid #e9e5ff}.std-search-status.error{background:#fff4f8;color:#7d2a56;border-color:#f0dce6}.std-search-status[hidden]{display:none!important}.std-query-wrap{position:relative;min-width:0}.std-query-wrap #stdQ{padding-right:40px}.std-history-toggle{position:absolute;z-index:2;top:4px;right:5px;width:31px;height:32px;border:0;border-radius:8px;background:transparent;color:#6258d8;font-size:14px;cursor:pointer}.std-history-toggle:hover,.std-history-toggle[aria-expanded="true"]{background:var(--std-lav)}.std-history-menu{position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;display:none;max-height:260px;overflow:auto;padding:6px;background:#fff;border:1px solid #d8d3ff;border-radius:11px;box-shadow:0 14px 32px rgba(45,36,120,.16)}.std-history-menu.open{display:grid;gap:3px}.std-history-item{width:100%;border:0;border-radius:8px;padding:9px 10px;background:#fff;color:#252b4b;font:inherit;font-size:12px;line-height:1.35;text-align:left;cursor:pointer}.std-history-item:hover,.std-history-item:focus{background:var(--std-lav);color:var(--std-brand);outline:none}.std-history-empty{padding:9px 10px;color:#7b829b;font-size:12px}
       .std-layout{display:none;grid-template-columns:minmax(0,1.1fr) minmax(390px,.9fr);gap:16px;align-items:start}.std-layout.has-results{display:grid}.std-list,.std-detail{padding:16px}.std-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 12px;border-bottom:1px solid #ecebf5;margin-bottom:4px}.std-summary-title{font-size:15px;font-weight:800;color:#202846}.std-summary-count{font-size:11px;font-weight:800;color:#5146f6;background:#f0efff;padding:5px 9px;border-radius:999px}
       .std-item{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:14px 12px;border:1px solid transparent;border-bottom-color:#ecebf5;border-radius:10px;cursor:pointer;transition:.14s}.std-item:hover{background:var(--std-lav2);border-color:#e4e0ff}.std-item.active{background:var(--std-lav);border-color:#d8d3ff}.std-number{width:26px;height:26px;border-radius:8px;background:#f0efff;color:#5146f6;display:grid;place-items:center;font-size:11px;font-weight:900}.std-statement{font-size:14px;line-height:1.48;font-weight:700;color:#171d38}.std-meta{margin-top:7px;font-size:11.5px;color:var(--std-muted);display:flex;gap:6px;flex-wrap:wrap}.std-uid{font:10.5px ui-monospace,SFMono-Regular,Consolas,monospace;color:#8a91a8;margin-top:5px}
       .std-empty{padding:30px 10px;text-align:center;color:var(--std-muted)}.std-detail h2{font-size:20px;line-height:1.38;margin:2px 0 8px}.std-detail h3{font-size:13px;text-transform:uppercase;letter-spacing:.055em;color:#555e7d;margin:20px 0 8px}.std-badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.std-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#f1f0fb;color:#4f478f;font-size:11px;font-weight:750}.std-badge.proposed{background:#f5f2ff;color:#6b5bcc;border:1px solid #ded8ff}.std-badge.confirmed{background:#edf1ff;color:#4056ae}.std-badge.rel-contradicts{background:#eeeaff;color:#4d3ac3}.std-badge.rel-specializes{background:#edf2ff;color:#3958b7}.std-badge.rel-exception_to{background:#f4efff;color:#6a45a9}.std-badge.rel-supports{background:#eef5ff;color:#4770aa}.std-badge.rel-related_to{background:#f5f3fb;color:#77708f}
@@ -33,16 +36,58 @@
   async function api(path){const response=await fetch(API+path,{headers:{Accept:'application/json'}});if(!response.ok){let msg=`HTTP ${response.status}`;try{const data=await response.json();if(data.error)msg=data.error;}catch(_){}throw new Error(msg);}return response.json();}
   function shell(){
     let node=document.getElementById('lexiaStandardsShell');if(node)return node;
-    node=document.createElement('section');node.id='lexiaStandardsShell';node.setAttribute('aria-label','Estándares jurídicos');
-    node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p></div></div><div class="std-panel std-search"><div class="std-grid"><input class="std-input" id="stdQ" placeholder="Buscar estándar por texto jurídico…"><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear" type="button">Limpiar</button><button class="std-btn" id="stdSearch" type="button">Buscar</button></div><div id="stdSearchStatus" class="std-search-status" hidden></div></div><div class="std-layout" id="stdLayout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
+    node=document.createElement('section');node.id='lexiaStandardsShell';node.dataset.lexiaNativeSearch='2';node.setAttribute('aria-label','Estándares jurídicos');
+    node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p></div></div><div class="std-panel std-search"><div class="std-grid"><div class="std-query-wrap"><input class="std-input" id="stdQ" placeholder="Buscar estándar por texto jurídico…" aria-haspopup="listbox" aria-expanded="false"><button class="std-history-toggle" id="stdHistoryToggle" type="button" aria-label="Mostrar últimas búsquedas" aria-haspopup="listbox" aria-expanded="false">▾</button><div class="std-history-menu" id="stdHistoryMenu" role="listbox"></div></div><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear" type="button">Limpiar</button><button class="std-btn" id="stdSearch" type="button">Buscar</button></div><div id="stdSearchStatus" class="std-search-status" hidden></div></div><div class="std-layout" id="stdLayout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
     document.body.appendChild(node);
-    node.querySelector('#stdSearch').addEventListener('click',event=>{event.preventDefault();search();});
-    node.querySelector('#stdClear').addEventListener('click',event=>{event.preventDefault();resetSearch();});
-    node.querySelector('#stdQ').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();search();}});
+    const query=node.querySelector('#stdQ'),toggle=node.querySelector('#stdHistoryToggle');
+    node.querySelector('#stdSearch').addEventListener('click',event=>{event.preventDefault();event.stopPropagation();search();});
+    node.querySelector('#stdClear').addEventListener('click',event=>{event.preventDefault();event.stopPropagation();resetSearch();});
+    query.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();event.stopPropagation();search();}});
+    query.addEventListener('click',event=>{event.stopPropagation();toggleRecentMenu();});
+    query.addEventListener('input',()=>setRecentMenuOpen(false));
+    toggle.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();toggleRecentMenu();});
+    refreshRecentMenu();
     return node;
   }
 
   function fillSelect(id,values){const select=document.getElementById(id);if(!select)return;for(const value of values||[]){if([...select.options].some(o=>o.value===value))continue;const option=document.createElement('option');option.value=value;option.textContent=value;select.appendChild(option);}}
+
+  function readCriteria(){
+    const node=shell(),ids={q:'stdQ',court:'stdCourt',speaker:'stdSpeaker',treatment:'stdTreatment',from:'stdFrom',to:'stdTo',tag:'stdTag'},criteria={};
+    for(const [key,id] of Object.entries(ids)){const value=String(node.querySelector('#'+id)?.value||'').trim();if(value)criteria[key]=value;}
+    return criteria;
+  }
+  function recentSearches(){
+    if(!recentStorageAvailable)return recentMemory;
+    try{const parsed=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');if(Array.isArray(parsed)){recentMemory=parsed;return parsed;}}
+    catch(_){recentStorageAvailable=false;}
+    return recentMemory;
+  }
+  function criteriaLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ')||'Todos los estándares';}
+  function saveRecentSearch(criteria=readCriteria()){
+    const signature=JSON.stringify(criteria),items=recentSearches().filter(item=>JSON.stringify(item.criteria||{})!==signature);
+    items.unshift({label:criteriaLabel(criteria),criteria,at:Date.now()});recentMemory=items.slice(0,12);
+    if(recentStorageAvailable){try{localStorage.setItem(RECENT_KEY,JSON.stringify(recentMemory));}catch(_){recentStorageAvailable=false;}}
+    refreshRecentMenu();
+  }
+  function setRecentMenuOpen(open){
+    const node=shell(),menu=node.querySelector('#stdHistoryMenu'),expanded=Boolean(open);
+    menu?.classList.toggle('open',expanded);node.querySelector('#stdQ')?.setAttribute('aria-expanded',String(expanded));node.querySelector('#stdHistoryToggle')?.setAttribute('aria-expanded',String(expanded));
+  }
+  function toggleRecentMenu(){refreshRecentMenu();setRecentMenuOpen(!shell().querySelector('#stdHistoryMenu')?.classList.contains('open'));}
+  function applyRecentSearch(index){
+    const item=recentSearches()[Number(index)];if(!item)return;
+    const ids={q:'stdQ',court:'stdCourt',speaker:'stdSpeaker',treatment:'stdTreatment',from:'stdFrom',to:'stdTo',tag:'stdTag'},node=shell();
+    Object.values(ids).forEach(id=>{const field=node.querySelector('#'+id);if(field)field.value='';});
+    for(const [key,value] of Object.entries(item.criteria||{})){const field=node.querySelector('#'+ids[key]);if(field)field.value=String(value||'');}
+    setRecentMenuOpen(false);search();
+  }
+  function refreshRecentMenu(){
+    const menu=document.getElementById('stdHistoryMenu');if(!menu)return;menu.replaceChildren();
+    const items=recentSearches();
+    if(!items.length){const empty=document.createElement('div');empty.className='std-history-empty';empty.textContent='Sin búsquedas recientes';menu.appendChild(empty);return;}
+    items.forEach((item,index)=>{const button=document.createElement('button');button.type='button';button.className='std-history-item';button.dataset.recentIndex=String(index);button.setAttribute('role','option');button.textContent=String(item.label||criteriaLabel(item.criteria||{}));button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();applyRecentSearch(index);});menu.appendChild(button);});
+  }
 
   function resetSearch(){
     const node=shell();
@@ -63,9 +108,7 @@
     const node=shell(),p=new URLSearchParams();
     const map=[['stdQ','q'],['stdCourt','court'],['stdSpeaker','speaker'],['stdTreatment','treatment'],['stdFrom','from'],['stdTo','to'],['stdTag','tag']];
     for(const [id,key] of map){const value=String(node.querySelector('#'+id)?.value||'').trim();if(value)p.set(key,value);}p.set('limit','200');
-    document.getElementById('stdHistoryMenu')?.classList.remove('open');
-    node.querySelector('#stdQ')?.setAttribute('aria-expanded','false');
-    document.getElementById('stdHistoryToggle')?.setAttribute('aria-expanded','false');
+    saveRecentSearch();setRecentMenuOpen(false);
     const layout=node.querySelector('#stdLayout'),status=node.querySelector('#stdSearchStatus'),results=node.querySelector('#stdResults');
     layout?.classList.remove('has-results');node.querySelector('#stdSummary')?.replaceChildren();results.replaceChildren();
     if(status){status.hidden=false;status.classList.remove('error');status.textContent='Buscando estándares…';}
@@ -116,7 +159,7 @@
   function open(){state.open=true;setNavActive(true);shell().classList.add('open');}
   function close(){if(!state.open)return;state.open=false;setNavActive(false);closeGraph();document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}
-  function boot(){installStyles();shell();installNav();watchOtherNavigation();if(!state.installed){state.installed=true;const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
+  function boot(){installStyles();shell();installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
   window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
