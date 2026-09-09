@@ -4,7 +4,7 @@
 
   const API_PORT=(window.LEXIA_STANDARDS_PORT||'8515');
   const API=`http://127.0.0.1:${API_PORT}`;
-  const state={installed:false,open:false,filtersLoaded:false,currentUid:null,page:1,pageSize:0,total:0,searched:false,searchRequest:0};
+  const state={installed:false,open:false,filtersLoaded:false,currentUid:null,page:1,pageSize:0,total:0,searched:false,searchRequest:0,mode:'search'};
   const RECENT_KEY='lexia_standards_recent_searches_v1';
   let recentMemory=[];
   let recentStorageAvailable=true;
@@ -24,7 +24,7 @@
       .std-btn{height:40px;border:0;border-radius:10px;padding:0 16px;background:linear-gradient(135deg,var(--std-brand),var(--std-brand2));color:white;font-weight:750;cursor:pointer;box-shadow:0 5px 14px rgba(81,70,246,.18)}.std-btn.ghost{background:var(--std-lav);color:var(--std-brand);box-shadow:none}.std-btn.secondary{background:#fff;color:#5146f6;border:1px solid #d8d3ff;box-shadow:none}.std-btn.small{height:32px;padding:0 11px;font-size:12px}
       .std-search-status{margin-top:10px;padding:9px 11px;border-radius:9px;background:#f7f5ff;color:#625c7b;font-size:12px;border:1px solid #e9e5ff}.std-search-status.error{background:#fff4f8;color:#7d2a56;border-color:#f0dce6}.std-search-status[hidden]{display:none!important}.std-query-wrap{position:relative;min-width:0}.std-query-wrap #stdQ{padding-right:40px}.std-history-toggle{position:absolute;z-index:2;top:4px;right:5px;width:31px;height:32px;border:0;border-radius:8px;background:transparent;color:#6258d8;font-size:14px;cursor:pointer}.std-history-toggle:hover,.std-history-toggle[aria-expanded="true"]{background:var(--std-lav)}.std-history-menu{position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;display:none;max-height:260px;overflow:auto;padding:6px;background:#fff;border:1px solid #d8d3ff;border-radius:11px;box-shadow:0 14px 32px rgba(45,36,120,.16)}.std-history-menu.open{display:grid;gap:3px}.std-history-item{width:100%;border:0;border-radius:8px;padding:9px 10px;background:#fff;color:#252b4b;font:inherit;font-size:12px;line-height:1.35;text-align:left;cursor:pointer}.std-history-item:hover,.std-history-item:focus{background:var(--std-lav);color:var(--std-brand);outline:none}.std-history-empty{padding:9px 10px;color:#7b829b;font-size:12px}
       .std-layout{display:none;grid-template-columns:minmax(0,1.1fr) minmax(390px,.9fr);gap:16px;align-items:start}.std-layout.has-results{display:grid}.std-list,.std-detail{padding:16px}.std-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 12px;border-bottom:1px solid #ecebf5;margin-bottom:4px}.std-summary-title{font-size:15px;font-weight:800;color:#202846}.std-summary-count{font-size:11px;font-weight:800;color:#5146f6;background:#f0efff;padding:5px 9px;border-radius:999px}
-      .std-item{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:14px 12px;border:1px solid transparent;border-bottom-color:#ecebf5;border-radius:10px;cursor:pointer;transition:.14s}.std-item:hover{background:var(--std-lav2);border-color:#e4e0ff}.std-item.active{background:var(--std-lav);border-color:#d8d3ff}.std-number{width:26px;height:26px;border-radius:8px;background:#f0efff;color:#5146f6;display:grid;place-items:center;font-size:11px;font-weight:900}.std-statement{font-size:14px;line-height:1.48;font-weight:700;color:#171d38}.std-meta{margin-top:7px;font-size:11.5px;color:var(--std-muted);display:flex;gap:6px;flex-wrap:wrap}.std-uid{font:10.5px ui-monospace,SFMono-Regular,Consolas,monospace;color:#8a91a8;margin-top:5px}.std-inventory{font-size:12px;color:var(--std-muted)}
+      .std-item{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:14px 12px;border:1px solid transparent;border-bottom-color:#ecebf5;border-radius:10px;cursor:pointer;transition:.14s}.std-item:hover{background:var(--std-lav2);border-color:#e4e0ff}.std-item.active{background:var(--std-lav);border-color:#d8d3ff}.std-number{width:26px;height:26px;border-radius:8px;background:#f0efff;color:#5146f6;display:grid;place-items:center;font-size:11px;font-weight:900}.std-statement{font-size:14px;line-height:1.48;font-weight:700;color:#171d38}.std-meta{margin-top:7px;font-size:11.5px;color:var(--std-muted);display:flex;gap:6px;flex-wrap:wrap}.std-uid{font:10.5px ui-monospace,SFMono-Regular,Consolas,monospace;color:#8a91a8;margin-top:5px}.std-inventory{margin-top:7px;font-size:12px;color:var(--std-muted)}.std-inventory-button{border:0;background:none;padding:0;color:#5146f6;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer}.std-btn.danger{background:#fff;color:#9a3152;border:1px solid #e8b9c8;box-shadow:none}
       .std-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 2px 2px;border-top:1px solid #ecebf5;margin-top:4px}.std-page-info{font-size:11.5px;font-weight:750;color:#626b88;text-align:center}.std-page-button{height:34px;border:1px solid #d8d3ff;border-radius:9px;padding:0 12px;background:#fff;color:#5146f6;font-weight:800;cursor:pointer}.std-page-button:hover:not(:disabled){background:var(--std-lav)}.std-page-button:disabled{opacity:.38;cursor:default}
       .std-empty{padding:30px 10px;text-align:center;color:var(--std-muted)}.std-detail h2{font-size:20px;line-height:1.38;margin:2px 0 8px}.std-detail h3{font-size:13px;text-transform:uppercase;letter-spacing:.055em;color:#555e7d;margin:20px 0 8px}.std-badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.std-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#f1f0fb;color:#4f478f;font-size:11px;font-weight:750}.std-badge.proposed{background:#f5f2ff;color:#6b5bcc;border:1px solid #ded8ff}.std-badge.confirmed{background:#edf1ff;color:#4056ae}.std-badge.rel-contradicts{background:#eeeaff;color:#4d3ac3}.std-badge.rel-specializes{background:#edf2ff;color:#3958b7}.std-badge.rel-exception_to{background:#f4efff;color:#6a45a9}.std-badge.rel-supports{background:#eef5ff;color:#4770aa}.std-badge.rel-related_to{background:#f5f3fb;color:#77708f}
       .std-quote{margin:9px 0;padding:12px 13px;border-left:4px solid #8d83ff;border-radius:8px;background:#faf9ff;font-size:13px;line-height:1.48}.std-relation{padding:10px 0;border-bottom:1px solid #eeedf6}.std-rel-title{font-size:13px;line-height:1.4;margin-top:5px;cursor:pointer}.std-rel-title:hover{color:var(--std-brand)}.std-doc{padding:10px 12px;border-radius:10px;background:#fafaff;border:1px solid #eceaff;font-size:12px;line-height:1.5}.std-doc-link{appearance:none;border:0;background:none;padding:0;color:#5146f6;text-decoration:underline;font:inherit;font-weight:800;cursor:pointer;text-align:left}.std-notice{padding:10px 12px;border-radius:10px;background:#f7f5ff;color:#625c7b;font-size:12px;border:1px solid #e9e5ff;margin-bottom:12px}.std-error{padding:18px;color:#7d2a56;background:#fff4f8;border:1px solid #f0dce6;border-radius:12px}
@@ -68,7 +68,9 @@
     try{
       const data=await api('/api/stats');
       const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.reserved_occurrences??Math.max(0,stored-visible));
-      target.textContent=`${visible} ${visible===1?'regla publicada':'reglas publicadas'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}${reserved?` · ${reserved} ${reserved===1?'reservada':'reservadas'} para revisión/publicación`:''}`;
+      const base=`${visible} ${visible===1?'regla publicada':'reglas publicadas'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
+      target.innerHTML=reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">Revisar ${reserved} ${reserved===1?'reservada':'reservadas'}</button>`:esc(base);
+      target.querySelector('#stdReservedBtn')?.addEventListener('click',()=>reservedQueue({page:1}));
     }catch(_){target.textContent='Inventario no disponible.';}
   }
 
@@ -113,7 +115,7 @@
     const node=shell();
     ['stdQ','stdCourt','stdSpeaker','stdTreatment','stdFrom','stdTo','stdTag'].forEach(id=>{const field=node.querySelector('#'+id);if(field){field.value='';delete field.dataset.lexiaUserEdited;}});
     state.currentUid=null;
-    state.page=1;state.total=0;state.searched=false;
+    state.page=1;state.total=0;state.searched=false;state.mode='search';
     node.querySelector('#stdSummary')?.replaceChildren();
     node.querySelector('#stdResults')?.replaceChildren();
     node.querySelector('#stdPager')?.replaceChildren();
@@ -127,6 +129,7 @@
   }
 
   async function search(options={}){
+    state.mode='search';
     const node=shell(),p=new URLSearchParams(),requestedPage=Math.max(1,Number(options.page||1)),pageSize=pageSizeForViewport();
     const criteria=readCriteria();for(const [key,value] of Object.entries(criteria))p.set(key,value);
     p.set('limit',String(pageSize));p.set('offset',String((requestedPage-1)*pageSize));
@@ -148,6 +151,50 @@
       results.querySelectorAll('.std-item').forEach(item=>item.addEventListener('click',()=>detail(item.dataset.uid)));
       if(pageCount>1&&pager){pager.innerHTML=`<div class="std-pagination"><button class="std-page-button" data-std-page="${requestedPage-1}" ${requestedPage===1?'disabled':''}>Anterior</button><div class="std-page-info">${offset+1}–${Math.min(offset+items.length,total)} de ${total}</div><button class="std-page-button" data-std-page="${requestedPage+1}" ${requestedPage===pageCount?'disabled':''}>Siguiente</button></div>`;pager.querySelectorAll('[data-std-page]:not(:disabled)').forEach(button=>button.addEventListener('click',()=>search({page:Number(button.dataset.stdPage),remember:false})));}
     }catch(error){if(status){status.hidden=false;status.classList.add('error');status.textContent='No fue posible consultar el diccionario. '+String(error.message||error);}}
+  }
+
+  async function reservedQueue(options={}){
+    state.mode='reserved';
+    const node=shell(),requestedPage=Math.max(1,Number(options.page||1)),pageSize=pageSizeForViewport(),p=new URLSearchParams({limit:String(pageSize),offset:String((requestedPage-1)*pageSize)});
+    const request=++state.searchRequest,layout=node.querySelector('#stdLayout'),status=node.querySelector('#stdSearchStatus'),results=node.querySelector('#stdResults'),pager=node.querySelector('#stdPager'),summary=node.querySelector('#stdSummary'),target=node.querySelector('#stdDetail');
+    results.replaceChildren();pager?.replaceChildren();summary?.replaceChildren();layout?.classList.add('has-results');layout?.style.setProperty('display','grid','important');
+    if(status){status.hidden=true;status.classList.remove('error');status.textContent='';}
+    if(target)target.innerHTML='<div class="std-notice">Seleccioná un estándar reservado para revisar su evidencia antes de decidir.</div>';
+    try{
+      const data=await api('/api/reserved?'+p.toString()),items=Array.isArray(data.items)?data.items:[],total=Number(data.total||0);
+      if(request!==state.searchRequest)return;
+      const pageCount=Math.max(1,Math.ceil(total/pageSize));if(total>0&&requestedPage>pageCount)return reservedQueue({page:pageCount});
+      state.page=requestedPage;state.pageSize=pageSize;state.total=total;state.searched=true;
+      if(summary)summary.innerHTML=`<div><div class="std-summary-title">Revisión pendiente</div><div class="std-meta">Página ${requestedPage} de ${pageCount}</div></div><span class="std-summary-count">${total} ${total===1?'reservado':'reservados'}</span>`;
+      if(!items.length){results.innerHTML='<div class="std-empty">No quedan estándares reservados para revisar.</div>';return;}
+      const offset=(requestedPage-1)*pageSize;
+      results.innerHTML=items.map((item,index)=>`<article class="std-item" data-reserved-uid="${esc(item.standard_uid)}"><div class="std-number">${offset+index+1}</div><div><div class="std-statement">${esc(item.statement)}</div><div class="std-meta"><span>${esc(item.document_name||'Documento no informado')}</span><span>· ${esc(item.reserve_reason||'Pendiente')}</span></div><div class="std-uid">${esc(item.standard_uid)}</div></div></article>`).join('');
+      results.querySelectorAll('[data-reserved-uid]').forEach(item=>item.addEventListener('click',()=>reservedDetail(item.dataset.reservedUid)));
+      if(pageCount>1&&pager){pager.innerHTML=`<div class="std-pagination"><button class="std-page-button" data-reserved-page="${requestedPage-1}" ${requestedPage===1?'disabled':''}>Anterior</button><div class="std-page-info">${offset+1}–${Math.min(offset+items.length,total)} de ${total}</div><button class="std-page-button" data-reserved-page="${requestedPage+1}" ${requestedPage===pageCount?'disabled':''}>Siguiente</button></div>`;pager.querySelectorAll('[data-reserved-page]:not(:disabled)').forEach(button=>button.addEventListener('click',()=>reservedQueue({page:Number(button.dataset.reservedPage)})));}
+    }catch(error){results.innerHTML=`<div class="std-error">No fue posible abrir la revisión pendiente. ${esc(error.message)}</div>`;}
+  }
+
+  async function reservedDetail(uid){
+    state.currentUid=uid;document.querySelectorAll('.std-item').forEach(item=>item.classList.toggle('active',item.dataset.reservedUid===uid));
+    const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando evidencia…</div>';
+    try{
+      const data=await api('/api/reserved-standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">El estándar ya no está reservado.</div>';return;}
+      const quotes=(data.quotes||[]).map(q=>`<div class="std-quote">${esc(q.quote_text)}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-error">No tiene cita registrada. Revisá el fallo antes de publicarlo.</div>';
+      target.innerHTML=`<div class="std-notice">${esc(data.reserve_reason||'Pendiente de revisión')}</div><h2>${esc(data.statement)}</h2><div class="std-badges"><span class="std-badge proposed">${esc(data.review_status)}</span><span class="std-badge proposed">${esc(data.publication_status)}</span>${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-doc"><button class="std-doc-link" data-open-reserved="${esc(data.standard_uid)}">${esc(data.document_name||'Documento fuente')}</button><div class="std-meta">${esc(data.court||'Tribunal no informado')}${data.judgment_date?' · '+esc(data.judgment_date):''} · ${esc(data.speaker||'')} · ${esc(data.treatment||'')}</div></div><h3>Cita para validar</h3>${quotes}<div class="std-badges"><button class="std-btn small" data-publication="publish">Publicar</button><button class="std-btn ghost small" data-publication="reserve">Mantener reservado</button><button class="std-btn danger small" data-publication="reject">Rechazar</button></div>`;
+      target.querySelector('[data-open-reserved]')?.addEventListener('click',()=>openDocument(uid));
+      target.querySelectorAll('[data-publication]').forEach(button=>button.addEventListener('click',()=>publicationDecision(uid,button.dataset.publication)));
+    }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir el estándar reservado. ${esc(error.message)}</div>`;}
+  }
+
+  async function publicationDecision(uid,decision){
+    const messages={publish:'¿Publicar este estándar en el diccionario?',reject:'¿Rechazar este estándar? Se conservará únicamente su trazabilidad.'};
+    if(messages[decision]&&!window.confirm(messages[decision]))return;
+    try{
+      await api('/api/publication-decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,decision})});
+      await loadInventory();
+      if(decision==='reserve')alert('El estándar se mantiene reservado.');
+      await reservedQueue({page:state.page});
+    }catch(error){alert('No fue posible registrar la revisión: '+error.message);}
   }
 
   async function openDocument(uid){try{await api('/api/open-document?uid='+encodeURIComponent(uid));}catch(error){alert(error.message==='document_not_found'?'No se encontró el archivo fuente en esta computadora.':'No fue posible abrir el documento fuente: '+error.message);}}
@@ -173,7 +220,7 @@
   function findMaintenanceNav(){const candidates=[...document.querySelectorAll('button,a,[role="button"],li,div')];return candidates.find(node=>norm(node.textContent)==='mantenimiento'&&node.children.length<8)||null;}
   function installNav(){if(document.querySelector('[data-lexia-standards-nav="1"]'))return true;const maintenance=findMaintenanceNav();if(!maintenance)return false;const button=maintenance.cloneNode(true);button.dataset.lexiaStandardsNav='1';button.removeAttribute('id');button.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));const walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);let textNode=null;while(walker.nextNode()){if(norm(walker.currentNode.nodeValue)==='mantenimiento'){textNode=walker.currentNode;break;}}if(textNode)textNode.nodeValue=textNode.nodeValue.replace(/Mantenimiento/i,'Estándares');else button.textContent='Estándares';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();open();},true);maintenance.parentNode.insertBefore(button,maintenance);return true;}
   function setNavActive(active){const nav=document.querySelector('[data-lexia-standards-nav="1"]');if(!nav)return;nav.classList.toggle('active',active);nav.setAttribute('aria-current',active?'page':'false');}
-  function watchViewport(){let timer=0;window.addEventListener('resize',()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>{const next=pageSizeForViewport();if(!state.open||!state.searched||!state.pageSize||next===state.pageSize)return;const first=(state.page-1)*state.pageSize;search({page:Math.floor(first/next)+1,remember:false});},180);});}
+  function watchViewport(){let timer=0;window.addEventListener('resize',()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>{const next=pageSizeForViewport();if(!state.open||!state.searched||!state.pageSize||next===state.pageSize)return;const first=(state.page-1)*state.pageSize,page=Math.floor(first/next)+1;if(state.mode==='reserved')reservedQueue({page});else search({page,remember:false});},180);});}
   function open(){state.open=true;setNavActive(true);shell().classList.add('open');loadInventory();}
   function close(){if(!state.open)return;state.open=false;setNavActive(false);document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}

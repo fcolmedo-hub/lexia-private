@@ -141,6 +141,89 @@ class StandardsService:
             "reserved_occurrences": max(0, occurrences_total - visible_occurrences),
         }
 
+    @staticmethod
+    def _reserve_reason(review_status: str, publication_status: str) -> str:
+        if review_status != "validated":
+            return "Requiere validación jurídica"
+        if publication_status == "blocked":
+            return "Publicación bloqueada"
+        if publication_status == "hidden":
+            return "Oculto del diccionario"
+        return "Pendiente de publicación"
+
+    def reserved_standards(self, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """List stored occurrences excluded by the publication policy."""
+        if not self.available():
+            return {"ok": True, "available": False, "total": 0, "items": []}
+        where = (
+            "s.review_status<>'rejected' AND NOT ("
+            + self._base_visibility_sql()
+            + ")"
+        )
+        with _ro_connect(self.db_path) as con:
+            total = int(con.execute(
+                "SELECT COUNT(*) FROM standards s WHERE " + where
+            ).fetchone()[0])
+            rows = con.execute(
+                """SELECT s.standard_uid,s.statement,s.speaker,s.source_speaker,
+                          s.treatment,s.review_status,s.publication_status,
+                          d.document_name,d.document_path,d.court,d.judgment_date
+                   FROM standards s JOIN documents d ON d.document_id=s.document_id
+                   WHERE """ + where +
+                " ORDER BY s.created_at DESC,s.standard_uid LIMIT ? OFFSET ?",
+                (max(1, min(int(limit), 200)), max(0, int(offset))),
+            ).fetchall()
+            items = [dict(row) for row in rows]
+        for item in items:
+            item["reserve_reason"] = self._reserve_reason(
+                str(item["review_status"]), str(item["publication_status"])
+            )
+        return {"ok": True, "available": True, "total": total, "items": items}
+
+    def get_reserved_standard(self, standard_uid: str) -> dict[str, Any] | None:
+        """Return evidence for one stored occurrence awaiting publication review."""
+        if not self.available():
+            return None
+        uid = str(standard_uid or "").strip()
+        if not uid:
+            return None
+        where = (
+            "s.standard_uid=? AND s.review_status<>'rejected' AND NOT ("
+            + self._base_visibility_sql()
+            + ")"
+        )
+        with _ro_connect(self.db_path) as con:
+            row = con.execute(
+                """SELECT s.*,d.document_name,d.document_path,d.source_key,d.court,
+                          d.judgment_date,d.metadata_json
+                   FROM standards s JOIN documents d ON d.document_id=s.document_id
+                   WHERE """ + where,
+                (uid,),
+            ).fetchone()
+            if row is None:
+                return None
+            item = dict(row)
+            item["conditions"] = _loads(item.pop("conditions_json", "[]"), [])
+            item["exceptions"] = _loads(item.pop("exceptions_json", "[]"), [])
+            item["metadata"] = _loads(item.pop("metadata_json", "{}"), {})
+            item["quotes"] = [dict(quote) for quote in con.execute(
+                """SELECT evidence_index,chunk_id,page_start,page_end,unit_ids_json,
+                          quote_text,validation
+                   FROM quotes WHERE standard_uid=? ORDER BY evidence_index""",
+                (uid,),
+            )]
+            for quote in item["quotes"]:
+                quote["unit_ids"] = _loads(quote.pop("unit_ids_json", "[]"), [])
+            item["tags"] = [str(tag[0]) for tag in con.execute(
+                """SELECT t.name FROM tags t JOIN standard_tags st ON st.tag_id=t.tag_id
+                   WHERE st.standard_uid=? ORDER BY t.name""",
+                (uid,),
+            )]
+        item["reserve_reason"] = self._reserve_reason(
+            str(item["review_status"]), str(item["publication_status"])
+        )
+        return item
+
     def search(
         self,
         *,

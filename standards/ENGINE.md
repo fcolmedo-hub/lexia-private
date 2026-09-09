@@ -80,3 +80,20 @@ python tools/consolidar_estandares_canonicos.py --apply
 Las importaciones V5 y la aplicación de nuevas decisiones de relaciones
 actualizan esta capa automáticamente. El proceso es idempotente y no modifica
 ni elimina las apariciones originales.
+
+## Revisión de estándares reservados
+
+Una aparición está almacenada pero reservada cuando todavía no cumple
+`review_status=validated` y `publication_status=ready|published`. La interfaz
+muestra el inventario completo y permite abrir una bandeja de revisión con el
+fallo, la cita, la página, la voz y el tratamiento.
+
+Las decisiones disponibles son:
+
+- `publish`: valida la aparición y la deja lista para el diccionario;
+- `reserve`: conserva sus estados actuales y registra que fue revisada;
+- `reject`: la excluye del producto sin borrar el registro ni su trazabilidad.
+
+Cada decisión queda en `standard_publication_decisions`. Después de publicar o
+rechazar se reconstruye la capa canónica dentro de la misma transacción; no se
+realiza ninguna llamada a la API ni se reextrae el fallo.

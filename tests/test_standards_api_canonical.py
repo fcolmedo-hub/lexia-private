@@ -68,3 +68,73 @@ def test_confirming_suggestion_rebuilds_one_canonical_standard(tmp_path):
         assert con.execute("SELECT COUNT(*) FROM standard_occurrences").fetchone()[0] == 2
     finally:
         con.close()
+
+
+def test_publication_decision_publishes_reserved_standard_and_audits_it(tmp_path):
+    db = tmp_path / "standards.sqlite3"
+    _make_db(db)
+    con = sqlite3.connect(db)
+    con.execute(
+        """UPDATE standards SET review_status='needs_review',publication_status='blocked'
+           WHERE standard_uid='STD-2'"""
+    )
+    con.commit()
+    con.close()
+
+    previous = standards_api.SERVICE.db_path
+    standards_api.SERVICE.db_path = db
+    try:
+        result = standards_api._publication_decision(
+            {"standard_uid": "STD-2", "decision": "publish"}
+        )
+    finally:
+        standards_api.SERVICE.db_path = previous
+
+    con = sqlite3.connect(db)
+    try:
+        assert result["review_status"] == "validated"
+        assert result["publication_status"] == "ready"
+        assert con.execute(
+            "SELECT review_status,publication_status FROM standards WHERE standard_uid='STD-2'"
+        ).fetchone() == ("validated", "ready")
+        assert con.execute(
+            "SELECT decision FROM standard_publication_decisions WHERE standard_uid='STD-2'"
+        ).fetchone()[0] == "publish"
+    finally:
+        con.close()
+
+
+def test_publication_decision_rejects_without_deleting_traceability(tmp_path):
+    db = tmp_path / "standards.sqlite3"
+    _make_db(db)
+    con = sqlite3.connect(db)
+    con.execute(
+        """UPDATE standards SET review_status='needs_review',publication_status='blocked'
+           WHERE standard_uid='STD-2'"""
+    )
+    con.commit()
+    con.close()
+
+    previous = standards_api.SERVICE.db_path
+    standards_api.SERVICE.db_path = db
+    try:
+        result = standards_api._publication_decision(
+            {"standard_uid": "STD-2", "decision": "reject"}
+        )
+    finally:
+        standards_api.SERVICE.db_path = previous
+
+    con = sqlite3.connect(db)
+    try:
+        assert result["review_status"] == "rejected"
+        assert con.execute(
+            "SELECT review_status,publication_status FROM standards WHERE standard_uid='STD-2'"
+        ).fetchone() == ("rejected", "hidden")
+        assert con.execute(
+            "SELECT COUNT(*) FROM standards WHERE standard_uid='STD-2'"
+        ).fetchone()[0] == 1
+        assert con.execute(
+            "SELECT decision FROM standard_publication_decisions WHERE standard_uid='STD-2'"
+        ).fetchone()[0] == "reject"
+    finally:
+        con.close()

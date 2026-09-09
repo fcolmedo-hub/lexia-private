@@ -101,6 +101,21 @@ def test_inventory_distinguishes_stored_and_published_standards(tmp_path):
     }
 
 
+def test_reserved_queue_includes_evidence_and_reason(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    result = service.reserved_standards()
+    detail = service.get_reserved_standard('STD-C')
+
+    assert result['total'] == 1
+    assert result['items'][0]['standard_uid'] == 'STD-C'
+    assert result['items'][0]['reserve_reason'] == 'Requiere validación jurídica'
+    assert detail is not None
+    assert detail['document_name'] == 'Fallo B'
+    assert detail['quotes'] == []
+    assert service.get_reserved_standard('STD-A') is None
+
+
 def test_detail_quotes_and_publication_policy(tmp_path):
     service = StandardsService(make_db(tmp_path))
     detail = service.get_standard('STD-A')

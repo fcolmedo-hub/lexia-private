@@ -26,4 +26,15 @@ def test_standards_ui_explains_visible_and_reserved_counts():
     source = UI.read_text(encoding="utf-8")
 
     assert "loadInventory" in source
-    assert "reservadas'} para revisión/publicación" in source
+    assert "stdReservedBtn" in source
+
+
+def test_standards_ui_has_reserved_review_workflow():
+    source = UI.read_text(encoding="utf-8")
+
+    assert "reservedQueue" in source
+    assert "reservedDetail" in source
+    assert "data-publication=\"publish\"" in source
+    assert "data-publication=\"reserve\"" in source
+    assert "data-publication=\"reject\"" in source
+    assert "/api/publication-decision" in source

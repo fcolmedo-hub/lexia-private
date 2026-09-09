@@ -229,6 +229,90 @@ def _canonical_decision(payload: dict) -> dict:
         con.close()
 
 
+def _ensure_publication_decisions_schema(con: sqlite3.Connection) -> None:
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS standard_publication_decisions (
+               decision_id INTEGER PRIMARY KEY,
+               standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
+               decision TEXT NOT NULL CHECK(decision IN ('publish','reserve','reject')),
+               previous_review_status TEXT NOT NULL,
+               previous_publication_status TEXT NOT NULL,
+               new_review_status TEXT NOT NULL,
+               new_publication_status TEXT NOT NULL,
+               decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    con.execute(
+        """CREATE INDEX IF NOT EXISTS idx_publication_decisions_standard
+           ON standard_publication_decisions(standard_uid, decided_at)"""
+    )
+
+
+def _publication_decision(payload: dict) -> dict:
+    standard_uid = str(payload.get("standard_uid") or "").strip()
+    decision = str(payload.get("decision") or "").strip().lower()
+    if not standard_uid:
+        raise ValueError("El estándar reservado es inválido.")
+    if decision not in {"publish", "reserve", "reject"}:
+        raise ValueError("La decisión debe ser publish, reserve o reject.")
+
+    con = sqlite3.connect(SERVICE.db_path, timeout=5)
+    try:
+        con.execute("PRAGMA foreign_keys=ON")
+        con.execute("BEGIN IMMEDIATE")
+        current = con.execute(
+            """SELECT review_status,publication_status FROM standards
+               WHERE standard_uid=?""",
+            (standard_uid,),
+        ).fetchone()
+        if current is None:
+            raise ValueError("El estándar reservado no existe.")
+        previous_review, previous_publication = map(str, current)
+        if previous_review == "rejected":
+            raise ValueError("El estándar ya fue rechazado.")
+
+        if decision == "publish":
+            new_review, new_publication = "validated", "ready"
+        elif decision == "reject":
+            new_review, new_publication = "rejected", "hidden"
+        else:
+            new_review, new_publication = previous_review, previous_publication
+
+        _ensure_publication_decisions_schema(con)
+        con.execute(
+            """UPDATE standards SET review_status=?,publication_status=?,
+                      updated_at=CURRENT_TIMESTAMP
+               WHERE standard_uid=?""",
+            (new_review, new_publication, standard_uid),
+        )
+        con.execute(
+            """INSERT INTO standard_publication_decisions(
+                   standard_uid,decision,previous_review_status,
+                   previous_publication_status,new_review_status,
+                   new_publication_status
+               ) VALUES(?,?,?,?,?,?)""",
+            (
+                standard_uid, decision, previous_review, previous_publication,
+                new_review, new_publication,
+            ),
+        )
+        canonicalization = rebuild_canonical_groups(con)
+        con.commit()
+        return {
+            "ok": True,
+            "standard_uid": standard_uid,
+            "decision": decision,
+            "review_status": new_review,
+            "publication_status": new_publication,
+            "canonicalization": canonicalization,
+        }
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+
+
 class Handler(BaseHTTPRequestHandler):
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -259,6 +343,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(_manual_standard(payload))
             if parsed.path == "/api/canonical-decision":
                 return self._json(_canonical_decision(payload))
+            if parsed.path == "/api/publication-decision":
+                return self._json(_publication_decision(payload))
             return self._json({"ok": False, "error": "not_found"}, 404)
         except ValueError as exc:
             return self._json({"ok": False, "error": str(exc)}, 400)
@@ -297,6 +383,13 @@ class Handler(BaseHTTPRequestHandler):
                     limit=int(_one(qs, "limit", "50") or 50),
                     offset=int(_one(qs, "offset", "0") or 0),
                 ))
+            if parsed.path == "/api/reserved":
+                return self._json(SERVICE.reserved_standards(
+                    limit=int(_one(qs, "limit", "50") or 50),
+                    offset=int(_one(qs, "offset", "0") or 0),
+                ))
+            if parsed.path == "/api/reserved-standard":
+                return self._json(SERVICE.get_reserved_standard(_one(qs, "uid")))
             if parsed.path == "/api/standard":
                 return self._json(SERVICE.get_standard(_one(qs, "uid")))
             if parsed.path == "/api/graph":
@@ -306,7 +399,11 @@ class Handler(BaseHTTPRequestHandler):
                 ))
             if parsed.path == "/api/open-document":
                 uid = _one(qs, "uid").strip()
-                detail = SERVICE.get_occurrence(uid) or SERVICE.get_standard(uid)
+                detail = (
+                    SERVICE.get_occurrence(uid)
+                    or SERVICE.get_reserved_standard(uid)
+                    or SERVICE.get_standard(uid)
+                )
                 if not detail:
                     return self._json({"ok": False, "error": "standard_not_found"}, 404)
                 resolved = _resolve_document_path(detail)

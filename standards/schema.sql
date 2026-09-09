@@ -55,6 +55,22 @@ CREATE INDEX IF NOT EXISTS idx_standards_speaker ON standards(speaker);
 CREATE INDEX IF NOT EXISTS idx_standards_treatment ON standards(treatment);
 CREATE INDEX IF NOT EXISTS idx_standards_canonical ON standards(canonical_uid);
 
+-- Historial de decisiones humanas sobre estándares reservados. Permite
+-- publicar, mantener reservada o rechazar una aparición sin perder auditoría.
+CREATE TABLE IF NOT EXISTS standard_publication_decisions (
+    decision_id INTEGER PRIMARY KEY,
+    standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK(decision IN ('publish','reserve','reject')),
+    previous_review_status TEXT NOT NULL,
+    previous_publication_status TEXT NOT NULL,
+    new_review_status TEXT NOT NULL,
+    new_publication_status TEXT NOT NULL,
+    decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_publication_decisions_standard
+    ON standard_publication_decisions(standard_uid, decided_at);
+
 -- Un estándar almacenado en `standards` es una aparición concreta: conserva
 -- la formulación, voz, tratamiento, evidencia y fallo que la originaron.
 -- Esta tabla representa la regla jurídica consolidada que puede aparecer con
