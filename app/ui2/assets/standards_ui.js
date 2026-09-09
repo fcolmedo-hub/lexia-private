@@ -67,9 +67,9 @@
     const target=document.getElementById('stdInventory');if(!target)return;
     try{
       const data=await api('/api/stats');
-      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.reserved_occurrences??Math.max(0,stored-visible));
+      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.reserved_occurrences??Math.max(0,stored-visible)),rejected=Number(data.rejected_occurrences??0);
       const base=`${visible} ${visible===1?'regla publicada':'reglas publicadas'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
-      target.innerHTML=reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">Revisar ${reserved} ${reserved===1?'reservada':'reservadas'}</button>`:esc(base);
+      target.innerHTML=(reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">Revisar ${reserved} ${reserved===1?'reservada':'reservadas'}</button>`:esc(base))+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
       target.querySelector('#stdReservedBtn')?.addEventListener('click',()=>reservedQueue({page:1}));
     }catch(_){target.textContent='Inventario no disponible.';}
   }

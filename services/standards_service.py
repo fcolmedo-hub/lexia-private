@@ -106,11 +106,15 @@ class StandardsService:
             "occurrences_total": 0,
             "visible_occurrences": 0,
             "reserved_occurrences": 0,
+            "rejected_occurrences": 0,
         }
         if not self.available():
             return empty
         with _ro_connect(self.db_path) as con:
             occurrences_total = int(con.execute(
+                "SELECT COUNT(*) FROM standards"
+            ).fetchone()[0])
+            active_occurrences = int(con.execute(
                 "SELECT COUNT(*) FROM standards WHERE review_status<>'rejected'"
             ).fetchone()[0])
             visible_occurrences = int(con.execute(
@@ -131,14 +135,15 @@ class StandardsService:
                        )"""
                 ).fetchone()[0])
             else:
-                canonical_total = occurrences_total
+                canonical_total = active_occurrences
                 visible_canonical = visible_occurrences
         return {
             "canonical_standards_total": canonical_total,
             "visible_canonical_standards": visible_canonical,
             "occurrences_total": occurrences_total,
             "visible_occurrences": visible_occurrences,
-            "reserved_occurrences": max(0, occurrences_total - visible_occurrences),
+            "reserved_occurrences": max(0, active_occurrences - visible_occurrences),
+            "rejected_occurrences": max(0, occurrences_total - active_occurrences),
         }
 
     @staticmethod

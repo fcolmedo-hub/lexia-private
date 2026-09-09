@@ -98,6 +98,7 @@ def test_inventory_distinguishes_stored_and_published_standards(tmp_path):
         'occurrences_total': 4,
         'visible_occurrences': 3,
         'reserved_occurrences': 1,
+        'rejected_occurrences': 0,
     }
 
 

@@ -69,7 +69,6 @@ def test_confirming_suggestion_rebuilds_one_canonical_standard(tmp_path):
     finally:
         con.close()
 
-
 def test_publication_decision_publishes_reserved_standard_and_audits_it(tmp_path):
     db = tmp_path / "standards.sqlite3"
     _make_db(db)
@@ -102,7 +101,6 @@ def test_publication_decision_publishes_reserved_standard_and_audits_it(tmp_path
         ).fetchone()[0] == "publish"
     finally:
         con.close()
-
 
 def test_publication_decision_rejects_without_deleting_traceability(tmp_path):
     db = tmp_path / "standards.sqlite3"
@@ -138,3 +136,7 @@ def test_publication_decision_rejects_without_deleting_traceability(tmp_path):
         ).fetchone()[0] == "reject"
     finally:
         con.close()
+
+    inventory = standards_api.StandardsService(db).inventory()
+    assert inventory["occurrences_total"] == 2
+    assert inventory["rejected_occurrences"] == 1
