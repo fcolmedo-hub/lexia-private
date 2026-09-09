@@ -144,6 +144,7 @@
   }
 
   function installActionRouter(){
+    if(standardsShell()?.dataset.lexiaNativeSearch==='2')return;
     if(window.__lexiaStandardsActionRouter)return;window.__lexiaStandardsActionRouter=true;
     document.addEventListener('click',event=>{
       const target=event.target instanceof Element?event.target:null;if(!target)return;
@@ -204,11 +205,12 @@
       firstGrid.append(...[queryWrap,clear,search,add].filter(Boolean));
     }
 
-    if(search)search.addEventListener('click',()=>saveRecentSearch(),true);
+    const nativeSearch=shell.dataset.lexiaNativeSearch==='2';
+    if(search&&!nativeSearch)search.addEventListener('click',()=>saveRecentSearch(),true);
 
     const results=document.getElementById('stdResults');
     if(results&&['buscando estándares','ingresá criterios'].some(text=>norm(results.textContent).includes(text)))results.replaceChildren();
-    installActionRouter();
+    if(!nativeSearch)installActionRouter();
   }
 
   function adjustDetail(){
