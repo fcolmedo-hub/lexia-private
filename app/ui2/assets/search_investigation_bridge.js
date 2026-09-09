@@ -45,6 +45,35 @@
         background:#4338e8!important;
         border-color:#4338e8!important;
       }
+      #${SEARCH_PAGE_ID} #realSearchResults .result-card{
+        position:relative!important;z-index:1;grid-template-columns:34px minmax(0,1fr) 62px!important;
+        column-gap:10px!important;overflow:visible!important;
+      }
+      #${SEARCH_PAGE_ID} #realSearchResults .result-card.lexia-result-menu-open{z-index:30}
+      #${SEARCH_PAGE_ID} #realSearchResults .result-actions.lexia-result-action-host{
+        position:relative!important;width:62px!important;min-width:62px!important;
+        overflow:visible!important;gap:6px!important;align-items:flex-end!important;
+      }
+      #${SEARCH_PAGE_ID} #realSearchResults .lexia-result-menu-trigger{
+        display:grid!important;place-items:center!important;width:34px!important;min-width:34px!important;
+        height:30px!important;min-height:30px!important;padding:0!important;border:1px solid #d9d6ff!important;
+        border-radius:8px!important;background:#f7f6ff!important;color:#4137c9!important;
+        font-size:20px!important;font-weight:800!important;line-height:1!important;cursor:pointer!important;
+      }
+      #${SEARCH_PAGE_ID} #realSearchResults .lexia-result-menu-trigger:hover,
+      #${SEARCH_PAGE_ID} #realSearchResults .lexia-result-menu-trigger[aria-expanded="true"]{
+        background:#ebe8ff!important;border-color:#bcb6ff!important;color:#2f25b8!important;
+      }
+      #${SEARCH_PAGE_ID} #realSearchResults .lexia-result-actions-menu{
+        display:none;position:absolute;z-index:80;top:34px;right:0;width:148px;padding:6px;
+        border:1px solid #dfe2ec;border-radius:10px;background:#fff;
+        box-shadow:0 12px 30px rgba(23,31,66,.2);
+      }
+      #${SEARCH_PAGE_ID} #realSearchResults .lexia-result-actions-menu.open{display:grid;gap:5px}
+      #${SEARCH_PAGE_ID} #realSearchResults .lexia-result-actions-menu>button{
+        width:100%!important;min-width:0!important;min-height:30px!important;margin:0!important;
+        padding:7px 9px!important;border-radius:7px!important;font-size:10px!important;line-height:1.1!important;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -193,14 +222,45 @@
     return button;
   }
 
+  function closeResultActionMenus(except=null){
+    document.querySelectorAll('#'+SEARCH_PAGE_ID+' #realSearchResults .lexia-result-actions-menu.open').forEach(menu=>{
+      if(menu===except)return;
+      menu.classList.remove('open');
+      const host=menu.closest('.result-actions');
+      host?.querySelector('.lexia-result-menu-trigger')?.setAttribute('aria-expanded','false');
+      menu.closest('.result-card')?.classList.remove('lexia-result-menu-open');
+    });
+  }
+
+  function ensureResultActionMenu(card,actions){
+    actions.classList.add('lexia-result-action-host');
+    let trigger=actions.querySelector(':scope > .lexia-result-menu-trigger');
+    let menu=actions.querySelector(':scope > .lexia-result-actions-menu');
+    if(!trigger){
+      trigger=document.createElement('button');trigger.type='button';trigger.className='lexia-result-menu-trigger';
+      trigger.textContent='⋯';trigger.title='Acciones del archivo';trigger.setAttribute('aria-label','Acciones del archivo');
+      trigger.setAttribute('aria-haspopup','menu');trigger.setAttribute('aria-expanded','false');
+      actions.appendChild(trigger);
+    }
+    if(!menu){
+      menu=document.createElement('div');menu.className='lexia-result-actions-menu';menu.setAttribute('role','menu');
+      actions.appendChild(menu);
+    }
+    [...actions.children].filter(node=>node.tagName==='BUTTON'&&node!==trigger).forEach(button=>{
+      button.setAttribute('role','menuitem');menu.appendChild(button);
+    });
+  }
+
   function syncResultCard(card){
-    const actions=card?.querySelector('.result-actions');
-    if(!actions||actions.querySelector('['+INVESTIGATE_ATTR+']'))return;
+    const actions=card?.querySelector('.result-actions');if(!actions)return;
+    const hasInvestigate=Boolean(actions.querySelector('['+INVESTIGATE_ATTR+']'));
     const openButton=[...actions.querySelectorAll('.search-open-file')].find(button=>!button.hasAttribute(INVESTIGATE_ATTR));
-    if(!openButton)return;
-    const contentResult=Boolean(actions.querySelector('.score'));
-    if(contentResult){openButton.setAttribute(CONTENT_OPEN_ATTR,'1');openButton.insertAdjacentElement('afterend',investigateButton(openButton));return;}
-    openButton.setAttribute(INVESTIGATE_ATTR,'1');openButton.classList.add('search-investigate-file');openButton.textContent='Investigar';openButton.title='Cargar este archivo en Investigación · Estudiar un archivo';
+    if(openButton&&!hasInvestigate){
+      const contentResult=Boolean(actions.querySelector('.score'));
+      if(contentResult){openButton.setAttribute(CONTENT_OPEN_ATTR,'1');openButton.insertAdjacentElement('afterend',investigateButton(openButton));}
+      else{openButton.setAttribute(INVESTIGATE_ATTR,'1');openButton.classList.add('search-investigate-file');openButton.textContent='Investigar';openButton.title='Cargar este archivo en Investigación · Estudiar un archivo';}
+    }
+    ensureResultActionMenu(card,actions);
   }
 
   function syncSearchSurface(){
@@ -355,6 +415,18 @@
   }
 
   window.addEventListener('click',async event=>{
+    const menuTrigger=event.target.closest?.('.lexia-result-menu-trigger');
+    if(menuTrigger){
+      event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
+      const host=menuTrigger.closest('.result-actions'),menu=host?.querySelector(':scope > .lexia-result-actions-menu');
+      if(!menu)return;
+      const open=!menu.classList.contains('open');closeResultActionMenus(open?menu:null);
+      menu.classList.toggle('open',open);menuTrigger.setAttribute('aria-expanded',String(open));
+      menu.closest('.result-card')?.classList.toggle('lexia-result-menu-open',open);
+      return;
+    }
+    const menuButton=event.target.closest?.('.lexia-result-actions-menu button');
+    if(menuButton)closeResultActionMenus();else if(!event.target.closest?.('.lexia-result-actions-menu'))closeResultActionMenus();
     const button=event.target.closest?.('['+INVESTIGATE_ATTR+']');
     if(button){
       event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
