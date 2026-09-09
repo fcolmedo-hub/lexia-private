@@ -17,6 +17,16 @@ def test_windows_onedir_build_requires_standards_components():
     assert "services\\standards_service.py" in source
 
 
+def test_windows_build_bundles_and_verifies_cffi_backend():
+    source = (ROOT / "scripts" / "rebuild_lexia_app_windows.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "Test-PythonModule '_cffi_backend'" in source
+    assert "'--hidden-import','_cffi_backend'" in source
+    assert "'_cffi_backend*.pyd'" in source
+    assert "No se reemplazó la instalación actual" in source
+
+
 def test_windows_desktop_owns_standards_lifecycle():
     source = (ROOT / "app" / "ui2" / "windows_desktop.py").read_text(
         encoding="utf-8"
