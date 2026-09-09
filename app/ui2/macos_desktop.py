@@ -19,18 +19,63 @@ BRIDGE_PORT = 8513
 QDRANT_PORT = 6333
 
 
-def _versioned_script(asset: Path, prefix: str) -> str:
+def _versioned_script(
+    asset: Path,
+    prefix: str,
+    *,
+    source: str | None = None,
+    script_id: str | None = None,
+) -> str:
     digest = hashlib.sha256(asset.read_bytes()).hexdigest()[:12]
-    return f'<script src="assets/{asset.name}?v={prefix}-{digest}"></script>'
+    src = source or f"assets/{asset.name}"
+    id_attribute = f' id="{script_id}"' if script_id else ""
+    return f'<script{id_attribute} src="{src}?v={prefix}-{digest}"></script>'
 
 
-def _upsert_asset_script(html: str, asset: Path, prefix: str, pending: list[str]) -> str:
-    tag = _versioned_script(asset, prefix)
-    pattern = re.compile(
-        rf'<script\s+src=["\']assets/{re.escape(asset.name)}(?:\?[^"\']*)?["\']\s*></script>'
+def _upsert_asset_script(
+    html: str,
+    asset: Path,
+    prefix: str,
+    pending: list[str],
+    *,
+    source: str | None = None,
+    script_id: str | None = None,
+    before_source: str | None = None,
+) -> str:
+    src = source or f"assets/{asset.name}"
+    tag = _versioned_script(
+        asset,
+        prefix,
+        source=src,
+        script_id=script_id,
     )
-    if pattern.search(html):
-        return pattern.sub(tag, html, count=1)
+    pattern = re.compile(
+        rf'<script\b[^>]*\bsrc=["\']{re.escape(src)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
+        flags=re.IGNORECASE,
+    )
+    match = pattern.search(html)
+    if match:
+        updated = pattern.sub(tag, html, count=1)
+        if before_source:
+            anchor_pattern = re.compile(
+                rf'<script\b[^>]*\bsrc=["\']{re.escape(before_source)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
+                flags=re.IGNORECASE,
+            )
+            anchor = anchor_pattern.search(updated)
+            current = pattern.search(updated)
+            if anchor and current and current.start() > anchor.start():
+                updated = updated[:current.start()] + updated[current.end():]
+                anchor = anchor_pattern.search(updated)
+                if anchor:
+                    updated = updated[:anchor.start()] + tag + "\n" + updated[anchor.start():]
+        return updated
+    if before_source:
+        anchor = re.compile(
+            rf'<script\b[^>]*\bsrc=["\']{re.escape(before_source)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
+            flags=re.IGNORECASE,
+        ).search(html)
+        if anchor:
+            return html[:anchor.start()] + tag + "\n" + html[anchor.start():]
     pending.append(tag)
     return html
 
@@ -136,6 +181,8 @@ def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
     jurisprudence = here / "assets" / "jurisprudence_search.js"
+    search_investigation_bridge = here / "assets" / "search_investigation_bridge.js"
+    navigator = here / "navigator_3_3_4a.js"
     app_runtime = here / "assets" / "app_runtime.js"
     standards_ui = here / "assets" / "standards_ui.js"
     standards_nav_fix = here / "assets" / "standards_nav_fix.js"
@@ -152,8 +199,31 @@ def ensure_ui_assets(root: Path) -> str | None:
     if startup_frame_guard.exists() and "assets/startup_frame_guard.css" not in patched:
         head_tags.append('<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">')
 
-    if "assets/jurisprudence_search.js" not in patched:
-        body_tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
+    if navigator.exists():
+        patched = _upsert_asset_script(
+            patched,
+            navigator,
+            "navigator",
+            body_tags,
+            source="navigator_3_3_4a.js",
+        )
+
+    if search_investigation_bridge.exists():
+        patched = _upsert_asset_script(
+            patched,
+            search_investigation_bridge,
+            "search-investigation",
+            body_tags,
+            script_id="lexiaSearchInvestigationBridge",
+            before_source="assets/jurisprudence_search.js",
+        )
+
+    patched = _upsert_asset_script(
+        patched,
+        jurisprudence,
+        "jurisprudence-search",
+        body_tags,
+    )
 
     if "assets/app_runtime.js" not in patched:
         body_tags.append('<script src="assets/app_runtime.js?v=app-runtime-2"></script>')
