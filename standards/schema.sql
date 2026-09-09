@@ -55,6 +55,36 @@ CREATE INDEX IF NOT EXISTS idx_standards_speaker ON standards(speaker);
 CREATE INDEX IF NOT EXISTS idx_standards_treatment ON standards(treatment);
 CREATE INDEX IF NOT EXISTS idx_standards_canonical ON standards(canonical_uid);
 
+-- Un estándar almacenado en `standards` es una aparición concreta: conserva
+-- la formulación, voz, tratamiento, evidencia y fallo que la originaron.
+-- Esta tabla representa la regla jurídica consolidada que puede aparecer con
+-- redacciones diferentes en varios fallos.
+CREATE TABLE IF NOT EXISTS canonical_standards (
+    canonical_uid TEXT PRIMARY KEY,
+    statement TEXT NOT NULL,
+    representative_standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'confirmed' CHECK(status IN ('proposed','confirmed','rejected')),
+    statement_source TEXT NOT NULL DEFAULT 'occurrence' CHECK(statement_source IN ('occurrence','manual')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_canonical_representative
+    ON canonical_standards(representative_standard_uid);
+
+CREATE TABLE IF NOT EXISTS standard_occurrences (
+    standard_uid TEXT PRIMARY KEY REFERENCES standards(standard_uid) ON DELETE CASCADE,
+    canonical_uid TEXT NOT NULL REFERENCES canonical_standards(canonical_uid) ON DELETE CASCADE,
+    membership_status TEXT NOT NULL DEFAULT 'confirmed' CHECK(membership_status IN ('proposed','confirmed','rejected')),
+    match_basis TEXT NOT NULL CHECK(match_basis IN ('singleton','exact_text','confirmed_duplicate','reviewed_duplicate','manual')),
+    confidence TEXT CHECK(confidence IS NULL OR confidence IN ('high','medium','low')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_occurrences_canonical
+    ON standard_occurrences(canonical_uid);
+
 CREATE TABLE IF NOT EXISTS quotes (
     quote_id INTEGER PRIMARY KEY,
     standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
@@ -125,6 +155,18 @@ CREATE TABLE IF NOT EXISTS standard_tags (
 CREATE VIRTUAL TABLE IF NOT EXISTS standards_fts USING fts5(
     standard_uid UNINDEXED,
     statement,
+    conditions,
+    consequence,
+    exceptions,
+    tokenize='unicode61 remove_diacritics 2'
+);
+
+-- Índice por regla canónica. `variants` conserva la capacidad de encontrarla
+-- usando cualquiera de las redacciones empleadas por sus fallos fuente.
+CREATE VIRTUAL TABLE IF NOT EXISTS canonical_standards_fts USING fts5(
+    canonical_uid UNINDEXED,
+    statement,
+    variants,
     conditions,
     consequence,
     exceptions,

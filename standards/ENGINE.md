@@ -51,3 +51,32 @@ Las relaciones positivas ingresan como `proposed`; las decisiones `none`
 también se guardan para evitar reprocesarlas. Si un fallo se reextrae, las
 reglas automáticas obsoletas quedan `hidden`, sin eliminar historial ni cargas
 manuales.
+
+## Regla canónica, apariciones y fallos
+
+`standards` conserva cada aparición extraída con su redacción, voz,
+tratamiento, cita, página y documento. `canonical_standards` representa la
+regla consolidada y `standard_occurrences` vincula ambas capas. Por eso una
+regla puede tener varias formulaciones y estar respaldada por varios fallos sin
+perder trazabilidad.
+
+La consolidación es conservadora:
+
+- las diferencias exclusivamente tipográficas se agrupan automáticamente;
+- una relación `duplicate_of` confirmada o auditada se agrupa;
+- una `duplicate_of` sólo propuesta permanece separada y se muestra en la UI
+  como «Posible misma regla» hasta que el usuario la confirme o rechace;
+- `specializes`, `exception_to`, `contradicts`, `supports` y `related_to`
+  siguen siendo relaciones entre estándares, no fusiones.
+
+Para migrar una base anterior se ejecuta primero en simulación y luego con
+escritura:
+
+```text
+python tools/consolidar_estandares_canonicos.py
+python tools/consolidar_estandares_canonicos.py --apply
+```
+
+Las importaciones V5 y la aplicación de nuevas decisiones de relaciones
+actualizan esta capa automáticamente. El proceso es idempotente y no modifica
+ni elimina las apariciones originales.

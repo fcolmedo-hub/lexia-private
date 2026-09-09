@@ -13,9 +13,10 @@ def make_db(tmp_path: Path) -> Path:
         PRAGMA foreign_keys=ON;
         CREATE TABLE documents(document_id INTEGER PRIMARY KEY, document_name TEXT, court TEXT, judgment_date TEXT);
         CREATE TABLE standards(
-            standard_uid TEXT PRIMARY KEY, document_id INTEGER, statement TEXT, speaker TEXT,
+            standard_uid TEXT PRIMARY KEY, document_id INTEGER, local_identifier TEXT, statement TEXT, speaker TEXT,
             source_speaker TEXT, treatment TEXT, conditions_json TEXT, consequence TEXT,
-            exceptions_json TEXT, review_status TEXT, publication_status TEXT
+            exceptions_json TEXT, review_status TEXT, publication_status TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE quotes(standard_uid TEXT, evidence_index INTEGER, quote_text TEXT);
         CREATE TABLE relations(
@@ -24,8 +25,14 @@ def make_db(tmp_path: Path) -> Path:
             UNIQUE(from_standard_uid,to_standard_uid,relation_type)
         );
         INSERT INTO documents VALUES(1,'Fallo A','CSJN','2025-01-01');
-        INSERT INTO standards VALUES('STD-A',1,'La reserva legal impide delegar tributos','mayoria','mayoria','adopta','[]',NULL,'[]','validated','ready');
-        INSERT INTO standards VALUES('STD-B',1,'Los tributos requieren ley formal','mayoria','mayoria','adopta','[]',NULL,'[]','validated','ready');
+        INSERT INTO standards(
+            standard_uid,document_id,statement,speaker,source_speaker,treatment,
+            conditions_json,consequence,exceptions_json,review_status,publication_status
+        ) VALUES('STD-A',1,'La reserva legal impide delegar tributos','mayoria','mayoria','adopta','[]',NULL,'[]','validated','ready');
+        INSERT INTO standards(
+            standard_uid,document_id,statement,speaker,source_speaker,treatment,
+            conditions_json,consequence,exceptions_json,review_status,publication_status
+        ) VALUES('STD-B',1,'Los tributos requieren ley formal','mayoria','mayoria','adopta','[]',NULL,'[]','validated','ready');
         INSERT INTO quotes VALUES('STD-A',1,'cita A');
         INSERT INTO quotes VALUES('STD-B',1,'cita B');
         """

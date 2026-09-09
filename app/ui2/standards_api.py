@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 from config.settings import SETTINGS
 from services.standards_service import StandardsService
+from services.standards_canonicalizer import rebuild_canonical_groups
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("LEXIA_STANDARDS_PORT", "8515"))
@@ -160,6 +161,7 @@ def _manual_standard(payload: dict) -> dict:
             "INSERT INTO standards_fts(standard_uid,statement,conditions,consequence,exceptions) VALUES(?,?,?,?,?)",
             (standard_uid, statement, "", "", ""),
         )
+        rebuild_canonical_groups(con)
         con.commit()
     except Exception:
         con.rollback()
@@ -173,6 +175,58 @@ def _manual_standard(payload: dict) -> dict:
         "ai_linking": "pending_provider",
         "message": "Estándar cargado. La vinculación automática por IA queda pendiente hasta configurar el proveedor de IA de LexIA.",
     }
+
+
+def _canonical_decision(payload: dict) -> dict:
+    try:
+        relation_id = int(payload.get("relation_id"))
+    except (TypeError, ValueError):
+        raise ValueError("La relación canónica es inválida.")
+    decision = str(payload.get("decision") or "").strip().lower()
+    if decision not in {"confirm", "reject"}:
+        raise ValueError("La decisión debe ser confirm o reject.")
+
+    con = sqlite3.connect(SERVICE.db_path, timeout=5)
+    try:
+        con.execute("PRAGMA foreign_keys=ON")
+        con.execute("BEGIN IMMEDIATE")
+        relation = con.execute(
+            """SELECT relation_type,status FROM relations
+               WHERE relation_id=?""",
+            (relation_id,),
+        ).fetchone()
+        if relation is None or str(relation[0]) != "duplicate_of":
+            raise ValueError("La equivalencia propuesta no existe.")
+        if str(relation[1]) in {"confirmed", "rejected"}:
+            raise ValueError("La equivalencia ya tiene una decisión definitiva.")
+        status = "confirmed" if decision == "confirm" else "rejected"
+        con.execute(
+            "UPDATE relations SET status=? WHERE relation_id=?",
+            (status, relation_id),
+        )
+        decisions_table = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='relation_decisions'"
+        ).fetchone()
+        if decisions_table:
+            con.execute(
+                """UPDATE relation_decisions
+                   SET decision_status='reviewed',updated_at=CURRENT_TIMESTAMP
+                   WHERE relation_id=?""",
+                (relation_id,),
+            )
+        canonicalization = rebuild_canonical_groups(con)
+        con.commit()
+        return {
+            "ok": True,
+            "relation_id": relation_id,
+            "status": status,
+            "canonicalization": canonicalization,
+        }
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -203,6 +257,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8"))
             if parsed.path == "/api/manual-standard":
                 return self._json(_manual_standard(payload))
+            if parsed.path == "/api/canonical-decision":
+                return self._json(_canonical_decision(payload))
             return self._json({"ok": False, "error": "not_found"}, 404)
         except ValueError as exc:
             return self._json({"ok": False, "error": str(exc)}, 400)
@@ -220,10 +276,12 @@ class Handler(BaseHTTPRequestHandler):
                     "db_path": str(SERVICE.db_path),
                 })
             if parsed.path == "/api/stats":
+                standards = SERVICE.count()
                 return self._json({
                     "ok": True,
                     "available": SERVICE.available(),
-                    "standards": SERVICE.count(),
+                    "standards": standards,
+                    "canonical_standards": standards,
                 })
             if parsed.path == "/api/search":
                 tags = [value for value in qs.get("tag", []) if value]
@@ -247,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
                 ))
             if parsed.path == "/api/open-document":
                 uid = _one(qs, "uid").strip()
-                detail = SERVICE.get_standard(uid)
+                detail = SERVICE.get_occurrence(uid) or SERVICE.get_standard(uid)
                 if not detail:
                     return self._json({"ok": False, "error": "standard_not_found"}, 404)
                 resolved = _resolve_document_path(detail)

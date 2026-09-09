@@ -15,6 +15,7 @@ def test_windows_onedir_build_requires_standards_components():
     assert "app\\ui2\\assets\\jurisprudence_search.js" in source
     assert "app\\ui2\\assets\\search_investigation_bridge.js" in source
     assert "services\\standards_service.py" in source
+    assert "services\\standards_canonicalizer.py" in source
 
 
 def test_windows_build_bundles_and_verifies_cffi_backend():

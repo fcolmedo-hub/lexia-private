@@ -5,6 +5,11 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
 
+from services.standards_canonicalizer import (
+    ensure_canonical_schema,
+    rebuild_canonical_groups,
+)
+
 
 RELATIONS = {
     "duplicate_of",
@@ -213,6 +218,7 @@ def apply_relation_decisions(
         inserted_or_updated = 0
         removed_obsolete_proposed = 0
         preserved_terminal = 0
+        ensure_canonical_schema(conn)
         with conn:
             conn.executescript(DECISIONS_SCHEMA)
             for item in ready:
@@ -290,12 +296,15 @@ def apply_relation_decisions(
                 )
                 inserted_or_updated += 1
 
+            canonicalization = rebuild_canonical_groups(conn)
+
         result.update({
             "sqlite_decisions_inserted_or_updated": inserted_or_updated,
             "sqlite_obsolete_proposed_removed": removed_obsolete_proposed,
             "sqlite_preserved_confirmed_or_rejected": preserved_terminal,
             "sqlite_decisions_total": conn.execute("SELECT COUNT(*) FROM relation_decisions").fetchone()[0],
             "sqlite_relations_total": conn.execute("SELECT COUNT(*) FROM relations").fetchone()[0],
+            "canonicalization": canonicalization,
         })
         return result
     finally:

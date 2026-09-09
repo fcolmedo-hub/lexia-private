@@ -5,11 +5,17 @@ import hashlib
 import json
 import re
 import sqlite3
+import sys
 import uuid
 from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from services.standards_canonicalizer import rebuild_canonical_groups
+
 DEFAULT_FALLOS = REPO_ROOT / "runtime" / "standards_pilot" / "export_50_v5" / "fallos.jsonl"
 DEFAULT_DB = REPO_ROOT / "runtime" / "standards" / "standards.sqlite3"
 DEFAULT_SCHEMA = REPO_ROOT / "standards" / "schema.sql"
@@ -333,6 +339,8 @@ def import_validated_run(
                 for key in ("standards", "ready", "blocked", "quotes", "superseded"):
                     totals[key] += stats[key]
 
+            canonicalization = rebuild_canonical_groups(conn)
+
         database = {
             "documents": conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
             "standards": conn.execute("SELECT COUNT(*) FROM standards").fetchone()[0],
@@ -344,6 +352,7 @@ def import_validated_run(
         return {
             "run_id": resolved_run_id,
             "imported": totals,
+            "canonicalization": canonicalization,
             "database": database,
             "db_path": str(db_path.resolve()),
         }
