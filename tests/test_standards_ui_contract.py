@@ -44,10 +44,32 @@ def test_recent_searches_use_the_main_search_popover():
 
 
 def test_normal_search_results_use_three_dot_action_menu():
-    source = (ROOT / "app/ui2/assets/search_investigation_bridge.js").read_text(encoding="utf-8")
+    bridge = (ROOT / "app/ui2/assets/search_investigation_bridge.js").read_text(encoding="utf-8")
+    cases = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
 
-    assert "lexia-result-menu-trigger" in source
-    assert "lexia-result-actions-menu" in source
-    assert "ensureResultActionMenu(card,actions)" in source
-    assert "node.tagName==='BUTTON'" in source
-    assert "trigger.textContent='⋯'" in source
+    assert "ensureResultActionMenu(card,actions);" not in bridge
+    assert "markActionButtons(actions);" in bridge
+    assert "installResultActionMenu(card, actions)" in cases
+    assert "actions.querySelector(':scope > .result-action-menu')" in cases
+    assert "className: 'result-menu-toggle'" in cases
+    assert "textContent: '⋯'" in cases
+
+
+def test_filename_results_keep_metadata_inside_the_card():
+    cases = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
+
+    assert ".result-card:not(:has(.result-actions>.score))" in cases
+    assert "min-height:62px!important" in cases
+    assert "flex-direction:column!important" in cases
+    assert "text-overflow:ellipsis!important" in cases
+
+
+def test_action_menu_preserves_requested_background_colors():
+    cases = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
+
+    assert "result-menu-open{background:#149d55!important" in cases
+    assert "result-menu-investigate{background:#5146f6!important" in cases
+    assert "result-menu-info{background:#f4c542!important" in cases
+    assert "result-menu-case{background:#8a5a2b!important" in cases
+    assert "result-menu-ocr{background:#e87514!important" in cases
+    assert "result-menu-delete{background:#c93645!important" in cases

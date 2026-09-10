@@ -566,7 +566,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     # Casos y los ajustes comunes de UI2 se cargan también en Windows.
     # Reemplazamos la versión temporal para impedir que PyWebView reutilice
     # un runtime anterior entre aperturas.
-    runtime_tag = '<script src="assets/app_runtime.js?v=app-runtime-3"></script>'
+    runtime_tag = '<script src="assets/app_runtime.js?v=app-runtime-4"></script>'
     if "assets/app_runtime.js" in patched:
         refreshed = re.sub(
             r'<script[^>]+src=["\'][^"\']*assets/app_runtime\.js[^"\']*["\'][^>]*>\s*</script>',

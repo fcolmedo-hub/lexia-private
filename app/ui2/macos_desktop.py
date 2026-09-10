@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib import request as urllib_request
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
+STANDARDS_PORT = int(os.environ.get("LEXIA_STANDARDS_PORT", "8515"))
 BASE_URL = f"http://127.0.0.1:{PORT}"
 URL = BASE_URL + "/?lexia_app=1"
 BRIDGE_PORT = 8513
@@ -103,6 +104,7 @@ def kill_stale(root: Path) -> None:
         root / "run_lexia_services.py",
         root / "app" / "ui2" / "server.py",
         root / "app" / "ui2" / "launch_ui2.py",
+        root / "app" / "ui2" / "standards_api.py",
     ):
         subprocess.run(
             ["/usr/bin/pkill", "-f", str(target)],
@@ -118,6 +120,8 @@ def ensure_ui_assets(root: Path) -> str | None:
     index = here / "index.html"
     jurisprudence = here / "assets" / "jurisprudence_search.js"
     app_runtime = here / "assets" / "app_runtime.js"
+    standards_ui = here / "assets" / "standards_ui.js"
+    standards_nav_fix = here / "assets" / "standards_nav_fix.js"
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
@@ -139,6 +143,13 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
+
+    if standards_ui.exists() and "assets/standards_ui.js" not in patched:
+        body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT};</script>')
+        body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-macos-1"></script>')
+
+    if standards_nav_fix.exists() and "assets/standards_nav_fix.js" not in patched:
+        body_tags.append('<script src="assets/standards_nav_fix.js?v=standards-nav-macos-1"></script>')
 
     if not head_tags and not body_tags:
         return None
@@ -212,6 +223,8 @@ def main() -> int:
     )
 
     server: subprocess.Popen | None = None
+    standards_api: subprocess.Popen | None = None
+    standards_log = None
     original_index: str | None = None
     try:
         if not wait_tcp(BRIDGE_PORT, 35):
@@ -222,6 +235,20 @@ def main() -> int:
         original_index = ensure_ui_assets(root)
         env = os.environ.copy()
         env["LEXIA_UI2_PORT"] = PORT
+        env["LEXIA_STANDARDS_PORT"] = str(STANDARDS_PORT)
+        standards_log = open(logs / "standards_api.log", "ab", buffering=0)
+        standards_api = subprocess.Popen(
+            [str(py), str(root / "app" / "ui2" / "standards_api.py")],
+            cwd=str(root),
+            env=env,
+            stdout=standards_log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        if not wait_tcp(STANDARDS_PORT, 20):
+            raise RuntimeError(
+                "LexIA no pudo iniciar la API local de Estándares (puerto 8515)."
+            )
         server = subprocess.Popen(
             [str(py), str(root / "app" / "ui2" / "server.py")],
             cwd=str(root),
@@ -248,7 +275,10 @@ def main() -> int:
         return 0
     finally:
         stop_process(server)
+        stop_process(standards_api)
         stop_process(services)
+        if standards_log is not None:
+            standards_log.close()
         services_log.close()
         restore_ui_assets(root, original_index)
 

@@ -313,7 +313,10 @@
       if(contentResult){openButton.setAttribute(CONTENT_OPEN_ATTR,'1');openButton.insertAdjacentElement('afterend',investigateButton(openButton));}
       else{openButton.setAttribute(INVESTIGATE_ATTR,'1');openButton.classList.add('search-investigate-file');openButton.textContent='Investigar';openButton.title='Cargar este archivo en Investigación · Estudiar un archivo';}
     }
-    ensureResultActionMenu(card,actions);
+    // El menú único de acciones pertenece a case_workspace.js. Este puente
+    // sólo agrega Investigar y clasifica los botones; si construyera otro
+    // desplegable aparecerían dos controles “⋯” sobre la misma tarjeta.
+    markActionButtons(actions);
   }
 
   function syncSearchSurface(){

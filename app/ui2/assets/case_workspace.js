@@ -73,6 +73,8 @@
   function style() {
     if (document.getElementById('lexiaCasesStyle')) return;
     const css = [
+      '#searchpage #realSearchResults .result-card:not(:has(.result-actions>.score)){box-sizing:border-box!important;min-height:62px!important;height:auto!important;max-height:none!important;padding:10px 14px!important;align-items:center!important;overflow:visible!important}#searchpage #realSearchResults .result-card:not(:has(.result-actions>.score)) .result-body{box-sizing:border-box!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:3px!important;min-width:0!important;min-height:40px!important;height:auto!important;overflow:hidden!important}#searchpage #realSearchResults .result-card:not(:has(.result-actions>.score)) .result-title{display:block!important;width:100%!important;min-width:0!important;line-height:1.3!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}#searchpage #realSearchResults .result-card:not(:has(.result-actions>.score)) .result-meta{display:block!important;box-sizing:border-box!important;width:100%!important;min-width:0!important;margin:0!important;line-height:1.25!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}',
+      '#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-open{background:#149d55!important;border-color:#149d55!important;color:#fff!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-open:hover{background:#0f8044!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-investigate{background:#5146f6!important;border-color:#5146f6!important;color:#fff!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-investigate:hover{background:#4338e8!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-info{background:#f4c542!important;border-color:#d7a817!important;color:#453300!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-info:hover{background:#e7b82f!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-case{background:#8a5a2b!important;border-color:#8a5a2b!important;color:#fff!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-case:hover{background:#70451f!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-ocr{background:#e87514!important;border-color:#e87514!important;color:#fff!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-ocr:hover{background:#c95e08!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-delete{background:#c93645!important;border-color:#c93645!important;color:#fff!important}#searchpage #realSearchResults .result-menu-popover button.result-menu-item.result-menu-delete:hover{background:#aa2937!important}',
       '#' + PAGE_ID + '{display:none;position:fixed;z-index:20;inset:0 0 0 var(--global-side,0px);background:#f6f7fb;color:#202a48;overflow:auto;box-sizing:border-box}',
       '#' + PAGE_ID + ' .cases-main{box-sizing:border-box;width:100%;max-width:none;margin:0;padding:18px 24px 34px}',
       '#' + PAGE_ID + ' .cases-toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:flex-start}#' + PAGE_ID + ' .cases-picker{position:relative;flex:1;min-width:180px}#' + PAGE_ID + ' .cases-picker summary{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:8px 11px;border:1px solid #dce1ed;border-radius:8px;background:#fff;color:#263154;cursor:pointer;font-size:12px;font-weight:800;list-style:none}#' + PAGE_ID + ' .cases-picker summary::-webkit-details-marker{display:none}#' + PAGE_ID + ' .cases-picker summary:after{content:"▾";margin-left:auto;color:#6257dc;font-size:12px}#' + PAGE_ID + ' .cases-picker[open] summary{border-color:#8176fa;border-radius:8px 8px 0 0;box-shadow:0 0 0 2px rgba(93,81,244,.1)}#' + PAGE_ID + ' .cases-picker[open] summary:after{transform:rotate(180deg)}#' + PAGE_ID + ' .cases-picker-menu{position:absolute;z-index:60;top:100%;left:0;right:0;padding:7px;border:1px solid #8176fa;border-top:0;border-radius:0 0 8px 8px;background:#fff;box-shadow:0 10px 22px rgba(34,42,79,.16)}#' + PAGE_ID + ' .cases-picker-menu input{box-sizing:border-box;width:100%;padding:7px 8px;border:1px solid #dce1ed;border-radius:6px;background:#fafaff;font:inherit;font-size:11px;color:#263154}#' + PAGE_ID + ' .cases-picker-list{display:grid;gap:2px;max-height:245px;margin-top:6px;overflow:auto}#' + PAGE_ID + ' .cases-picker-option{display:flex;align-items:center;gap:7px;width:100%;padding:7px 8px;border:0;border-radius:6px;background:transparent;color:#303a60;text-align:left;cursor:pointer;font:inherit;font-size:11px}#' + PAGE_ID + ' .cases-picker-option:hover{background:#f1efff}#' + PAGE_ID + ' .cases-picker-option.is-current{background:#f0efff;color:#493de2;font-weight:800}#' + PAGE_ID + ' .cases-picker-check{width:13px;color:#5146f6;font-weight:900;text-align:center}',
@@ -1112,13 +1114,30 @@
   }
   function installResultActionMenu(card, actions) {
     if (!card.matches('.result-card') || !card.closest('#realSearchResults')) return;
-    if (actions.querySelector(':scope > .result-action-menu')) return;
+    let menu = actions.querySelector(':scope > .result-action-menu');
+    let toggle = menu?.querySelector(':scope > .result-menu-toggle');
+    let popover = menu?.querySelector(':scope > .result-menu-popover');
+    if (!menu) {
+      menu = el('div', {className: 'result-action-menu'});
+      toggle = el('button', {type: 'button', className: 'result-menu-toggle', textContent: '⋯', title: 'Acciones del archivo', 'aria-label': 'Acciones del archivo', 'aria-expanded': 'false'});
+      popover = el('div', {className: 'result-menu-popover', role: 'menu'});
+      popover.hidden = true;
+      toggle.addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation();
+        const wasOpen = activeResultActionMenu?.menu === menu;
+        closeResultActionMenu();
+        if (wasOpen) return;
+        activeResultActionMenu = {menu, toggle, popover};
+        toggle.setAttribute('aria-expanded', 'true');
+        placeResultActionMenu(toggle, popover);
+      });
+      popover.addEventListener('click', event => {
+        if (event.target.closest('button.result-menu-item')) setTimeout(closeResultActionMenu, 0);
+      });
+      menu.append(toggle, popover);
+      actions.prepend(menu);
+    }
     const buttons = Array.from(actions.children).filter(node => node.tagName === 'BUTTON');
-    if (!buttons.length) return;
-    const menu = el('div', {className: 'result-action-menu'});
-    const toggle = el('button', {type: 'button', className: 'result-menu-toggle', textContent: '⋯', title: 'Acciones del archivo', 'aria-label': 'Acciones del archivo', 'aria-expanded': 'false'});
-    const popover = el('div', {className: 'result-menu-popover', role: 'menu'});
-    popover.hidden = true;
     buttons.map(button => ({button, action: resultMenuAction(button)})).sort((a, b) => a.action.order - b.action.order).forEach(({button, action}) => {
       button.classList.add('result-menu-item', 'result-menu-' + action.kind);
       button.textContent = action.label;
@@ -1126,20 +1145,9 @@
       button.setAttribute('role', 'menuitem');
       popover.append(button);
     });
-    toggle.addEventListener('click', event => {
-      event.preventDefault(); event.stopPropagation();
-      const wasOpen = activeResultActionMenu?.menu === menu;
-      closeResultActionMenu();
-      if (wasOpen) return;
-      activeResultActionMenu = {menu, toggle, popover};
-      toggle.setAttribute('aria-expanded', 'true');
-      placeResultActionMenu(toggle, popover);
-    });
-    popover.addEventListener('click', event => {
-      if (event.target.closest('button.result-menu-item')) setTimeout(closeResultActionMenu, 0);
-    });
-    menu.append(toggle, popover);
-    actions.prepend(menu);
+    Array.from(popover.querySelectorAll(':scope > button.result-menu-item'))
+      .sort((a, b) => resultMenuAction(a).order - resultMenuAction(b).order)
+      .forEach(button => popover.append(button));
   }
   function installDocumentActions(root) {
     const cards = [];

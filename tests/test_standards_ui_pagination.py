@@ -24,9 +24,16 @@ def test_standards_ui_replaces_graph_with_direct_relations():
 
 def test_standards_ui_explains_visible_and_reserved_counts():
     source = UI.read_text(encoding="utf-8")
+    nav_source = (ROOT / "app" / "ui2" / "assets" / "standards_nav_fix.js").read_text(
+        encoding="utf-8"
+    )
 
     assert "loadInventory" in source
-    assert "stdReservedBtn" in source
+    assert "stdReservedControl" in source
+    assert "Revisar reservadas" in source
+    assert "reservedControl.textContent" in source
+    assert "stdReservedControl" in nav_source
+    assert "queryWrap,clear,search,reserved,add" in nav_source
 
 
 def test_standards_ui_has_reserved_review_workflow():

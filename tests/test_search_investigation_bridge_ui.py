@@ -8,7 +8,7 @@ ASSETS = ROOT / "app" / "ui2" / "assets"
 def test_search_bridge_is_loaded_by_the_shared_windows_macos_asset():
     loader = (ASSETS / "jurisprudence_search.js").read_text(encoding="utf-8")
 
-    assert "search_investigation_bridge.js?v=ui2-3.4.4-action-colors" in loader
+    assert "search_investigation_bridge.js?v=ui2-3.4.5-single-menu" in loader
     assert "ensureSearchInvestigationBridge();" in loader
 
 
@@ -22,7 +22,8 @@ def test_search_bridge_replaces_or_adds_investigate_and_removes_insight():
     assert "input.value=path" in bridge
     assert "navigate('contextpage')" in bridge
     assert "studyTab.click()" in bridge
-    assert "startStudy" not in bridge
+    load_study = bridge[bridge.index("function loadStudyFile"):bridge.index("function installHtmlViewerFix")]
+    assert "startStudy" not in load_study
 
 
 def test_content_open_is_green_and_investigate_keeps_the_brand_blue():

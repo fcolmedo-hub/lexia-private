@@ -21,7 +21,7 @@
       #lexiaStandardsShell .std-wrap{max-width:none!important;margin:0!important;padding:22px 18px 38px!important}
       #lexiaStandardsShell .std-head{margin-bottom:14px!important}
       #lexiaStandardsShell .std-title{margin-top:0!important}
-      #lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:minmax(280px,1fr) auto auto auto!important}
+      #lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:minmax(280px,1fr) auto auto auto auto!important}
       #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(6,minmax(110px,1fr))!important;margin-top:10px!important}
       #lexiaStandardsShell #stdSummary:empty{display:none}
       #lexiaStandardsShell .std-query-wrap{position:relative;min-width:0}
@@ -173,7 +173,7 @@
   function installSearchUx(){
     const shell=standardsShell();if(!shell||shell.dataset.lexiaSearchUx==='1')return;
     shell.dataset.lexiaSearchUx='1';
-    const q=document.getElementById('stdQ'),court=document.getElementById('stdCourt'),speaker=document.getElementById('stdSpeaker'),treatment=document.getElementById('stdTreatment'),from=document.getElementById('stdFrom'),to=document.getElementById('stdTo'),clear=document.getElementById('stdClear'),search=document.getElementById('stdSearch');
+    const q=document.getElementById('stdQ'),court=document.getElementById('stdCourt'),speaker=document.getElementById('stdSpeaker'),treatment=document.getElementById('stdTreatment'),from=document.getElementById('stdFrom'),to=document.getElementById('stdTo'),clear=document.getElementById('stdClear'),search=document.getElementById('stdSearch'),reserved=document.getElementById('stdReservedControl');
     if(from){from.type='date';from.removeAttribute('placeholder');}
     if(to){to.type='date';to.removeAttribute('placeholder');}
 
@@ -204,7 +204,7 @@
         add.dataset.lexiaManualHandler='1';
         add.addEventListener('click',openManualModal);
       }
-      firstGrid.append(...[queryWrap,clear,search,add].filter(Boolean));
+      firstGrid.append(...[queryWrap,clear,search,reserved,add].filter(Boolean));
     }
 
     const nativeSearch=shell.dataset.lexiaNativeSearch==='2';
