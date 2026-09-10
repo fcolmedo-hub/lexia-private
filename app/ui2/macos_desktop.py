@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -144,14 +146,35 @@ def ensure_ui_assets(root: Path) -> str | None:
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
 
-    if standards_ui.exists() and "assets/standards_ui.js" not in patched:
-        body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT};</script>')
-        body_tags.append('<script src="assets/standards_ui.js?v=standards-ui-macos-1"></script>')
+    if standards_ui.exists():
+        if "LEXIA_STANDARDS_PORT" not in patched:
+            body_tags.append(f'<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT};</script>')
+        version = hashlib.sha256(standards_ui.read_bytes()).hexdigest()[:12]
+        tag = f'<script src="assets/standards_ui.js?v=standards-ui-{version}"></script>'
+        if "assets/standards_ui.js" in patched:
+            patched = re.sub(
+                r'<script[^>]+src=["\'][^"\']*assets/standards_ui\.js[^"\']*["\'][^>]*>\s*</script>',
+                tag,
+                patched,
+                flags=re.IGNORECASE,
+            )
+        else:
+            body_tags.append(tag)
 
-    if standards_nav_fix.exists() and "assets/standards_nav_fix.js" not in patched:
-        body_tags.append('<script src="assets/standards_nav_fix.js?v=standards-nav-macos-1"></script>')
+    if standards_nav_fix.exists():
+        version = hashlib.sha256(standards_nav_fix.read_bytes()).hexdigest()[:12]
+        tag = f'<script src="assets/standards_nav_fix.js?v=standards-nav-fix-{version}"></script>'
+        if "assets/standards_nav_fix.js" in patched:
+            patched = re.sub(
+                r'<script[^>]+src=["\'][^"\']*assets/standards_nav_fix\.js[^"\']*["\'][^>]*>\s*</script>',
+                tag,
+                patched,
+                flags=re.IGNORECASE,
+            )
+        else:
+            body_tags.append(tag)
 
-    if not head_tags and not body_tags:
+    if patched == original and not head_tags and not body_tags:
         return None
 
     if head_tags:
