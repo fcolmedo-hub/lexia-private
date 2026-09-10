@@ -530,10 +530,30 @@ def ensure_ui_assets(root: Path) -> str | None:
     patched = original
     changed = False
 
-    if startup_frame_guard.exists() and "assets/startup_frame_guard.css" not in patched:
-        tag = '<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">\n'
-        patched = patched.replace("</head>", tag + "</head>", 1) if "</head>" in patched else tag + patched
-        changed = True
+    if startup_frame_guard.exists():
+        frame_version = hashlib.sha256(startup_frame_guard.read_bytes()).hexdigest()[:12]
+        frame_tag = (
+            '<link rel="stylesheet" '
+            f'href="assets/startup_frame_guard.css?v=startup-frame-{frame_version}">'
+        )
+        if "assets/startup_frame_guard.css" in patched:
+            refreshed = re.sub(
+                r'<link[^>]+href=["\'][^"\']*assets/startup_frame_guard\.css[^"\']*["\'][^>]*>',
+                frame_tag,
+                patched,
+                flags=re.IGNORECASE,
+            )
+            if refreshed != patched:
+                patched = refreshed
+                changed = True
+        else:
+            tag = frame_tag + "\n"
+            patched = (
+                patched.replace("</head>", tag + "</head>", 1)
+                if "</head>" in patched
+                else tag + patched
+            )
+            changed = True
 
     # La UI de Buscar depende de tres piezas que WebView conservaba en caché:
     # el navegador (menú ⋯), el buscador y el puente que agrega Investigar.
