@@ -2668,6 +2668,46 @@ def _legal_citation_document_pattern(intent):
     return "%" + "%".join(terms) + "%" if terms else ""
 
 
+def _legal_article_excerpt(text, intent, max_chars=520):
+    """Return an excerpt anchored at the exact requested article heading."""
+    import re as _re
+
+    raw = str(text or "")
+    if not raw or not intent:
+        return ""
+    digits = str(intent.get("article") or "")
+    if not digits:
+        return ""
+    number_pattern = r"[.\s]*".join(_re.escape(char) for char in digits)
+    suffix = _re.escape(str(intent.get("suffix") or ""))
+    pattern = (
+        r"\b(?:art(?:[íi]culo)?s?)\.?\s*"
+        r"(?:n(?:ro|úmero|umero)?\.?\s*)?" + number_pattern
+    )
+    if suffix:
+        pattern += r"\s*" + suffix
+    pattern += r"\b"
+    match = _re.search(pattern, raw, flags=_re.IGNORECASE)
+    if not match:
+        return ""
+
+    start = match.start()
+    end = min(len(raw), start + max(120, int(max_chars or 520)))
+    following = raw[match.end():end]
+    next_article = _re.search(
+        r"(?:\r?\n|\f)\s*(?:art(?:[íi]culo)?s?)\.?\s*\d+",
+        following,
+        flags=_re.IGNORECASE,
+    )
+    if next_article:
+        end = match.end() + next_article.start()
+
+    excerpt = _re.sub(r"\s+", " ", raw[start:end]).strip()
+    if end < len(raw) and excerpt:
+        excerpt = excerpt.rstrip(" .…") + " …"
+    return excerpt
+
+
 def _content_search_v2(
     query, limit=20, category=None, folder=None, semantic_fallback=False,
 ):
@@ -2943,11 +2983,15 @@ def _content_search_v2(
 
                 previous = candidates.get(key)
                 if previous is None or score > previous["_rank_score"]:
+                    article_excerpt = (
+                        _legal_article_excerpt(text, legal_intent)
+                        if article_match else ""
+                    )
                     candidate = {
                         "document_path": path,
                         "document_name": document_name,
                         "category": str(row["category"] or ""),
-                        "text": match_snippet or text,
+                        "text": article_excerpt or match_snippet or text,
                         "page_start": row["page_start"],
                         "page_end": row["page_end"],
                         "lexical_rank": stage_index + 1,
@@ -2959,6 +3003,7 @@ def _content_search_v2(
                         candidate.update({
                             "legal_article_match": article_match,
                             "legal_instrument_match": instrument_match,
+                            "article_focused": bool(article_excerpt),
                             "legislation_priority": bool(
                                 legislation_match and not category
                             ),
