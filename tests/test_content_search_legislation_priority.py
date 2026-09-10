@@ -39,7 +39,9 @@ def _catalog(path: Path) -> None:
             "D:/Biblioteca/Legislación/Codigo Aduanero.pdf",
             "Ley 22.415 - Código Aduanero.pdf",
             "Legislación",
-            "ARTICULO 970. Será sancionado quien incumpliere el régimen.",
+            "Texto preliminar de la norma.\n"
+            "ARTICULO 970. Será sancionado quien incumpliere el régimen.\n"
+            "ARTICULO 971. Esta disposición pertenece al artículo siguiente.",
         ),
         (
             "D:/Biblioteca/Jurisprudencia/Fallo.pdf",
@@ -122,6 +124,9 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     assert result["results"][0]["legal_article_match"] is True
     assert result["results"][0]["legal_instrument_match"] is True
     assert result["results"][0]["legislation_priority"] is True
+    assert result["results"][0]["article_focused"] is True
+    assert result["results"][0]["text"].startswith("ARTICULO 970.")
+    assert "ARTICULO 971" not in result["results"][0]["text"]
 
 
 def test_explicit_non_legislation_filter_is_respected(
