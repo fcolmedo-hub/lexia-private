@@ -124,6 +124,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     app_runtime = here / "assets" / "app_runtime.js"
     standards_ui = here / "assets" / "standards_ui.js"
     standards_nav_fix = here / "assets" / "standards_nav_fix.js"
+    maintenance = here / "assets" / "maintenance.js"
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
@@ -184,6 +185,16 @@ def ensure_ui_assets(root: Path) -> str | None:
             )
         else:
             body_tags.append(tag)
+
+    if maintenance.exists() and "assets/maintenance.js" in patched:
+        version = hashlib.sha256(maintenance.read_bytes()).hexdigest()[:12]
+        tag = f'<script src="assets/maintenance.js?v=maintenance-{version}"></script>'
+        patched = re.sub(
+            r'<script[^>]+src=["\'][^"\']*assets/maintenance\.js[^"\']*["\'][^>]*>\s*</script>',
+            tag,
+            patched,
+            flags=re.IGNORECASE,
+        )
 
     if patched == original and not head_tags and not body_tags:
         return None
