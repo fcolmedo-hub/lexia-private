@@ -53,6 +53,17 @@ def test_normal_search_results_use_three_dot_action_menu():
     assert "actions.querySelector(':scope > .result-action-menu')" in cases
     assert "className: 'result-menu-toggle'" in cases
     assert "textContent: '⋯'" in cases
+    assert ".result-card.result-menu-open" in cases
+    assert "classList.add('result-menu-open')" in cases
+    assert "classList.remove('result-menu-open')" in cases
+
+
+def test_investigate_action_is_not_relabelled_as_open():
+    cases = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
+
+    investigate = cases.index("if (button.matches('.search-investigate-file'))")
+    open_file = cases.index("if (button.matches('.search-open-file,.open-source-real'))")
+    assert investigate < open_file
 
 
 def test_filename_results_keep_metadata_inside_the_card():
