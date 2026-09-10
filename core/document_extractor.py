@@ -249,6 +249,17 @@ class DocumentExtractor:
             if text.strip()
         )
 
+        if (
+            force_ocr_pages
+            and not successful
+            and not self._join_pages(merged_pages).strip()
+        ):
+            raise DocumentExtractionError(
+                "El motor OCR renderizó las páginas, pero no reconoció texto "
+                "tras las pasadas normal, de alto contraste y de imagen "
+                "reforzada."
+            )
+
         return ExtractionResult(
             text=self._join_pages(merged_pages),
             method=(
