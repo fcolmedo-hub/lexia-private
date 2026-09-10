@@ -140,8 +140,19 @@ def ensure_ui_assets(root: Path) -> str | None:
     if "assets/jurisprudence_search.js" not in patched:
         body_tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
 
-    if "assets/app_runtime.js" not in patched:
-        body_tags.append('<script src="assets/app_runtime.js?v=app-runtime-2"></script>')
+    runtime_version = hashlib.sha256(app_runtime.read_bytes()).hexdigest()[:12]
+    runtime_tag = (
+        f'<script src="assets/app_runtime.js?v=app-runtime-{runtime_version}"></script>'
+    )
+    if "assets/app_runtime.js" in patched:
+        patched = re.sub(
+            r'<script[^>]+src=["\'][^"\']*assets/app_runtime\.js[^"\']*["\'][^>]*>\s*</script>',
+            runtime_tag,
+            patched,
+            flags=re.IGNORECASE,
+        )
+    else:
+        body_tags.append(runtime_tag)
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
