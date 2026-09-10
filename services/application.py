@@ -44,6 +44,7 @@ from services.health_service import HealthService
 from services.document_inspector import DocumentInspector
 from services.secure_document_deletion import SecureDocumentDeletionService
 from services.knowledge_engine import KnowledgeEngine
+from services.standards_service import StandardsService
 from ai.knowledge_context_builder import KnowledgeContextPackageBuilder
 from services.migration_service import MigrationService
 from storage.case_repository import CaseRepository
@@ -142,6 +143,7 @@ class LexIAApplication:
         self._knowledge_engine = None
         self._context_build_jobs = None
         self._secure_document_deletion = None
+        self._standards = None
 
     @property
     def embeddings(self):
@@ -188,10 +190,6 @@ class LexIAApplication:
             )
         return self._search
 
-
-
-
-
     @property
     def platform_info(self):
         if self._platform_info is None:
@@ -217,6 +215,12 @@ class LexIAApplication:
         if self._knowledge_engine is None:
             self._knowledge_engine = KnowledgeEngine()
         return self._knowledge_engine
+
+    @property
+    def standards(self):
+        if self._standards is None:
+            self._standards = StandardsService()
+        return self._standards
 
     @property
     def context_builder(self):
@@ -269,7 +273,6 @@ class LexIAApplication:
             )
         return self._ai_engine
 
-
     @property
     def document_inspector(self):
         if self._document_inspector is None:
@@ -277,8 +280,6 @@ class LexIAApplication:
                 vector_store=self.vector_store,
             )
         return self._document_inspector
-
-
 
     @property
     def secure_document_deletion(self):
@@ -292,7 +293,6 @@ class LexIAApplication:
                 search_cache=self.cache,
             )
         return self._secure_document_deletion
-
 
     @property
     def activity_center(self):

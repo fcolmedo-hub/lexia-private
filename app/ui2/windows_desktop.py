@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import json
 import os
 import re
@@ -17,6 +18,7 @@ from urllib import request as urllib_request
 import psutil
 
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
+STANDARDS_PORT = int(os.environ.get("LEXIA_STANDARDS_PORT", "8515"))
 BASE_URL = f"http://127.0.0.1:{PORT}"
 URL = BASE_URL + "/?lexia_app=1"
 BRIDGE_PORT = 8513
@@ -27,6 +29,53 @@ STARTUP_MUTEX_NAME = r"Local\LexIA.Desktop.Startup"
 ERROR_ALREADY_EXISTS = 183
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+
+def _versioned_script(
+    asset: Path,
+    prefix: str,
+    *,
+    source: str | None = None,
+    script_id: str | None = None,
+) -> str:
+    digest = hashlib.sha256(asset.read_bytes()).hexdigest()[:12]
+    src = source or f"assets/{asset.name}"
+    id_attribute = f' id="{script_id}"' if script_id else ""
+    return f'<script{id_attribute} src="{src}?v={prefix}-{digest}"></script>'
+
+
+def _upsert_asset_script(
+    html: str,
+    asset: Path,
+    prefix: str,
+    *,
+    source: str | None = None,
+    script_id: str | None = None,
+    before_source: str | None = None,
+) -> tuple[str, bool]:
+    src = source or f"assets/{asset.name}"
+    tag = _versioned_script(
+        asset,
+        prefix,
+        source=src,
+        script_id=script_id,
+    )
+    pattern = re.compile(
+        rf'<script\b[^>]*\bsrc=["\']{re.escape(src)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
+        flags=re.IGNORECASE,
+    )
+    if pattern.search(html):
+        updated = pattern.sub(tag, html, count=1)
+        return updated, updated != html
+    if before_source:
+        anchor = re.compile(
+            rf'<script\b[^>]*\bsrc=["\']{re.escape(before_source)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
+            flags=re.IGNORECASE,
+        ).search(html)
+        if anchor:
+            return html[:anchor.start()] + tag + "\n" + html[anchor.start():], True
+    updated = html.replace("</body>", tag + "\n</body>", 1) if "</body>" in html else html + "\n" + tag
+    return updated, True
 
 
 def project_root() -> Path:
@@ -399,6 +448,7 @@ def kill_stale(root: Path) -> None:
         "/run_lexia_services.py",
         "/app/ui2/server.py",
         "/app/ui2/launch_ui2.py",
+        "/app/ui2/standards_api.py",
     )
     matched: list[psutil.Process] = []
 
@@ -454,15 +504,23 @@ def kill_stale(root: Path) -> None:
 def ensure_ui_assets(root: Path) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
-    script = here / "assets" / "jurisprudence_search.js"
+    jurisprudence_search = here / "assets" / "jurisprudence_search.js"
+    search_investigation_bridge = (
+        here / "assets" / "search_investigation_bridge.js"
+    )
+    navigator = here / "navigator_3_3_4a.js"
     live_badge_cleanup = (
         here / "assets" / "windows_live_badge_cleanup.js"
     )
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     app_runtime = here / "assets" / "app_runtime.js"
+    standards_ui = here / "assets" / "standards_ui.js"
+    standards_nav_fix = here / "assets" / "standards_nav_fix.js"
     if not (
         index.exists()
-        and script.exists()
+        and jurisprudence_search.exists()
+        and search_investigation_bridge.exists()
+        and navigator.exists()
         and live_badge_cleanup.exists()
         and app_runtime.exists()
     ):
@@ -477,10 +535,33 @@ def ensure_ui_assets(root: Path) -> str | None:
         patched = patched.replace("</head>", tag + "</head>", 1) if "</head>" in patched else tag + patched
         changed = True
 
-    if "assets/jurisprudence_search.js" not in patched:
-        tag = '<script src="assets/jurisprudence_search.js?v=juris-mobile-7"></script>\n'
-        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
-        changed = True
+    # La UI de Buscar depende de tres piezas que WebView conservaba en caché:
+    # el navegador (menú ⋯), el buscador y el puente que agrega Investigar.
+    # Se versionan por contenido y el puente se coloca antes del buscador para
+    # que su cargador dinámico detecte el id y no lo ejecute dos veces.
+    patched, asset_changed = _upsert_asset_script(
+        patched,
+        navigator,
+        "navigator",
+        source="navigator_3_3_4a.js",
+    )
+    changed = changed or asset_changed
+
+    patched, asset_changed = _upsert_asset_script(
+        patched,
+        search_investigation_bridge,
+        "search-investigation",
+        script_id="lexiaSearchInvestigationBridge",
+        before_source="assets/jurisprudence_search.js",
+    )
+    changed = changed or asset_changed
+
+    patched, asset_changed = _upsert_asset_script(
+        patched,
+        jurisprudence_search,
+        "jurisprudence-search",
+    )
+    changed = changed or asset_changed
 
     # Casos y los ajustes comunes de UI2 se cargan también en Windows.
     # Reemplazamos la versión temporal para impedir que PyWebView reutilice
@@ -508,6 +589,25 @@ def ensure_ui_assets(root: Path) -> str | None:
         )
         patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
         changed = True
+
+    # El ejecutable ONEDIR de Windows entra por este archivo, no por
+    # launch_ui2.py. Por eso los dos assets de Estándares deben registrarse
+    # también aquí y con versión por contenido para evitar caché de PyWebView.
+    if standards_ui.exists():
+        if "LEXIA_STANDARDS_PORT" not in patched:
+            tag = f"<script>window.LEXIA_STANDARDS_PORT={STANDARDS_PORT};</script>\n"
+            patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
+            changed = True
+        patched, asset_changed = _upsert_asset_script(
+            patched, standards_ui, "standards-ui"
+        )
+        changed = changed or asset_changed
+
+    if standards_nav_fix.exists():
+        patched, asset_changed = _upsert_asset_script(
+            patched, standards_nav_fix, "standards-nav-fix"
+        )
+        changed = changed or asset_changed
 
     if not changed:
         return None
@@ -615,6 +715,28 @@ def stop_process(process: subprocess.Popen | None) -> None:
         process.wait(timeout=3)
 
 
+def start_standards_api(
+    root: Path,
+    py: Path,
+    env: dict[str, str],
+    flags: int,
+    log_file,
+) -> subprocess.Popen:
+    script = root / "app" / "ui2" / "standards_api.py"
+    if not script.exists():
+        raise RuntimeError(f"No se encontró la API de Estándares: {script}")
+    api_env = dict(env)
+    api_env["LEXIA_STANDARDS_PORT"] = str(STANDARDS_PORT)
+    return subprocess.Popen(
+        [str(py), str(script)],
+        cwd=str(root),
+        env=api_env,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        creationflags=flags,
+    )
+
+
 def _tail_text(path: Path, lines: int = 30) -> str:
     try:
         content = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -650,7 +772,9 @@ def _run() -> int:
     )
 
     server: subprocess.Popen | None = None
+    standards_api: subprocess.Popen | None = None
     server_log = None
+    standards_log = None
     original_index: str | None = None
     try:
         if not wait_tcp(BRIDGE_PORT, 150):
@@ -666,6 +790,17 @@ def _run() -> int:
         original_index = ensure_ui_assets(root)
         env = os.environ.copy()
         env["LEXIA_UI2_PORT"] = PORT
+        env["LEXIA_STANDARDS_PORT"] = str(STANDARDS_PORT)
+        standards_log_path = logs / "standards_api.log"
+        standards_log = open(standards_log_path, "ab", buffering=0)
+        standards_api = start_standards_api(root, py, env, flags, standards_log)
+        if not wait_tcp(STANDARDS_PORT, 20):
+            detail = _tail_text(standards_log_path)
+            message = "LexIA no pudo iniciar la API local de Estándares (puerto 8515)."
+            if detail:
+                message += "\n\nÚltimas líneas de standards_api.log:\n" + detail
+            raise RuntimeError(message)
+        log_startup("API de Estándares disponible en puerto 8515")
         server_log_path = logs / "ui2_server.log"
         server_log = open(server_log_path, "ab", buffering=0)
         server = subprocess.Popen(
@@ -687,9 +822,12 @@ def _run() -> int:
         return 0
     finally:
         stop_process(server)
+        stop_process(standards_api)
         stop_process(services)
         if server_log is not None:
             server_log.close()
+        if standards_log is not None:
+            standards_log.close()
         services_log.close()
         restore_ui_assets(root, original_index)
 
