@@ -70,9 +70,23 @@ def test_filename_results_keep_metadata_inside_the_card():
     cases = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
 
     assert ".result-card:not(:has(.result-actions>.score))" in cases
-    assert "min-height:62px!important" in cases
+    assert "min-height:76px!important" in cases
+    assert "min-height:54px!important" in cases
     assert "flex-direction:column!important" in cases
+    assert "justify-content:center!important" in cases
+    assert ".result-path{display:block!important" in cases
+    assert "padding:0!important" in cases
     assert "text-overflow:ellipsis!important" in cases
+
+
+def test_desktop_launchers_refresh_the_shared_runtime_by_content():
+    macos = (ROOT / "app/ui2/macos_desktop.py").read_text(encoding="utf-8")
+    windows = (ROOT / "app/ui2/windows_desktop.py").read_text(encoding="utf-8")
+    runtime = (ROOT / "app/ui2/assets/app_runtime.js").read_text(encoding="utf-8")
+
+    assert "hashlib.sha256(app_runtime.read_bytes())" in macos
+    assert '_upsert_asset_script(\n        patched, app_runtime, "app-runtime"' in windows
+    assert "case-47-filename-center" in runtime
 
 
 def test_action_menu_preserves_requested_background_colors():
