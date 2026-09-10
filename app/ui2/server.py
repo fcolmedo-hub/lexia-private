@@ -2496,16 +2496,189 @@ def _content_norm(value):
     return text.strip()
 
 
+_LEGAL_CODE_NAMES = (
+    "procesal civil y comercial",
+    "civil y comercial",
+    "contencioso administrativo",
+    "procesal penal",
+    "procesal laboral",
+    "codigo aduanero",
+    "aduanero",
+    "tributario",
+    "fiscal",
+    "penal",
+    "civil",
+    "comercial",
+    "laboral",
+)
+
+
+def _legal_citation_intent(query):
+    """Recognize an article plus a named statute/code in an ordinary query."""
+    import re as _re
+
+    normalized = _content_norm(query)
+    article = _re.search(
+        r"\b(?:art(?:iculo)?s?)\.?\s*"
+        r"(?:n(?:ro|umero)?\.?\s*)?"
+        r"(?P<number>\d+(?:[.\s]\d+)?)"
+        r"(?:\s*(?P<suffix>bis|ter|quater|quinquies))?\b",
+        normalized,
+    )
+    if not article:
+        return None
+
+    article_number = _re.sub(r"\D", "", article.group("number") or "")
+    if not article_number:
+        return None
+    article_suffix = str(article.group("suffix") or "").strip()
+
+    law = _re.search(
+        r"\bley(?:\s+(?:n|no|nro|numero)[°º.\s]*)?\s+"
+        r"(?P<number>\d{1,3}(?:\.\d{3})+|\d{3,6})\b",
+        normalized,
+    )
+    if law:
+        law_number = _re.sub(r"\D", "", law.group("number") or "")
+        return {
+            "article": article_number,
+            "suffix": article_suffix,
+            "instrument_kind": "law",
+            "instrument": f"ley {law_number}",
+            "law_number": law_number,
+            "code_name": "",
+        }
+
+    for code_name in _LEGAL_CODE_NAMES:
+        phrase = code_name if code_name.startswith("codigo ") else f"codigo {code_name}"
+        if phrase in normalized:
+            canonical = phrase.removeprefix("codigo ")
+            return {
+                "article": article_number,
+                "suffix": article_suffix,
+                "instrument_kind": "code",
+                "instrument": f"codigo {canonical}",
+                "law_number": "",
+                "code_name": canonical,
+            }
+
+    generic_code = _re.search(
+        r"\bcodigo\s+(?P<name>(?:de\s+)?[a-z]+(?:\s+y\s+[a-z]+)?)\b",
+        normalized,
+    )
+    if generic_code:
+        code_name = generic_code.group("name").strip()
+        return {
+            "article": article_number,
+            "suffix": article_suffix,
+            "instrument_kind": "code",
+            "instrument": f"codigo {code_name}",
+            "law_number": "",
+            "code_name": code_name,
+        }
+
+    return None
+
+
+def _legal_citation_fragment_signals(text, intent):
+    """Return exact article/instrument matches for a candidate fragment."""
+    import re as _re
+
+    if not intent:
+        return False, False
+    normalized = _content_norm(text)
+    compact_numbers = _re.sub(r"(?<=\d)[.\s](?=\d)", "", normalized)
+    article = _re.escape(str(intent["article"]))
+    suffix = _re.escape(str(intent.get("suffix") or ""))
+    article_pattern = (
+        r"\b(?:art(?:iculo)?s?)\.?\s*"
+        r"(?:n(?:ro|umero)?\.?\s*)?" + article
+    )
+    if suffix:
+        article_pattern += r"\s*" + suffix
+    article_pattern += r"\b"
+    article_match = bool(_re.search(article_pattern, compact_numbers))
+
+    if intent.get("instrument_kind") == "law":
+        law_number = _re.escape(str(intent.get("law_number") or ""))
+        instrument_match = bool(
+            law_number
+            and _re.search(r"\bley\b.{0,36}\b" + law_number + r"\b", compact_numbers)
+        )
+    else:
+        code_name = str(intent.get("code_name") or "")
+        code_terms = [
+            word for word in code_name.split()
+            if word not in {"de", "del", "la", "las", "los", "y"}
+        ]
+        code_window = _re.search(r"\bcodigo\b.{0,100}", normalized)
+        instrument_match = bool(
+            code_terms
+            and code_window
+            and all(word in code_window.group(0) for word in code_terms)
+        )
+    return article_match, instrument_match
+
+
+def _legal_citation_fts_query(intent):
+    """Build an FTS query tolerant of common statutory typography."""
+    if not intent:
+        return ""
+    article_query = _legal_article_fts_query(intent)
+    if intent.get("instrument_kind") == "law":
+        number = str(intent.get("law_number") or "")
+        variants = [_fts_quote(number)]
+        if len(number) > 3:
+            variants.append(_fts_quote(number[:-3] + " " + number[-3:]))
+        instrument = '"ley" AND (' + " OR ".join(variants) + ")"
+    else:
+        code_terms = [
+            word for word in str(intent.get("code_name") or "").split()
+            if word not in {"de", "del", "la", "las", "los", "y"}
+        ]
+        instrument = " AND ".join(
+            [_fts_quote("codigo")] + [_fts_quote(word) for word in code_terms]
+        )
+    return f"{article_query} AND {instrument}"
+
+
+def _legal_article_fts_query(intent):
+    if not intent:
+        return ""
+    article = _fts_quote(intent["article"])
+    suffix = (
+        " AND " + _fts_quote(intent["suffix"])
+        if intent.get("suffix") else ""
+    )
+    return f'("art" OR "articulo" OR "articulos") AND {article}{suffix}'
+
+
+def _legal_citation_document_pattern(intent):
+    """LIKE pattern for statute identity stored only in file name/path."""
+    if not intent:
+        return ""
+    if intent.get("instrument_kind") == "law":
+        terms = [str(intent.get("law_number") or "")]
+    else:
+        terms = [
+            word for word in str(intent.get("code_name") or "").split()
+            if word not in {"de", "del", "la", "las", "los", "y"}
+        ]
+    terms = [term for term in terms if term]
+    return "%" + "%".join(terms) + "%" if terms else ""
+
+
 def _content_search_v2(
     query, limit=20, category=None, folder=None, semantic_fallback=False,
 ):
     """Fast FTS5 content retrieval over LexIA's existing fragments index.
 
     Priority:
-      1) exact phrase / explicitly quoted phrases,
-      2) all meaningful query terms (AND),
-      3) partial lexical matches (OR),
-      4) optional semantic filler only when it is explicitly requested.
+      1) requested statutory article in Legislation for legal citations,
+      2) exact phrase / explicitly quoted phrases,
+      3) all meaningful query terms (AND),
+      4) partial lexical matches (OR),
+      5) optional semantic filler only when it is explicitly requested.
     """
     from time import perf_counter
     started = perf_counter()
@@ -2513,6 +2686,8 @@ def _content_search_v2(
     raw, phrases, terms = _content_search_terms(query)
     if not raw:
         raise ValueError("La consulta está vacía.")
+
+    legal_intent = _legal_citation_intent(raw)
 
     try:
         boolean_query = parse_boolean_query(raw)
@@ -2593,6 +2768,11 @@ def _content_search_v2(
 
     stages = []
 
+    legal_match_query = _legal_citation_fts_query(legal_intent)
+    if legal_match_query:
+        stages.append(("legal", legal_match_query))
+        stages.append(("legal_article", _legal_article_fts_query(legal_intent)))
+
     if phrases:
         stages.append(
             ("phrase", " AND ".join(_fts_quote(p) for p in phrases))
@@ -2641,6 +2821,26 @@ def _content_search_v2(
                     "COLLATE NOCASE ESCAPE '!' "
                 )
                 params.append(_filter_like_pattern(folder))
+            legal_order_parts = []
+            document_pattern = _legal_citation_document_pattern(legal_intent)
+            if document_pattern:
+                legal_order_parts.append(
+                    "CASE WHEN REPLACE(LOWER(f.document_name),'.','') LIKE ? "
+                    "OR REPLACE(LOWER(f.document_path),'.','') LIKE ? "
+                    "THEN 0 ELSE 1 END"
+                )
+                params.extend([document_pattern, document_pattern])
+            if legal_intent and not category:
+                # Guarantee that statute fragments enter the candidate pool even
+                # when many judgments quote the same article.
+                legal_order_parts.append(
+                    "CASE WHEN f.category COLLATE NOCASE IN "
+                    "('Legislación','Legislacion') THEN 0 ELSE 1 END"
+                )
+            legal_order_sql = (
+                ", ".join(legal_order_parts) + ", "
+                if legal_order_parts else ""
+            )
             params.append(wanted)
 
             sql = (
@@ -2659,7 +2859,7 @@ def _content_search_v2(
                 + category_sql +
                 folder_sql +
                 " AND COALESCE(d.is_deleted,0)=0 "
-                "ORDER BY lexical_bm25 ASC "
+                "ORDER BY " + legal_order_sql + "lexical_bm25 ASC "
                 "LIMIT ?"
             )
 
@@ -2675,6 +2875,9 @@ def _content_search_v2(
                 key = (path, frag_index)
 
                 text = str(row["text_content"] or "")
+                document_name = str(
+                    row["document_name"] or Path(path).name or "Documento"
+                )
                 match_snippet = str(row["match_snippet"] or "").strip()
                 normalized = _content_norm(text)
                 coverage = sum(1 for t in normalized_terms if t and t in normalized)
@@ -2686,7 +2889,14 @@ def _content_search_v2(
 
                 # Stable, interpretable legal ranking. Stage weight dominates:
                 # exact phrase > AND > OR. Lexical BM25 then breaks ties.
-                stage_bonus = {"boolean": 12000, "phrase": 10000, "and": 6000, "or": 2000}[stage_name]
+                stage_bonus = {
+                    "boolean": 12000,
+                    "legal": 12000,
+                    "legal_article": 11000,
+                    "phrase": 10000,
+                    "and": 6000,
+                    "or": 2000,
+                }[stage_name]
                 score = float(stage_bonus)
                 if full_phrase:
                     score += 5000
@@ -2695,6 +2905,34 @@ def _content_search_v2(
                     score += 2000
                 score += coverage * 350
                 score -= row_position * 0.5
+
+                article_match, _ = _legal_citation_fragment_signals(
+                    text, legal_intent
+                )
+                _, instrument_match = _legal_citation_fragment_signals(
+                    f"{document_name} {path} {text}", legal_intent
+                )
+                legislation_match = (
+                    _filter_category_key(row["category"]) == "legislacion"
+                )
+
+                # A direct statutory answer should outrank a judgment or article
+                # that merely quotes the requested provision. Exact article and
+                # instrument matches remain useful inside an explicit non-
+                # legislation category, but the category bonus is then omitted.
+                if legal_intent:
+                    if article_match:
+                        score += 8000
+                    if instrument_match:
+                        score += 3500
+                    if article_match and instrument_match:
+                        score += 3500
+                    if legislation_match and not category:
+                        score += 4000
+                    if legislation_match and article_match and not category:
+                        score += 4500
+                    if legislation_match and instrument_match and not category:
+                        score += 5000
 
                 try:
                     bm25_value = float(row["lexical_bm25"] or 0.0)
@@ -2705,11 +2943,9 @@ def _content_search_v2(
 
                 previous = candidates.get(key)
                 if previous is None or score > previous["_rank_score"]:
-                    candidates[key] = {
+                    candidate = {
                         "document_path": path,
-                        "document_name": str(
-                            row["document_name"] or Path(path).name or "Documento"
-                        ),
+                        "document_name": document_name,
                         "category": str(row["category"] or ""),
                         "text": match_snippet or text,
                         "page_start": row["page_start"],
@@ -2719,13 +2955,24 @@ def _content_search_v2(
                         "_rank_score": score,
                         "_source": "fts5",
                     }
+                    if legal_intent:
+                        candidate.update({
+                            "legal_article_match": article_match,
+                            "legal_instrument_match": instrument_match,
+                            "legislation_priority": bool(
+                                legislation_match and not category
+                            ),
+                        })
+                    candidates[key] = candidate
 
             # Enough strong phrase/AND hits: don't let broad OR noise swamp them.
             strong_count = sum(
                 1 for item in candidates.values()
                 if item["_rank_score"] >= 6000
             )
-            if strong_count >= limit and stage_name in {"boolean", "phrase", "and"}:
+            if strong_count >= limit and stage_name in {
+                "boolean", "legal_article", "phrase", "and",
+            }:
                 break
     finally:
         con.close()
@@ -2829,14 +3076,26 @@ def _content_search_v2(
         item["score"] = round(display_score, 1)
         results.append(item)
 
-    return {
+    payload = {
         "ok": True,
         "query": raw,
         "results": results,
         "elapsed_seconds": round(perf_counter() - started, 4),
         "service": "LexIA Content Search 2.1",
-        "search_strategy": "fts5_match_centered_hybrid",
+        "search_strategy": (
+            "fts5_legal_citation_priority"
+            if legal_intent else "fts5_match_centered_hybrid"
+        ),
     }
+    if legal_intent:
+        payload["legal_citation"] = {
+            "article": legal_intent["article"] + (
+                f" {legal_intent['suffix']}" if legal_intent.get("suffix") else ""
+            ),
+            "instrument": legal_intent["instrument"],
+            "prioritized_category": "Legislación" if not category else None,
+        }
+    return payload
 # <<< LEXIA CONTENT SEARCH 2.0 FTS5-FIRST
 
 def _maintenance_snapshot():
