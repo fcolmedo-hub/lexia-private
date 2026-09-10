@@ -512,6 +512,9 @@ def ensure_ui_assets(root: Path) -> str | None:
     live_badge_cleanup = (
         here / "assets" / "windows_live_badge_cleanup.js"
     )
+    search_results_polish = (
+        here / "assets" / "windows_search_results_polish.js"
+    )
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     app_runtime = here / "assets" / "app_runtime.js"
     standards_ui = here / "assets" / "standards_ui.js"
@@ -522,6 +525,7 @@ def ensure_ui_assets(root: Path) -> str | None:
         and search_investigation_bridge.exists()
         and navigator.exists()
         and live_badge_cleanup.exists()
+        and search_results_polish.exists()
         and app_runtime.exists()
     ):
         return None
@@ -588,6 +592,11 @@ def ensure_ui_assets(root: Path) -> str | None:
     # geometría anterior de las tarjetas entre aperturas.
     patched, asset_changed = _upsert_asset_script(
         patched, app_runtime, "app-runtime"
+    )
+    changed = changed or asset_changed
+
+    patched, asset_changed = _upsert_asset_script(
+        patched, search_results_polish, "windows-search-results"
     )
     changed = changed or asset_changed
 
