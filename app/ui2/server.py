@@ -2591,7 +2591,7 @@ def _legal_citation_fragment_signals(text, intent):
     article = _re.escape(str(intent["article"]))
     suffix = _re.escape(str(intent.get("suffix") or ""))
     article_pattern = (
-        r"\b(?:art(?:iculo)?s?)\.?\s*"
+        r"\b(?:art(?:iculo)?s?|artyculo|art═culo)\.?\s*"
         r"(?:n(?:ro|umero)?\.?\s*)?" + article
     )
     if suffix:
@@ -2650,7 +2650,10 @@ def _legal_article_fts_query(intent):
         " AND " + _fts_quote(intent["suffix"])
         if intent.get("suffix") else ""
     )
-    return f'("art" OR "articulo" OR "articulos") AND {article}{suffix}'
+    # Prefix matching covers normal text plus legacy extractions such as
+    # ``artÝculo`` (tokenized as ``artyculo``). The article number itself is
+    # deliberately exact, so article 5 never becomes article 50/51.
+    return f'"art"* AND {article}{suffix}'
 
 
 def _legal_citation_document_pattern(intent):
@@ -2681,7 +2684,7 @@ def _legal_article_excerpt(text, intent, max_chars=520):
     number_pattern = r"[.\s]*".join(_re.escape(char) for char in digits)
     suffix = _re.escape(str(intent.get("suffix") or ""))
     pattern = (
-        r"\b(?:art(?:[íi]culo)?s?)\.?\s*"
+        r"\b(?:art(?:[íi]culo)?s?|art[yý]culo|art═culo)\.?\s*"
         r"(?:n(?:ro|úmero|umero)?\.?\s*)?" + number_pattern
     )
     if suffix:
@@ -2695,7 +2698,8 @@ def _legal_article_excerpt(text, intent, max_chars=520):
     end = min(len(raw), start + max(120, int(max_chars or 520)))
     following = raw[match.end():end]
     next_article = _re.search(
-        r"(?:\r?\n|\f)\s*(?:art(?:[íi]culo)?s?)\.?\s*\d+",
+        r"(?:\r?\n|\f)\s*"
+        r"(?:art(?:[íi]culo)?s?|art[yý]culo|art═culo)\.?\s*\d+",
         following,
         flags=_re.IGNORECASE,
     )
