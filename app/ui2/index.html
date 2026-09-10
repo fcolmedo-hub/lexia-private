@@ -1841,6 +1841,7 @@ body {
 @supports not (container-type:inline-size){@media(max-width:1180px){.lexia-navigator-view{grid-template-columns:150px minmax(0,1fr) 330px!important}}@media(max-width:940px){.lexia-navigator-view{grid-template-columns:145px minmax(0,1fr)!important}.lexia-nav-preview-panel{display:none}}}
 /* <<< LEXIA UI2 3.3.0i INVESTIGATION AND DOCUMENT STUDY NAVIGATOR */
 </style>
+<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">
 </head>
 <body>
 <div class="app">
@@ -5401,14 +5402,19 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
 })();
 /* <<< LEXIA UI2 3.3.3q NAVEGACIÓN GLOBAL RESPONSIVA */
 </script>
-<script src="navigator_3_3_4a.js?v=334a"></script>
+<script src="navigator_3_3_4a.js?v=navigator-3e9924da5275"></script>
 <link rel="stylesheet" href="assets/maintenance.css?v=phase1">
 <script src="assets/maintenance.js?v=phase2"></script>
-<script src="assets/jurisprudence_search.js?v=juris1"></script>
+<script id="lexiaSearchInvestigationBridge" src="assets/search_investigation_bridge.js?v=search-investigation-85c83859d842"></script>
+<script src="assets/jurisprudence_search.js?v=jurisprudence-search-a749391afb7a"></script>
 
 <script id="LEXIA_HTML_PREVIEW_20260831">
 // HTML/HTM se visualizan mediante el mismo PDF temporal que Office.
 </script>
 <script src="assets/app_runtime.js?v=app-runtime-1"></script>
+<script>window.LEXIA_STANDARDS_PORT='8515';</script>
+<script src="assets/standards_ui.js?v=standards-ui-a4a5540ca5b9"></script>
+<script src="assets/standards_nav_fix.js?v=standards-nav-fix-019da221a8df"></script>
+<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>
 </body>
 </html>
