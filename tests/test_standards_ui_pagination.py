@@ -38,6 +38,10 @@ def test_standards_ui_has_reserved_review_workflow():
     assert "data-publication=\"reserve\"" in source
     assert "data-publication=\"reject\"" in source
     assert "/api/publication-decision" in source
+    assert "/api/standard-citation" in source
+    assert "saveReservedCitation" in source
+    assert "cita literal y su página" in source
+    assert "disabled title=\"Completá una cita literal con página\"" in source
     assert "lexiaStandardsLoadInventory=loadInventory" in source
 
 

@@ -105,6 +105,9 @@ def _manual_standard(payload: dict) -> dict:
         page = int(page_raw) if page_raw else None
     except ValueError:
         page = None
+    if page is not None and page <= 0:
+        page = None
+    citation_complete = bool(quote and page)
     tags = [str(x).strip() for x in (payload.get("tags") or []) if str(x).strip()]
 
     seed = "|".join([document_name, document_path or "", court or "", judgment_date or "", statement, quote])
@@ -144,14 +147,16 @@ def _manual_standard(payload: dict) -> dict:
                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 standard_uid, document_id, "MANUAL", statement, speaker, source_speaker, treatment,
-                "[]", None, "[]", source_fingerprint, "validated", "ready",
+                "[]", None, "[]", source_fingerprint,
+                "validated" if citation_complete else "needs_review",
+                "ready" if citation_complete else "blocked",
             ),
         )
         if quote:
             con.execute(
                 """INSERT INTO quotes(standard_uid,evidence_index,page_start,page_end,unit_ids_json,quote_text,validation)
                    VALUES(?,?,?,?,?,?,?)""",
-                (standard_uid, 0, page, page, "[]", quote, "manual"),
+                (standard_uid, 0, page, page, "[]", quote, "manual_review"),
             )
         for tag in sorted(set(tags), key=str.casefold):
             con.execute("INSERT OR IGNORE INTO tags(name) VALUES(?)", (tag,))
@@ -173,7 +178,12 @@ def _manual_standard(payload: dict) -> dict:
         "ok": True,
         "standard_uid": standard_uid,
         "ai_linking": "pending_provider",
-        "message": "Estándar cargado. La vinculación automática por IA queda pendiente hasta configurar el proveedor de IA de LexIA.",
+        "publication_status": "ready" if citation_complete else "blocked",
+        "message": (
+            "Estándar almacenado y listo para publicarse. La vinculación automática por IA queda pendiente."
+            if citation_complete
+            else "Estándar almacenado como reservado. Completá una cita literal con página antes de publicarlo."
+        ),
     }
 
 
@@ -248,6 +258,124 @@ def _ensure_publication_decisions_schema(con: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_citation_decisions_schema(con: sqlite3.Connection) -> None:
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS standard_citation_decisions (
+               citation_decision_id INTEGER PRIMARY KEY,
+               standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
+               quote_id INTEGER NOT NULL REFERENCES quotes(quote_id) ON DELETE CASCADE,
+               quote_text TEXT NOT NULL,
+               page_start INTEGER NOT NULL,
+               page_end INTEGER NOT NULL,
+               decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    con.execute(
+        """CREATE INDEX IF NOT EXISTS idx_citation_decisions_standard
+           ON standard_citation_decisions(standard_uid, decided_at)"""
+    )
+
+
+def _has_publishable_citation(con: sqlite3.Connection, standard_uid: str) -> bool:
+    return con.execute(
+        """SELECT 1 FROM quotes
+           WHERE standard_uid=?
+             AND TRIM(quote_text)<>''
+             AND page_start IS NOT NULL
+             AND page_start>0
+             AND (page_end IS NULL OR page_end>=page_start)
+           LIMIT 1""",
+        (standard_uid,),
+    ).fetchone() is not None
+
+
+def _standard_citation(payload: dict) -> dict:
+    standard_uid = str(payload.get("standard_uid") or "").strip()
+    quote = str(payload.get("quote") or "").strip()
+    if not standard_uid:
+        raise ValueError("El estándar reservado es inválido.")
+    if not quote:
+        raise ValueError("La cita literal es obligatoria.")
+
+    try:
+        page_start = int(str(payload.get("page_start") or "").strip())
+    except (TypeError, ValueError):
+        raise ValueError("La página inicial debe ser un número positivo.")
+    if page_start <= 0:
+        raise ValueError("La página inicial debe ser un número positivo.")
+
+    page_end_raw = str(payload.get("page_end") or "").strip()
+    try:
+        page_end = int(page_end_raw) if page_end_raw else page_start
+    except ValueError:
+        raise ValueError("La página final debe ser un número positivo.")
+    if page_end < page_start:
+        raise ValueError("La página final no puede ser anterior a la inicial.")
+
+    con = sqlite3.connect(SERVICE.db_path, timeout=5)
+    try:
+        con.execute("PRAGMA foreign_keys=ON")
+        con.execute("BEGIN IMMEDIATE")
+        current = con.execute(
+            "SELECT review_status FROM standards WHERE standard_uid=?",
+            (standard_uid,),
+        ).fetchone()
+        if current is None:
+            raise ValueError("El estándar reservado no existe.")
+        if str(current[0]) == "rejected":
+            raise ValueError("No se puede completar la cita de un estándar rechazado.")
+
+        existing = con.execute(
+            """SELECT quote_id,evidence_index FROM quotes
+               WHERE standard_uid=? AND validation='manual_review'
+               ORDER BY quote_id DESC LIMIT 1""",
+            (standard_uid,),
+        ).fetchone()
+        if existing:
+            quote_id = int(existing[0])
+            con.execute(
+                """UPDATE quotes SET quote_text=?,page_start=?,page_end=?,
+                          unit_ids_json='[]',validation='manual_review'
+                   WHERE quote_id=?""",
+                (quote, page_start, page_end, quote_id),
+            )
+        else:
+            evidence_index = int(con.execute(
+                "SELECT COALESCE(MAX(evidence_index),-1)+1 FROM quotes WHERE standard_uid=?",
+                (standard_uid,),
+            ).fetchone()[0])
+            cursor = con.execute(
+                """INSERT INTO quotes(
+                       standard_uid,evidence_index,page_start,page_end,
+                       unit_ids_json,quote_text,validation
+                   ) VALUES(?,?,?,?,?,?,?)""",
+                (standard_uid, evidence_index, page_start, page_end, "[]", quote, "manual_review"),
+            )
+            quote_id = int(cursor.lastrowid)
+
+        _ensure_citation_decisions_schema(con)
+        con.execute(
+            """INSERT INTO standard_citation_decisions(
+                   standard_uid,quote_id,quote_text,page_start,page_end
+               ) VALUES(?,?,?,?,?)""",
+            (standard_uid, quote_id, quote, page_start, page_end),
+        )
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+
+    return {
+        "ok": True,
+        "standard_uid": standard_uid,
+        "quote_id": quote_id,
+        "publishable": True,
+        "standard": SERVICE.get_reserved_standard(standard_uid),
+    }
+
+
 def _publication_decision(payload: dict) -> dict:
     standard_uid = str(payload.get("standard_uid") or "").strip()
     decision = str(payload.get("decision") or "").strip().lower()
@@ -272,6 +400,8 @@ def _publication_decision(payload: dict) -> dict:
             raise ValueError("El estándar ya fue rechazado.")
 
         if decision == "publish":
+            if not _has_publishable_citation(con, standard_uid):
+                raise ValueError("No se puede publicar: falta una cita literal con página.")
             new_review, new_publication = "validated", "ready"
         elif decision == "reject":
             new_review, new_publication = "rejected", "hidden"
@@ -345,6 +475,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(_canonical_decision(payload))
             if parsed.path == "/api/publication-decision":
                 return self._json(_publication_decision(payload))
+            if parsed.path == "/api/standard-citation":
+                return self._json(_standard_citation(payload))
             return self._json({"ok": False, "error": "not_found"}, 404)
         except ValueError as exc:
             return self._json({"ok": False, "error": str(exc)}, 400)

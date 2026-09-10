@@ -118,6 +118,22 @@ CREATE TABLE IF NOT EXISTS quotes (
 CREATE INDEX IF NOT EXISTS idx_quotes_standard ON quotes(standard_uid);
 CREATE INDEX IF NOT EXISTS idx_quotes_pages ON quotes(page_start, page_end);
 
+-- Historial de citas incorporadas o corregidas durante la revisión humana.
+-- La evidencia extraída por V5 no se sobrescribe: la versión revisada se
+-- conserva como una cita `manual_review` independiente.
+CREATE TABLE IF NOT EXISTS standard_citation_decisions (
+    citation_decision_id INTEGER PRIMARY KEY,
+    standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,
+    quote_id INTEGER NOT NULL REFERENCES quotes(quote_id) ON DELETE CASCADE,
+    quote_text TEXT NOT NULL,
+    page_start INTEGER NOT NULL,
+    page_end INTEGER NOT NULL,
+    decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_citation_decisions_standard
+    ON standard_citation_decisions(standard_uid, decided_at);
+
 CREATE TABLE IF NOT EXISTS relations (
     relation_id INTEGER PRIMARY KEY,
     from_standard_uid TEXT NOT NULL REFERENCES standards(standard_uid) ON DELETE CASCADE,

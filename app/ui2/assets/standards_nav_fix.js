@@ -238,8 +238,8 @@
       <div class="std-manual-field"><label>Fecha</label><input id="stdMDate" type="date"></div>
       <div class="std-manual-field"><label>Voz</label><select id="stdMSpeaker"><option value="mayoria">mayoria</option><option value="disidencia">disidencia</option><option value="procurador">procurador</option><option value="tribunal_anterior">tribunal_anterior</option></select></div>
       <div class="std-manual-field"><label>Tratamiento</label><select id="stdMTreatment"><option value="adopta">adopta</option><option value="propone">propone</option><option value="cita">cita</option><option value="rechaza">rechaza</option></select></div>
-      <div class="std-manual-field wide"><label>Cita literal</label><textarea id="stdMQuote"></textarea></div>
-      <div class="std-manual-field"><label>Página</label><input id="stdMPage" inputmode="numeric"></div>
+      <div class="std-manual-field wide"><label>Cita literal</label><textarea id="stdMQuote"></textarea><small>Sin cita literal y página, el estándar se almacena como reservado para revisión.</small></div>
+      <div class="std-manual-field"><label>Página</label><input id="stdMPage" inputmode="numeric" min="1"></div>
       <div class="std-manual-field"><label>Tags</label><input id="stdMTags" placeholder="tributario, prescripción"></div>
     </div><div class="std-manual-status" id="stdMStatus"></div><div class="std-manual-actions"><button class="std-btn secondary" type="button" data-close>Cancelar</button><button class="std-btn" type="button" id="stdMSave">Guardar estándar</button></div></div>`;
     document.body.appendChild(modal);

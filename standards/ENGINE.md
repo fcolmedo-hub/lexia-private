@@ -97,3 +97,30 @@ Las decisiones disponibles son:
 Cada decisión queda en `standard_publication_decisions`. Después de publicar o
 rechazar se reconstruye la capa canónica dentro de la misma transacción; no se
 realiza ninguna llamada a la API ni se reextrae el fallo.
+
+La publicación exige al menos una cita literal no vacía y una página positiva.
+La bandeja permite agregar o corregir esa evidencia sin sobrescribir la cita
+extraída por V5: la versión humana se guarda como `manual_review` y la edición
+queda auditada en `standard_citation_decisions`.
+
+## Formas de ingresar estándares
+
+Hay dos vías complementarias:
+
+1. **Carga manual inmediata.** «Nuevo estándar» recibe la regla, el fallo, la
+   voz, el tratamiento y la evidencia. Con cita y página queda visible; si la
+   evidencia está incompleta se almacena como reservado. Esta vía no consume
+   API.
+2. **Extracción por lotes V5.** Cada fallo puede producir cero, una o varias
+   apariciones. Los fallos nuevos se acumulan en una cola y se preparan juntos
+   cuando alcanzan el umbral operativo; el envío a la API siempre requiere una
+   acción explícita. Después de validar citas, las apariciones se comparan con
+   el diccionario y sólo los pares candidatos pasan al clasificador de
+   relaciones, evitando comparaciones de todos contra todos.
+
+La interfaz de incorporación deberá ofrecer para cada fallo nuevo «Extraer
+ahora», «Agregar a la cola» o «No extraer». La opción recomendada será la cola,
+con cierre por cantidad de fallos y por límite de tokens; el tamaño inicial de
+referencia es 250 fallos. El contenido documental se procesa una sola vez por
+huella y los resultados intermedios quedan reanudables en
+`runtime/standards/runs/<run-id>`.
