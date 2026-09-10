@@ -33,7 +33,14 @@
       color:#77819d!important;
     }
 
-    /* Contenido conserva deliberadamente el estilo compartido con macOS. */
+    /* En WebView2 la métrica vertical del botón deja el bloque de contenido
+       seis píxeles más abajo que en macOS. Subimos el bloque completo para
+       alinear el título con el número y recuperar aire debajo de la ruta. */
+    .lexia-windows-search-polish #searchpage #realSearchResults
+      .result-card:has(.result-actions > .score) .result-body {
+      position:relative!important;
+      top:-6px!important;
+    }
   `;
   document.head.appendChild(style);
 })();
