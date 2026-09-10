@@ -6,7 +6,7 @@ from app.ui2.windows_desktop import ensure_ui_assets
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_windows_search_polish_only_changes_filename_results() -> None:
+def test_windows_search_polish_compensates_webview_content_metrics() -> None:
     source = (
         ROOT / "app/ui2/assets/windows_search_results_polish.js"
     ).read_text(encoding="utf-8")
@@ -14,7 +14,9 @@ def test_windows_search_polish_only_changes_filename_results() -> None:
     assert "lexia-windows-search-polish" in source
     assert ".result-card:not(:has(.result-actions > .score))" in source
     assert "font-weight:600!important" in source
-    assert ".result-card:has(.result-actions > .score)" not in source
+    assert ".result-card:has(.result-actions > .score) .result-body" in source
+    assert "position:relative!important" in source
+    assert "top:-6px!important" in source
     assert "padding-top:" not in source
     assert "padding-bottom:" not in source
 
