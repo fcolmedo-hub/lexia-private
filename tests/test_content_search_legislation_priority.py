@@ -106,6 +106,14 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     runtime.mkdir()
     _catalog(runtime / "lexia_catalog.sqlite3")
     monkeypatch.setattr(server, "RUNTIME_ROOT", runtime)
+    # Reproduce the real Ley 7055 index: its stored text is readable, but FTS
+    # cannot retrieve the corrupted ART═CULO heading by article tokens.
+    monkeypatch.setattr(
+        server, "_legal_citation_fts_query", lambda _intent: '"missinglegal"'
+    )
+    monkeypatch.setattr(
+        server, "_legal_article_fts_query", lambda _intent: '"missingarticle"'
+    )
 
     result = server._content_search_v2(
         "art. 5 ley 7055",
@@ -123,6 +131,7 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     assert result["results"][0]["legal_instrument_match"] is True
     assert result["results"][0]["legislation_priority"] is True
     assert result["results"][0]["article_focused"] is True
+    assert result["results"][0]["direct_legislation_match"] is True
     assert result["results"][0]["text"].startswith("artÝculo 5║.")
     assert "ART═CULO 6" not in result["results"][0]["text"]
 
