@@ -36,18 +36,18 @@ def _catalog(path: Path) -> None:
     )
     rows = [
         (
-            "D:/Biblioteca/Legislación/Codigo Aduanero.pdf",
-            "Ley 22.415 - Código Aduanero.pdf",
+            "D:/Biblioteca/Legislación/Santa Fe/Ley 7055.pdf",
+            "Ley 7055.pdf",
             "Legislación",
             "Texto preliminar de la norma.\n"
-            "ARTICULO 970. Será sancionado quien incumpliere el régimen.\n"
-            "ARTICULO 971. Esta disposición pertenece al artículo siguiente.",
+            "artÝculo 5║. Serß procedente el recurso en los casos previstos.\n"
+            "ART═CULO 6║. Esta disposici¾n pertenece al artÝculo siguiente.",
         ),
         (
             "D:/Biblioteca/Jurisprudencia/Fallo.pdf",
             "Fallo.pdf",
             "Jurisprudencia",
-            "El tribunal analizó el art. 970 de la ley 22.415 y confirmó la multa.",
+            "El tribunal analizó el art. 5 de la ley 7055 y confirmó la sentencia.",
         ),
     ]
     for index, (doc_path, name, category, text) in enumerate(rows):
@@ -89,9 +89,7 @@ def test_detects_law_and_code_article_queries() -> None:
         "art. 12 del Código de Minería"
     )["instrument"] == "codigo de mineria"
     assert server._legal_citation_intent("prescripción tributaria") is None
-    assert '"art" OR "articulo" OR "articulos"' in (
-        server._legal_citation_fts_query(law)
-    )
+    assert server._legal_citation_fts_query(law).startswith('"art"* AND "970"')
     assert '"22 415"' in server._legal_citation_fts_query(law)
     assert server._legal_article_fts_query(law).endswith('AND "970"')
     assert server._legal_citation_document_pattern(law) == "%22415%"
@@ -110,14 +108,14 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     monkeypatch.setattr(server, "RUNTIME_ROOT", runtime)
 
     result = server._content_search_v2(
-        "art. 970 de la ley 22.415",
+        "art. 5 ley 7055",
         limit=2,
     )
 
     assert result["search_strategy"] == "fts5_legal_citation_priority"
     assert result["legal_citation"] == {
-        "article": "970",
-        "instrument": "ley 22415",
+        "article": "5",
+        "instrument": "ley 7055",
         "prioritized_category": "Legislación",
     }
     assert result["results"][0]["category"] == "Legislación"
@@ -125,8 +123,8 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     assert result["results"][0]["legal_instrument_match"] is True
     assert result["results"][0]["legislation_priority"] is True
     assert result["results"][0]["article_focused"] is True
-    assert result["results"][0]["text"].startswith("ARTICULO 970.")
-    assert "ARTICULO 971" not in result["results"][0]["text"]
+    assert result["results"][0]["text"].startswith("artÝculo 5║.")
+    assert "ART═CULO 6" not in result["results"][0]["text"]
 
 
 def test_explicit_non_legislation_filter_is_respected(
@@ -138,7 +136,7 @@ def test_explicit_non_legislation_filter_is_respected(
     monkeypatch.setattr(server, "RUNTIME_ROOT", runtime)
 
     result = server._content_search_v2(
-        "art. 970 de la ley 22.415",
+        "art. 5 ley 7055",
         limit=2,
         category="Jurisprudencia",
     )
