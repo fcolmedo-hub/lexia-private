@@ -5,6 +5,7 @@
   const SEARCH_PAGE_ID='searchpage';
   const INVESTIGATE_ATTR='data-lexia-search-investigate';
   const CONTENT_OPEN_ATTR='data-lexia-content-open';
+  const ACTION_KIND_ATTR='data-lexia-file-action-kind';
   const STYLE_ID='lexiaSearchInvestigationButtonColors';
   const RECENT_TOUCH_STYLE_ID='lexiaSearchRecentTouchFix';
   const STUDY_LAYOUT_STYLE_ID='lexiaStudyLayoutFix';
@@ -27,23 +28,54 @@
     const style=document.createElement('style');
     style.id=STYLE_ID;
     style.textContent=`
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="open"],
       #${SEARCH_PAGE_ID} .result-actions .search-open-file[${CONTENT_OPEN_ATTR}="1"]{
         background:#149d55!important;
         border-color:#149d55!important;
         color:#fff!important;
       }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="open"]:hover,
       #${SEARCH_PAGE_ID} .result-actions .search-open-file[${CONTENT_OPEN_ATTR}="1"]:hover{
         background:#0f8044!important;
         border-color:#0f8044!important;
       }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="investigate"],
       #${SEARCH_PAGE_ID} .result-actions [${INVESTIGATE_ATTR}="1"]{
         background:#5146f6!important;
         border-color:#5146f6!important;
         color:#fff!important;
       }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="investigate"]:hover,
       #${SEARCH_PAGE_ID} .result-actions [${INVESTIGATE_ATTR}="1"]:hover{
         background:#4338e8!important;
         border-color:#4338e8!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="details"]{
+        background:#f4c542!important;
+        border-color:#d7a817!important;
+        color:#453300!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="details"]:hover{
+        background:#e7b82f!important;
+        border-color:#c6980c!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="case"]{
+        background:#8a5a2b!important;
+        border-color:#8a5a2b!important;
+        color:#fff!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="case"]:hover{
+        background:#70451f!important;
+        border-color:#70451f!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="ocr"]{
+        background:#e87514!important;
+        border-color:#e87514!important;
+        color:#fff!important;
+      }
+      #${SEARCH_PAGE_ID} .result-actions [${ACTION_KIND_ATTR}="ocr"]:hover{
+        background:#c95e08!important;
+        border-color:#c95e08!important;
       }
       #${SEARCH_PAGE_ID} #realSearchResults .result-card{
         position:relative!important;z-index:1;grid-template-columns:34px minmax(0,1fr) 62px!important;
@@ -76,6 +108,26 @@
       }
     `;
     document.head.appendChild(style);
+  }
+
+  function actionKind(button){
+    const label=String(button?.textContent||'').replace(/\s+/g,' ').trim().toLocaleLowerCase('es');
+    const classes=String(button?.className||'').toLocaleLowerCase('es');
+    if(button?.hasAttribute(INVESTIGATE_ATTR)||classes.includes('investigate')||label==='investigar')return'investigate';
+    if(button?.matches('.search-open-file,.lexia-nav-open-file')||label==='abrir'||label.startsWith('abrir '))return'open';
+    if(button?.matches('.search-file-info')||label==='detalles'||label.startsWith('detalle'))return'details';
+    if(button?.matches('.search-delete-file')||label==='eliminar'||label.startsWith('eliminar '))return'delete';
+    if(button?.matches('[data-lexia-case-link],.lexia-case-link')||label==='al caso')return'case';
+    if(classes.includes('ocr')||/(^|\s)ocr(\s|$)/i.test(label))return'ocr';
+    return'';
+  }
+
+  function markActionButtons(actions){
+    if(!actions)return;
+    actions.querySelectorAll('button').forEach(button=>{
+      const kind=actionKind(button);
+      if(kind)button.setAttribute(ACTION_KIND_ATTR,kind);
+    });
   }
 
   function ensureStudyLayout(){
@@ -249,6 +301,7 @@
     [...actions.children].filter(node=>node.tagName==='BUTTON'&&node!==trigger).forEach(button=>{
       button.setAttribute('role','menuitem');menu.appendChild(button);
     });
+    markActionButtons(actions);
   }
 
   function syncResultCard(card){
@@ -457,10 +510,15 @@
 
   function syncNavigatorSurface(){
     document.querySelectorAll('#lexiaNavigatorFiles .lexia-nav-file-card').forEach(card=>{
-      const actions=card.querySelector('.result-actions');if(!actions||actions.querySelector('[data-lexia-navigator-investigate]'))return;
-      const encoded=card.dataset.navPath||actions.querySelector('[data-path]')?.dataset.path||'';if(!encoded)return;
-      const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.setAttribute(INVESTIGATE_ATTR,'1');button.setAttribute('data-lexia-navigator-investigate','1');button.className='search-investigate-file lexia-nav-investigate-file';button.dataset.path=encoded;button.textContent='Investigar';button.title='Cargar este archivo en Investigación · Estudiar un archivo';
-      const remove=actions.querySelector('.search-delete-file');if(remove)actions.insertBefore(button,remove);else actions.appendChild(button);
+      const actions=card.querySelector('.result-actions');if(!actions)return;
+      if(!actions.querySelector('[data-lexia-navigator-investigate]')){
+        const encoded=card.dataset.navPath||actions.querySelector('[data-path]')?.dataset.path||'';
+        if(encoded){
+          const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.setAttribute(INVESTIGATE_ATTR,'1');button.setAttribute('data-lexia-navigator-investigate','1');button.className='search-investigate-file lexia-nav-investigate-file';button.dataset.path=encoded;button.textContent='Investigar';button.title='Cargar este archivo en Investigación · Estudiar un archivo';
+          const remove=actions.querySelector('.search-delete-file');if(remove)actions.insertBefore(button,remove);else actions.appendChild(button);
+        }
+      }
+      markActionButtons(actions);
     });
   }
 
@@ -672,4 +730,3 @@
   );
 })();
 /* <<< LEXIA STUDY INSTRUCTION VALIDATION UI 1.0 */
-

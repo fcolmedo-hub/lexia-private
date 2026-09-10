@@ -33,3 +33,21 @@ def test_content_open_is_green_and_investigate_keeps_the_brand_blue():
     assert "background:#149d55!important" in bridge
     assert "background:#0f8044!important" in bridge
     assert "background:#5146f6!important" in bridge
+
+
+def test_file_action_menu_uses_a_color_for_each_action():
+    bridge = (ASSETS / "search_investigation_bridge.js").read_text(encoding="utf-8")
+
+    assert "data-lexia-file-action-kind" in bridge
+    assert 'ACTION_KIND_ATTR}="open"' in bridge
+    assert 'ACTION_KIND_ATTR}="investigate"' in bridge
+    assert 'ACTION_KIND_ATTR}="details"' in bridge
+    assert 'ACTION_KIND_ATTR}="case"' in bridge
+    assert 'ACTION_KIND_ATTR}="ocr"' in bridge
+    assert "background:#f4c542!important" in bridge
+    assert "background:#8a5a2b!important" in bridge
+    assert "background:#e87514!important" in bridge
+    assert "button?.matches('.search-delete-file')" in bridge
+    assert "button?.matches('[data-lexia-case-link],.lexia-case-link')" in bridge
+    assert "classes.includes('ocr')" in bridge
+    assert "markActionButtons(actions)" in bridge
