@@ -916,6 +916,20 @@ def _handler_class(application, token):
                     )
                     if index_result.cancelled:
                         raise RuntimeError("La indexación fue cancelada.")
+                    if (
+                        int(index_result.documents_indexed or 0) < 1
+                        or int(index_result.fragments_indexed or 0) < 1
+                    ):
+                        raise RuntimeError(
+                            "La indexación terminó sin incorporar el documento. "
+                            "El PDF puede estar duplicado o no haber producido "
+                            "fragmentos de texto utilizables."
+                        )
+
+                    # El buscador semántico conserva respuestas por consulta.
+                    # Sin invalidarlas, un OCR exitoso puede seguir pareciendo
+                    # ausente al repetir exactamente la búsqueda anterior.
+                    application.cache.clear()
                     result = {
                         "path": str(source),
                         "ocr": is_pdf,
