@@ -401,8 +401,27 @@
   }
   window.lexiaMaintenanceOpen=function(){
     closeResponsiveNavigation();
+    // Casos y Estándares son superficies superpuestas y no participan del
+    // enrutador histórico. Cerrarlas aquí permite entrar desde el cuadro de
+    // AutoSync igual que desde el menú lateral.
+    const casesPage=document.getElementById('casespage');
+    if(casesPage)casesPage.style.display='none';
+    document.getElementById('lexiaStandardsShell')?.classList.remove('open');
+    document.documentElement.classList.remove('lexia-standards-open');
     hideOtherPages();
     page.style.display='block';
+    const routeNav=document.querySelector('#globalSidebar .nav');
+    if(routeNav){
+      routeNav.querySelectorAll('button').forEach(button=>{
+        button.classList.remove('active');
+        button.removeAttribute('aria-current');
+      });
+      const maintenanceButton=routeNav.querySelector('[data-route="maintenance"]');
+      if(maintenanceButton){
+        maintenanceButton.classList.add('active');
+        maintenanceButton.setAttribute('aria-current','page');
+      }
+    }
     if(!state)render();
     refresh(true,false);
   };
