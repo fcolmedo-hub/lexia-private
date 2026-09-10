@@ -372,6 +372,7 @@ class DocumentPipeline:
             extraction = self.extractor.extract(
                 document.path,
                 allow_ocr=force_ocr,
+                force_ocr_pages=(force_ocr and force_reprocess),
                 progress_callback=(
                     ocr_progress
                     if force_ocr
