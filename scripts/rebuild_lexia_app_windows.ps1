@@ -19,6 +19,35 @@ $InstallRoot = Join-Path $Root '.lexia_windows_app'
 $InstallDir = Join-Path $InstallRoot $AppName
 $ExeTarget = Join-Path $InstallDir "$AppName.exe"
 
+function Test-PackagedInterpreter([string]$Executable, [string]$Label) {
+    $Marker = Join-Path $BuildRoot ("embedded_python_" + [guid]::NewGuid().ToString('N') + '.ok')
+    $PreviousMarker = $env:LEXIA_EMBEDDED_SMOKE_MARKER
+    try {
+        $env:LEXIA_EMBEDDED_SMOKE_MARKER = $Marker
+        $Process = Start-Process -FilePath $Executable `
+            -ArgumentList '--lexia-embedded-smoke-test' `
+            -WorkingDirectory $Root -WindowStyle Hidden -PassThru
+        if (-not $Process.WaitForExit(30000)) {
+            Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+            throw "$Label no terminó la prueba del Python embebido."
+        }
+        $Process.Refresh()
+        if ($Process.ExitCode -ne 0 -or -not (Test-Path $Marker)) {
+            throw (
+                "$Label no puede iniciar el Python embebido " +
+                "(código $($Process.ExitCode))."
+            )
+        }
+    } finally {
+        if ($null -eq $PreviousMarker) {
+            Remove-Item Env:LEXIA_EMBEDDED_SMOKE_MARKER -ErrorAction SilentlyContinue
+        } else {
+            $env:LEXIA_EMBEDDED_SMOKE_MARKER = $PreviousMarker
+        }
+        Remove-Item -Force $Marker -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not (Test-Path $Py)) { throw "No se encontró $Py" }
 if (-not (Test-Path $Entry)) { throw "No se encontró $Entry" }
 
@@ -138,9 +167,42 @@ if ($BundledCffiBackend.Count -eq 0) {
     )
 }
 
-Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
+# Never replace a usable installation with a package whose embedded Python is
+# incomplete. This catches missing/corrupt base_library.zip or python*.dll.
+Test-PackagedInterpreter $ExeOut 'El paquete recién construido'
+
+# A closed pywebview window can leave LexIA.exe alive briefly. The old script
+# silently ignored a failed directory deletion and then copied over it, which
+# could produce a mixed ONEDIR installation that fails before Python starts.
+Get-Process -Name $AppName -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+        if ($_.Path -and ([IO.Path]::GetFullPath($_.Path) -eq [IO.Path]::GetFullPath($ExeTarget))) {
+            Stop-Process -Id $_.Id -Force -ErrorAction Stop
+            $_.WaitForExit(10000)
+        }
+    } catch {
+        throw "No se pudo cerrar la instalación anterior de LexIA: $($_.Exception.Message)"
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
-Copy-Item -Recurse -Force (Join-Path $Dist $AppName) $InstallDir
+$BackupDir = "$InstallDir.backup-rebuild"
+Remove-Item -Recurse -Force $BackupDir -ErrorAction SilentlyContinue
+if (Test-Path $InstallDir) {
+    Move-Item -Path $InstallDir -Destination $BackupDir -ErrorAction Stop
+}
+
+try {
+    Copy-Item -Recurse -Force (Join-Path $Dist $AppName) $InstallDir
+    Test-PackagedInterpreter $ExeTarget 'La instalación copiada'
+    Remove-Item -Recurse -Force $BackupDir -ErrorAction SilentlyContinue
+} catch {
+    Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
+    if (Test-Path $BackupDir) {
+        Move-Item -Path $BackupDir -Destination $InstallDir -ErrorAction Stop
+    }
+    throw
+}
 
 # Eliminar el antiguo ejecutable onefile para evitar que un acceso viejo siga
 # lanzando la versión lenta.
