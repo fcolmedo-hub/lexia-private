@@ -22,3 +22,7 @@ def test_macos_launcher_can_inject_standards_assets():
     assert 'here / "assets" / "standards_ui.js"' in source
     assert 'here / "assets" / "standards_nav_fix.js"' in source
     assert "window.LEXIA_STANDARDS_PORT" in source
+    assert "hashlib.sha256(standards_ui.read_bytes())" in source
+    assert "hashlib.sha256(standards_nav_fix.read_bytes())" in source
+    assert "assets/standards_ui\\.js" in source
+    assert "assets/standards_nav_fix\\.js" in source
