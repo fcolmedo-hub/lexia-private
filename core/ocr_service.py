@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+from datetime import datetime
 import json
 import subprocess
 import sys
@@ -22,6 +23,7 @@ class OCRService:
     def __init__(self):
         self._process = None
         self._lock = threading.RLock()
+        self.last_diagnostics: dict[int, list[dict]] = {}
         self.__class__._instances.add(self)
 
     @classmethod
@@ -49,6 +51,33 @@ class OCRService:
             return 0
         index = min(max(int(completed or 0), 0), len(page_numbers) - 1)
         return int(page_numbers[index])
+
+    @staticmethod
+    def _record_diagnostics(
+        path: str | Path,
+        diagnostics: dict[int, list[dict]],
+    ) -> None:
+        """Persist compact OCR attempts so Maintenance can expose real causes."""
+        try:
+            runtime = Path(SETTINGS.runtime_path)
+            runtime.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            with (runtime / "ocr_diagnostic.log").open(
+                "a", encoding="utf-8"
+            ) as stream:
+                for page, attempts in sorted(diagnostics.items()):
+                    detail = ",".join(
+                        f"{item.get('mode')}@{item.get('dpi')}dpi="
+                        f"{item.get('lines', 0)}"
+                        for item in attempts
+                    )
+                    stream.write(
+                        f"{timestamp} | DIRECT_OCR | path={path} | "
+                        f"page={page} | attempts={detail}\n"
+                    )
+        except OSError:
+            # Diagnostics must never turn a successful OCR into a failure.
+            pass
 
     def extract_pdf_pages(
         self,
@@ -80,6 +109,7 @@ class OCRService:
         with self._lock:
             self._process = process
         results: dict[int, str] = {}
+        diagnostics: dict[int, list[dict]] = {}
         offset = 0
         completed = 0
         document_total = max(
@@ -108,6 +138,9 @@ class OCRService:
                         for line in stream:
                             item = json.loads(line)
                             results[int(item["page"])] = str(item.get("text", ""))
+                            diagnostics[int(item["page"])] = list(
+                                item.get("attempts") or []
+                            )
                             completed += 1
                             deadline = time.monotonic() + page_timeout
                             publish_current_page()
@@ -130,11 +163,16 @@ class OCRService:
                     for line in stream:
                         item = json.loads(line)
                         results[int(item["page"])] = str(item.get("text", ""))
+                        diagnostics[int(item["page"])] = list(
+                            item.get("attempts") or []
+                        )
                         completed += 1
                         publish_current_page()
             stderr = process.stderr.read().strip() if process.stderr else ""
             if process.returncode != 0:
                 raise RuntimeError(stderr or "El trabajador OCR fue interrumpido.")
+            self.last_diagnostics = diagnostics
+            self._record_diagnostics(path, diagnostics)
             return results
         finally:
             self.cancel_active()
