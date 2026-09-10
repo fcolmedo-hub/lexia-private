@@ -89,6 +89,18 @@ def test_desktop_launchers_refresh_the_shared_runtime_by_content():
     assert "case-47-filename-center" in runtime
 
 
+def test_windows_refreshes_the_search_frame_styles_by_content():
+    windows = (ROOT / "app/ui2/windows_desktop.py").read_text(encoding="utf-8")
+    frame = (ROOT / "app/ui2/assets/startup_frame_guard.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "hashlib.sha256(startup_frame_guard.read_bytes())" in windows
+    assert "assets/startup_frame_guard\\.css" in windows
+    assert ".result-card:has(.result-actions > .score)" in frame
+    assert "padding:14px 14px 22px!important" in frame
+
+
 def test_action_menu_preserves_requested_background_colors():
     cases = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
 
