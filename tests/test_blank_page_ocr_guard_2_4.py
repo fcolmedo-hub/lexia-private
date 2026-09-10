@@ -24,6 +24,11 @@ def test_blank_page_ocr_guard_uses_actual_page_decision(
         lambda path, candidates: [],
     )
     assert extractor._pages_requiring_ocr(pdf_path, {1: "", 2: ""}) == []
+    assert extractor._pages_requiring_ocr(
+        pdf_path,
+        {1: "", 2: ""},
+        force_short_pages=True,
+    ) == [1, 2]
 
     monkeypatch.setattr(
         extractor,
