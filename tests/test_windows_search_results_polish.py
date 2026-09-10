@@ -6,18 +6,17 @@ from app.ui2.windows_desktop import ensure_ui_assets
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_windows_search_polish_is_scoped_and_distinguishes_modes() -> None:
+def test_windows_search_polish_only_changes_filename_results() -> None:
     source = (
         ROOT / "app/ui2/assets/windows_search_results_polish.js"
     ).read_text(encoding="utf-8")
 
     assert "lexia-windows-search-polish" in source
     assert ".result-card:not(:has(.result-actions > .score))" in source
-    assert ".result-card:has(.result-actions > .score)" in source
     assert "font-weight:600!important" in source
-    assert "padding-top:10px!important" in source
-    assert "padding-bottom:14px!important" in source
-    assert "margin:6px 0 2px!important" in source
+    assert ".result-card:has(.result-actions > .score)" not in source
+    assert "padding-top:" not in source
+    assert "padding-bottom:" not in source
 
 
 def test_windows_launcher_injects_content_versioned_polish(tmp_path) -> None:
