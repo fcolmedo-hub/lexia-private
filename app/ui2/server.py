@@ -2645,7 +2645,12 @@ def _legal_citation_fts_query(intent):
 def _legal_article_fts_query(intent):
     if not intent:
         return ""
-    article = _fts_quote(intent["article"])
+    article_number = str(intent["article"])
+    article = "(" + " OR ".join((
+        _fts_quote(article_number),
+        _fts_quote(article_number + "º"),
+        _fts_quote(article_number + "°"),
+    )) + ")"
     suffix = (
         " AND " + _fts_quote(intent["suffix"])
         if intent.get("suffix") else ""
