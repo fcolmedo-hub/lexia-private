@@ -13,12 +13,16 @@ def test_windows_search_polish_compensates_webview_content_metrics() -> None:
 
     assert "lexia-windows-search-polish" in source
     assert ".result-card:not(:has(.result-actions > .score))" in source
-    assert "font-weight:600!important" in source
+    assert "font-weight:600!important" not in source
+    assert ".result-title {" not in source
     assert ".result-card:has(.result-actions > .score) .result-body" in source
     assert "position:relative!important" in source
     assert "top:-6px!important" in source
     assert "padding-top:" not in source
     assert "padding-bottom:" not in source
+
+    shared = (ROOT / "app/ui2/index.html").read_text(encoding="utf-8")
+    assert "#searchpage .result-title-btn{font-weight:800!important}" in shared
 
 
 def test_windows_launcher_injects_content_versioned_polish(tmp_path) -> None:
