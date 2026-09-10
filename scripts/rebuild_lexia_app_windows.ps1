@@ -29,6 +29,7 @@ $RequiredStandardsFiles = @(
     (Join-Path $Root 'app\ui2\navigator_3_3_4a.js'),
     (Join-Path $Root 'app\ui2\assets\jurisprudence_search.js'),
     (Join-Path $Root 'app\ui2\assets\search_investigation_bridge.js'),
+    (Join-Path $Root 'app\ui2\assets\windows_search_results_polish.js'),
     (Join-Path $Root 'services\standards_service.py'),
     (Join-Path $Root 'services\standards_canonicalizer.py')
 )
