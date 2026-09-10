@@ -21,8 +21,9 @@
       #lexiaStandardsShell .std-wrap{max-width:none!important;margin:0!important;padding:22px 18px 38px!important}
       #lexiaStandardsShell .std-head{margin-bottom:14px!important}
       #lexiaStandardsShell .std-title{margin-top:0!important}
-      #lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:minmax(280px,1fr) auto auto auto auto!important}
-      #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(6,minmax(110px,1fr))!important;margin-top:10px!important}
+      #lexiaStandardsShell .std-search{height:auto!important;min-height:0!important;overflow:visible!important}
+      #lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:minmax(280px,1fr) auto auto auto!important}
+      #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(6,minmax(110px,1fr))!important;grid-template-rows:40px!important;grid-auto-flow:row!important;height:auto!important;min-height:40px!important;margin-top:10px!important}
       #lexiaStandardsShell #stdSummary:empty{display:none}
       #lexiaStandardsShell .std-query-wrap{position:relative;min-width:0}
       #lexiaStandardsShell .std-query-wrap #stdQ{padding-right:38px}
@@ -45,8 +46,9 @@
       #lexiaStandardsManualModal .std-manual-status{margin:0 16px 12px;padding:9px 10px;border-radius:9px;background:#f7f5ff;color:#625c7b;font-size:11px;display:none}
       [data-lexia-standards-home]{cursor:pointer!important}
       [data-lexia-standards-home]:hover{transform:translateY(-2px);border-color:#d8d3ff!important;box-shadow:0 10px 24px rgba(81,70,246,.12)!important}
-      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(3,1fr)!important}}
-      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}#lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:repeat(3,1fr)!important}#lexiaStandardsShell .std-grid.std-primary-row .std-query-wrap{grid-column:1/-1}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:1fr!important}}
+      @media(max-width:1199px){#lexiaStandardsShell .std-head{padding-left:58px!important}}
+      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,40px)!important;min-height:90px!important}}
+      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}#lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:repeat(3,1fr)!important}#lexiaStandardsShell .std-grid.std-primary-row .std-query-wrap{grid-column:1/-1}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:1fr!important;grid-template-rows:repeat(6,40px)!important;min-height:290px!important}}
     `;
     document.head.appendChild(style);
   }
@@ -69,12 +71,14 @@
     if(nav)nav.querySelectorAll('button').forEach(item=>item.classList.remove('active'));
     const button=nav&&nav.querySelector('[data-lexia-standards-nav]');
     if(button){button.classList.add('active');button.setAttribute('aria-current','page');}
+    document.documentElement.classList.add('lexia-standards-open');
     shell.classList.add('open');
     if(typeof window.lexiaStandardsLoadInventory==='function')window.lexiaStandardsLoadInventory();
   }
 
   function closeStandards(){
     standardsShell()?.classList.remove('open');
+    document.documentElement.classList.remove('lexia-standards-open');
     document.getElementById('stdGraphModal')?.remove();
     document.getElementById('lexiaStandardsManualModal')?.remove();
     const button=document.querySelector('#globalSidebar .nav [data-lexia-standards-nav]');
@@ -173,7 +177,7 @@
   function installSearchUx(){
     const shell=standardsShell();if(!shell||shell.dataset.lexiaSearchUx==='1')return;
     shell.dataset.lexiaSearchUx='1';
-    const q=document.getElementById('stdQ'),court=document.getElementById('stdCourt'),speaker=document.getElementById('stdSpeaker'),treatment=document.getElementById('stdTreatment'),from=document.getElementById('stdFrom'),to=document.getElementById('stdTo'),clear=document.getElementById('stdClear'),search=document.getElementById('stdSearch'),reserved=document.getElementById('stdReservedControl');
+    const q=document.getElementById('stdQ'),court=document.getElementById('stdCourt'),speaker=document.getElementById('stdSpeaker'),treatment=document.getElementById('stdTreatment'),from=document.getElementById('stdFrom'),to=document.getElementById('stdTo'),clear=document.getElementById('stdClear'),search=document.getElementById('stdSearch');
     if(from){from.type='date';from.removeAttribute('placeholder');}
     if(to){to.type='date';to.removeAttribute('placeholder');}
 
@@ -204,7 +208,7 @@
         add.dataset.lexiaManualHandler='1';
         add.addEventListener('click',openManualModal);
       }
-      firstGrid.append(...[queryWrap,clear,search,reserved,add].filter(Boolean));
+      firstGrid.append(...[queryWrap,clear,search,add].filter(Boolean));
     }
 
     const nativeSearch=shell.dataset.lexiaNativeSearch==='2';
