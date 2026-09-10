@@ -8,15 +8,7 @@
   const style = document.createElement('style');
   style.id = 'lexiaWindowsSearchResultsPolish';
   style.textContent = `
-    /* Búsqueda por nombre: jerarquía más liviana y legible. */
-    .lexia-windows-search-polish #searchpage #realSearchResults
-      .result-card:not(:has(.result-actions > .score)) .result-title {
-      font-size:13px!important;
-      font-weight:600!important;
-      line-height:1.28!important;
-      letter-spacing:-.005em!important;
-      color:#202944!important;
-    }
+    /* El nombre del archivo conserva la misma tipografía 800 de Contenido. */
     .lexia-windows-search-polish #searchpage #realSearchResults
       .result-card:not(:has(.result-actions > .score)) .result-meta {
       margin-top:1px!important;
