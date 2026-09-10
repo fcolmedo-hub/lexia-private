@@ -564,23 +564,12 @@ def ensure_ui_assets(root: Path) -> str | None:
     changed = changed or asset_changed
 
     # Casos y los ajustes comunes de UI2 se cargan también en Windows.
-    # Reemplazamos la versión temporal para impedir que PyWebView reutilice
-    # un runtime anterior entre aperturas.
-    runtime_tag = '<script src="assets/app_runtime.js?v=app-runtime-5"></script>'
-    if "assets/app_runtime.js" in patched:
-        refreshed = re.sub(
-            r'<script[^>]+src=["\'][^"\']*assets/app_runtime\.js[^"\']*["\'][^>]*>\s*</script>',
-            runtime_tag,
-            patched,
-            flags=re.IGNORECASE,
-        )
-        if refreshed != patched:
-            patched = refreshed
-            changed = True
-    else:
-        tag = runtime_tag + "\n"
-        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
-        changed = True
+    # La versión sigue el contenido para que PyWebView no conserve una
+    # geometría anterior de las tarjetas entre aperturas.
+    patched, asset_changed = _upsert_asset_script(
+        patched, app_runtime, "app-runtime"
+    )
+    changed = changed or asset_changed
 
     if "assets/windows_live_badge_cleanup.js" not in patched:
         tag = (
