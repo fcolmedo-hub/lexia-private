@@ -89,9 +89,13 @@ def test_detects_law_and_code_article_queries() -> None:
         "art. 12 del Código de Minería"
     )["instrument"] == "codigo de mineria"
     assert server._legal_citation_intent("prescripción tributaria") is None
-    assert server._legal_citation_fts_query(law).startswith('"art"* AND "970"')
+    assert server._legal_citation_fts_query(law).startswith(
+        '"art"* AND ("970" OR "970º" OR "970°")'
+    )
     assert '"22 415"' in server._legal_citation_fts_query(law)
-    assert server._legal_article_fts_query(law).endswith('AND "970"')
+    assert server._legal_article_fts_query(law).endswith(
+        'AND ("970" OR "970º" OR "970°")'
+    )
     assert server._legal_citation_document_pattern(law) == "%22415%"
     assert server._legal_citation_document_pattern(code) == "%civil%comercial%"
     assert server._legal_citation_fts_query(code).endswith(
