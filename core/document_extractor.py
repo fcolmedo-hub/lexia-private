@@ -44,6 +44,7 @@ class DocumentExtractor:
         self,
         file_path: str | Path,
         allow_ocr: bool = False,
+        force_ocr_pages: bool = False,
         progress_callback: (
             Callable[[int, int], None] | None
         ) = None,
@@ -62,6 +63,7 @@ class DocumentExtractor:
                 return self._extract_pdf(
                     path,
                     allow_ocr=allow_ocr,
+                    force_ocr_pages=force_ocr_pages,
                     progress_callback=progress_callback,
                 )
 
@@ -180,12 +182,17 @@ class DocumentExtractor:
         self,
         path: Path,
         allow_ocr: bool,
+        force_ocr_pages: bool = False,
         progress_callback=None,
     ) -> ExtractionResult:
         native_pages = self._extract_pdf_native(path)
         total_pages = len(native_pages)
 
-        pages_requiring_ocr = self._pages_requiring_ocr(path, native_pages)
+        pages_requiring_ocr = self._pages_requiring_ocr(
+            path,
+            native_pages,
+            force_short_pages=force_ocr_pages,
+        )
         unreadable_pages = {
             page_number
             for page_number, text in native_pages.items()
@@ -258,6 +265,8 @@ class DocumentExtractor:
         self,
         path: Path | dict[int, str],
         pages: dict[int, str] | None = None,
+        *,
+        force_short_pages: bool = False,
     ) -> list[int]:
         # Compatibilidad con llamadas anteriores: _pages_requiring_ocr(pages)
         if pages is None:
@@ -286,6 +295,14 @@ class DocumentExtractor:
         # texto que usan búsqueda e IA resulta inutilizable.
         if unreadable_pages:
             return sorted(set(unreadable_pages))
+
+        # El reproceso OCR solicitado por el usuario no debe depender de que
+        # PyMuPDF detecte una imagen rasterizada. Algunos PDF perfectamente
+        # visibles están compuestos por trazados u otras capas vectoriales y
+        # tienen texto nativo vacío. En ese modo se renderizan igualmente las
+        # páginas cortas y se las entrega a RapidOCR.
+        if force_short_pages:
+            return sorted(set(short_pages))
 
         # Una pagina sin texto y sin una imagen documental es una pagina en
         # blanco, no una pagina pendiente de OCR.
