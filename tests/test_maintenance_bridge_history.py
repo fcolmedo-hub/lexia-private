@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 from services.ui2_delete_bridge import (
@@ -81,3 +82,22 @@ def test_snapshot_includes_persisted_maintenance_history():
     assert snapshot["history"] == [
         {"action": "backup", "message": "Copia creada."}
     ]
+
+
+def test_direct_ocr_reprocess_rejects_false_success_and_clears_search_cache():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "ui2_delete_bridge.py"
+    ).read_text(encoding="utf-8")
+    start = source.index('elif operation == "reprocess_file":')
+    end = source.index("else:\n                    raise ValueError", start)
+    reprocess = source[start:end]
+
+    index_call = reprocess.index("index_result = application.indexer.run(")
+    zero_guard = reprocess.index("int(index_result.documents_indexed or 0) < 1")
+    fragment_guard = reprocess.index("int(index_result.fragments_indexed or 0) < 1")
+    cache_clear = reprocess.index("application.cache.clear()")
+    result_payload = reprocess.index('result = {\n                        "path": str(source)')
+
+    assert index_call < zero_guard < fragment_guard < cache_clear < result_payload
