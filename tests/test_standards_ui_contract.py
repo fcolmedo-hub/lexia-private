@@ -33,8 +33,9 @@ def test_recent_searches_use_the_main_search_popover():
     assert "firstGrid.classList.remove('primary')" in layout
     assert "stdHistoryMenu" in source
     assert "query.addEventListener('click'" in source
-    assert "||'Todos los estándares'" in source
-    assert "saveRecentSearch();setRecentMenuOpen(false);" in source
+    assert "||'Todos los estándares'" not in source
+    assert "if(!Object.keys(criteria).length)" in source
+    assert "saveRecentSearch(criteria);setRecentMenuOpen(false);" in source
     assert "recentMemory=items.slice(0,12)" in source
     assert "dataset.lexiaNativeSearch='2'" in source
     assert "dataset.lexiaNativeSearch==='2'" in layout

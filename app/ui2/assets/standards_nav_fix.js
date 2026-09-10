@@ -70,6 +70,7 @@
     const button=nav&&nav.querySelector('[data-lexia-standards-nav]');
     if(button){button.classList.add('active');button.setAttribute('aria-current','page');}
     shell.classList.add('open');
+    if(typeof window.lexiaStandardsLoadInventory==='function')window.lexiaStandardsLoadInventory();
   }
 
   function closeStandards(){
@@ -109,10 +110,11 @@
     const out={};for(const [key,id] of Object.entries(ids)){const value=String(document.getElementById(id)?.value||'').trim();if(value)out[key]=value;}return out;
   }
 
-  function recentSearches(){if(!recentStorageAvailable)return recentMemory;try{const raw=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');if(Array.isArray(raw)){recentMemory=raw;return raw;}}catch(_){recentStorageAvailable=false;}return recentMemory;}
-  function recentLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ')||'Todos los estándares';}
+  function recentSearches(){if(!recentStorageAvailable)return recentMemory;try{const raw=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');if(Array.isArray(raw)){const clean=raw.filter(item=>Object.values(item?.criteria||{}).some(value=>String(value||'').trim()));recentMemory=clean;if(clean.length!==raw.length)localStorage.setItem(RECENT_KEY,JSON.stringify(clean));return clean;}}catch(_){recentStorageAvailable=false;}return recentMemory;}
+  function recentLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ');}
   function saveRecentSearch(){
     const criteria=readCriteria();
+    if(!Object.keys(criteria).length){refreshRecentMenu();return;}
     const label=recentLabel(criteria);let items=recentSearches().filter(item=>JSON.stringify(item.criteria)!==JSON.stringify(criteria));
     items.unshift({label,criteria,at:Date.now()});items=items.slice(0,12);recentMemory=items;
     if(recentStorageAvailable){try{localStorage.setItem(RECENT_KEY,JSON.stringify(items));}catch(_){recentStorageAvailable=false;}}

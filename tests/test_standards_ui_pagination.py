@@ -38,3 +38,18 @@ def test_standards_ui_has_reserved_review_workflow():
     assert "data-publication=\"reserve\"" in source
     assert "data-publication=\"reject\"" in source
     assert "/api/publication-decision" in source
+    assert "lexiaStandardsLoadInventory=loadInventory" in source
+
+
+def test_standards_ui_never_stores_empty_recent_searches():
+    source = UI.read_text(encoding="utf-8")
+    nav_fix = (ROOT / "app" / "ui2" / "assets" / "standards_nav_fix.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "if(!Object.keys(criteria).length)" in source
+    assert "if(!Object.keys(criteria).length)" in nav_fix
+    assert "||'Todos los estándares'" not in source
+    assert "||'Todos los estándares'" not in nav_fix
+    assert "clean.length!==raw.length" in nav_fix
+    assert "lexiaStandardsLoadInventory" in nav_fix

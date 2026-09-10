@@ -81,12 +81,13 @@
   }
   function recentSearches(){
     if(!recentStorageAvailable)return recentMemory;
-    try{const parsed=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');if(Array.isArray(parsed)){recentMemory=parsed;return parsed;}}
+    try{const parsed=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');if(Array.isArray(parsed)){const clean=parsed.filter(item=>Object.values(item?.criteria||{}).some(value=>String(value||'').trim()));recentMemory=clean;if(clean.length!==parsed.length)localStorage.setItem(RECENT_KEY,JSON.stringify(clean));return clean;}}
     catch(_){recentStorageAvailable=false;}
     return recentMemory;
   }
-  function criteriaLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ')||'Todos los estándares';}
+  function criteriaLabel(criteria){return [criteria.q,criteria.court,criteria.speaker,criteria.treatment,criteria.from&&('desde '+criteria.from),criteria.to&&('hasta '+criteria.to),criteria.tag&&('#'+criteria.tag)].filter(Boolean).join(' · ');}
   function saveRecentSearch(criteria=readCriteria()){
+    if(!Object.keys(criteria).length){refreshRecentMenu();return;}
     const signature=JSON.stringify(criteria),items=recentSearches().filter(item=>JSON.stringify(item.criteria||{})!==signature);
     items.unshift({label:criteriaLabel(criteria),criteria,at:Date.now()});recentMemory=items.slice(0,12);
     if(recentStorageAvailable){try{localStorage.setItem(RECENT_KEY,JSON.stringify(recentMemory));}catch(_){recentStorageAvailable=false;}}
@@ -225,6 +226,6 @@
   function close(){if(!state.open)return;state.open=false;setNavActive(false);document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}
   function boot(){installStyles();shell();installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;watchViewport();const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
-  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;
+  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;window.lexiaStandardsLoadInventory=loadInventory;window.lexiaStandardsOpenReserved=()=>reservedQueue({page:1});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
