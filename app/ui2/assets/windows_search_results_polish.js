@@ -24,6 +24,16 @@
     (document.body || document.documentElement).appendChild(caseResearchBridge);
   }
 
+  // El menú Casos es inyectado por un módulo distinto al navegador global.
+  // Al saltar a Investigación se normaliza explícitamente el único estado activo.
+  if (!document.querySelector('script[data-lexia-windows-case-nav-state]')) {
+    const caseNavState = document.createElement('script');
+    caseNavState.src = 'assets/windows_case_nav_state_fix.js?v=case-nav-1';
+    caseNavState.async = false;
+    caseNavState.dataset.lexiaWindowsCaseNavState = '1';
+    (document.body || document.documentElement).appendChild(caseNavState);
+  }
+
   if (document.getElementById('lexiaWindowsSearchResultsPolish')) return;
 
   const style = document.createElement('style');
