@@ -30,6 +30,7 @@ $RequiredStandardsFiles = @(
     (Join-Path $Root 'app\ui2\assets\jurisprudence_search.js'),
     (Join-Path $Root 'app\ui2\assets\search_investigation_bridge.js'),
     (Join-Path $Root 'app\ui2\assets\windows_search_results_polish.js'),
+    (Join-Path $Root 'app\ui2\assets\windows_investigation_layout_fix.js'),
     (Join-Path $Root 'services\standards_service.py'),
     (Join-Path $Root 'services\standards_canonicalizer.py')
 )
@@ -96,14 +97,16 @@ if (-not (Test-PythonModule '_cffi_backend')) {
     throw '_cffi_backend sigue sin estar disponible después de instalar CFFI.'
 }
 
-$IconArgs = @()
 $IconCandidates = @(
     (Join-Path $Root 'LexIA.ico'),
     (Join-Path $Root 'assets\LexIA.ico'),
     (Join-Path $Root 'app\ui2\assets\LexIA.ico')
 )
 $Icon = $IconCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if ($Icon) { $IconArgs = @('--icon', $Icon) }
+# Si todavía no existe un LexIA.ico propio, impedir que PyInstaller herede su
+# icono por defecto (Python). Windows mostrará un icono genérico junto al título
+# LexIA hasta que incorporemos el .ico definitivo.
+$IconArgs = if ($Icon) { @('--icon', $Icon) } else { @('--icon', 'NONE') }
 
 # ONEDIR es deliberado. El antiguo --onefile debía descomprimir pywebview y sus
 # dependencias en cada arranque, añadiendo varios segundos antes de ejecutar LexIA.
@@ -170,5 +173,5 @@ if ($LocalQdrant) {
     Write-Host 'IMPORTANTE: requiere reconstruir el índice vectorial local antes de comparar búsquedas.'
 }
 if (-not $Icon) {
-    Write-Host 'No se encontró LexIA.ico; se usó el icono del ejecutable. Podremos reemplazarlo luego por la pluma azul.'
+    Write-Host 'No se encontró LexIA.ico; se desactivó el icono de Python y Windows usará el icono genérico del ejecutable hasta incorporar el icono LexIA definitivo.'
 }
