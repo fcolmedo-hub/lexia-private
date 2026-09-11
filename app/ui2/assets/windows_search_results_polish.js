@@ -5,11 +5,10 @@
   document.documentElement.classList.add('lexia-windows-search-polish');
 
   // Cargar una única corrección de Investigación exclusiva de Windows.
-  // No usa observación continua: sólo recoloca la acción principal al cambiar
-  // el tamaño de ventana o al navegar dentro de Investigación.
+  // Es CSS puro: corrige el flujo compacto sin vigilancia continua del DOM.
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
     const investigationLayout = document.createElement('script');
-    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-3';
+    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-4';
     investigationLayout.async = false;
     investigationLayout.dataset.lexiaWindowsInvestigationLayout = '1';
     (document.body || document.documentElement).appendChild(investigationLayout);
@@ -44,6 +43,22 @@
       .result-card:has(.result-actions > .score) .result-body {
       position:relative!important;
       top:-6px!important;
+    }
+
+    /* La tarjeta Estándares del menú principal debe responder igual que las
+       demás tarjetas: fondo lavanda al pasar/seleccionar y navegación lateral
+       marcada cuando Estándares está activo. */
+    .lexia-windows-search-polish [data-lexia-standards-home]:hover,
+    .lexia-windows-search-polish [data-lexia-standards-home]:focus-visible,
+    .lexia-windows-search-polish [data-lexia-standards-home].active,
+    .lexia-windows-search-polish [data-lexia-standards-home][aria-current="page"] {
+      background:#f4f3ff!important;
+      border-color:#d8d3ff!important;
+    }
+    .lexia-windows-search-polish .global-sidebar .nav [data-lexia-standards-nav].active {
+      background:#efeeff!important;
+      color:#2f25b8!important;
+      box-shadow:inset 3px 0 0 #5146f6!important;
     }
 
     /* Acciones de las fuentes recuperadas por una investigación. */
