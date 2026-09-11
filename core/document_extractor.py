@@ -15,10 +15,6 @@ from pypdf import PdfReader
 
 from config.settings import SETTINGS
 from core.ocr_service import OCRService
-from core.text_encoding import (
-    looks_like_legacy_cp850_mojibake,
-    translate_legacy_cp850_mojibake,
-)
 from services.libreoffice_locator import ensure_libreoffice_on_path
 
 
@@ -396,7 +392,7 @@ class DocumentExtractor:
     ) -> dict[int, str]:
         try:
             reader = PdfReader(path, strict=False)
-            pages = {
+            return {
                 page_number: (
                     page.extract_text() or ""
                 ).strip()
@@ -408,7 +404,7 @@ class DocumentExtractor:
         except Exception:
             document = fitz.open(path)
             try:
-                pages = {
+                return {
                     page_number: (
                         document[page_number - 1]
                         .get_text("text")
@@ -421,17 +417,6 @@ class DocumentExtractor:
                 }
             finally:
                 document.close()
-
-        # Detect on the complete document so pages with only one damaged
-        # accent are repaired consistently when another page provides the
-        # unequivocal CP850 markers.
-        combined = "\n".join(pages.values())
-        if not looks_like_legacy_cp850_mojibake(combined):
-            return pages
-        return {
-            page_number: translate_legacy_cp850_mojibake(text)
-            for page_number, text in pages.items()
-        }
 
     def _join_pages(
         self,
