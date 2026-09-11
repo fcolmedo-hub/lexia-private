@@ -14,6 +14,16 @@
     (document.body || document.documentElement).appendChild(investigationLayout);
   }
 
+  // Vinculación Casos -> Investigación. Está separada del motor de Investigación
+  // y funciona sólo por acciones explícitas del usuario; no observa el DOM.
+  if (!document.querySelector('script[data-lexia-windows-case-research-bridge]')) {
+    const caseResearchBridge = document.createElement('script');
+    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-2';
+    caseResearchBridge.async = false;
+    caseResearchBridge.dataset.lexiaWindowsCaseResearchBridge = '1';
+    (document.body || document.documentElement).appendChild(caseResearchBridge);
+  }
+
   if (document.getElementById('lexiaWindowsSearchResultsPolish')) return;
 
   const style = document.createElement('style');
