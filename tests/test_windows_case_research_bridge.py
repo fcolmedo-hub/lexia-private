@@ -71,3 +71,17 @@ def test_bridge_sync_is_bounded_and_event_driven():
     assert "[0,80,240,600,1200]" in bridge
     assert "[90,260,600,1100]" in bridge
     assert "document.addEventListener('click'" in bridge
+
+
+def test_case_to_research_keeps_only_investigation_nav_selected():
+    loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
+    nav_fix = (ASSETS / "windows_case_nav_state_fix.js").read_text(encoding="utf-8")
+
+    assert "assets/windows_case_nav_state_fix.js?v=case-nav-1" in loader
+    assert "data-lexia-windows-case-nav-state" in loader
+    assert "target.closest('.lexia-case-investigate')" in nav_fix
+    assert "if(label==='casos')clearSelected(button)" in nav_fix
+    assert "selectButton(research)" in nav_fix
+    assert "aria-current" in nav_fix
+    assert "MutationObserver" not in nav_fix
+    assert "setInterval(" not in nav_fix
