@@ -121,3 +121,21 @@ def test_return_flow_avoids_duplicate_highlights_on_retry_after_partial_failure(
     assert "incorporatedSourceIndexes" in return_flow
     assert "if(already.has(index))continue" in return_flow
     assert "saveContext(ctx)" in return_flow
+
+
+def test_windows_research_transport_retries_only_safe_get_status_and_result_calls():
+    loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
+    resilience = (ASSETS / "windows_research_transport_resilience.js").read_text(encoding="utf-8")
+
+    assert "assets/windows_research_transport_resilience.js?v=research-resilience-1" in loader
+    assert "data-lexia-windows-research-resilience" in loader
+    assert "requestMethod(input,init)!=='GET'" in resilience
+    assert "research-candidates" in resilience
+    assert "research-package" in resilience
+    assert "retryableStatus" in resilience
+    assert "[408,429,502,503,504]" in resilience
+    assert "retryDelays=[0,250,700,1500]" in resilience
+    assert "emptyCompletedResult" in resilience
+    assert "research-candidates-start" not in resilience
+    assert "MutationObserver" not in resilience
+    assert "setInterval(" not in resilience
