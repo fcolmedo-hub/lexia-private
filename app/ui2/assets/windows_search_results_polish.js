@@ -121,15 +121,12 @@
       background:#70451f!important;
       border-color:#70451f!important;
     }
+
+    /* OCR pertenece al mantenimiento documental, no a la selección de fuentes
+       de una investigación. El control original se conserva, pero no se muestra
+       en esta vista de Windows. */
     .lexia-windows-search-polish #contextpage .source-actions .lexia-ocr-reprocess {
-      background:#e87514!important;
-      border-color:#e87514!important;
-      color:#fff!important;
-      border-radius:6px!important;
-    }
-    .lexia-windows-search-polish #contextpage .source-actions .lexia-ocr-reprocess:hover {
-      background:#c95e08!important;
-      border-color:#c95e08!important;
+      display:none!important;
     }
   `;
   document.head.appendChild(style);
