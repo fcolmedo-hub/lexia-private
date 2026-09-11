@@ -3,6 +3,9 @@ from __future__ import annotations
 import signal
 import threading
 
+from search.windows_vector_path_lookup import (
+    install_windows_vector_path_lookup,
+)
 from services.application import LexIAApplication
 from services.logging_service import configure_logging
 from services.release_manifest_service import ReleaseManifestService
@@ -13,6 +16,7 @@ from services.ui2_delete_bridge import start_ui2_delete_bridge
 def main() -> None:
     """Run LexIA core services for UI2 without starting Streamlit."""
     configure_logging()
+    install_windows_vector_path_lookup()
     ReleaseManifestService().startup_guard()
 
     guard = RuntimeGuard()
