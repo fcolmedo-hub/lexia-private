@@ -34,6 +34,16 @@
     (document.body || document.documentElement).appendChild(caseNavState);
   }
 
+  // Devuelve las fuentes ya seleccionadas por el motor al bloque que originó
+  // la investigación. Reutiliza la selección nativa del modal y no observa el DOM.
+  if (!document.querySelector('script[data-lexia-windows-case-research-return]')) {
+    const caseResearchReturn = document.createElement('script');
+    caseResearchReturn.src = 'assets/windows_case_research_return.js?v=case-return-1';
+    caseResearchReturn.async = false;
+    caseResearchReturn.dataset.lexiaWindowsCaseResearchReturn = '1';
+    (document.body || document.documentElement).appendChild(caseResearchReturn);
+  }
+
   if (document.getElementById('lexiaWindowsSearchResultsPolish')) return;
 
   const style = document.createElement('style');
