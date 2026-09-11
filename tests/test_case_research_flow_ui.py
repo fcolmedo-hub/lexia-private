@@ -9,7 +9,7 @@ def test_case_research_flow_is_loaded_before_app_runtime_early_return():
     runtime = (ASSETS / "app_runtime.js").read_text(encoding="utf-8")
 
     assert "assets/case_research_flow.js?v=case-research-1" in runtime
-    assert "data-lexia-case-research-flow" in runtime
+    assert "lexiaCaseResearchFlow" in runtime
     assert runtime.index("loadCaseResearchFlow();") < runtime.index("if(params.get('lexia_app')!=='1')return;")
 
 
