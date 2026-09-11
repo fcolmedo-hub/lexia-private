@@ -31,6 +31,7 @@ $RequiredStandardsFiles = @(
     (Join-Path $Root 'app\ui2\assets\search_investigation_bridge.js'),
     (Join-Path $Root 'app\ui2\assets\windows_search_results_polish.js'),
     (Join-Path $Root 'app\ui2\assets\windows_investigation_layout_fix.js'),
+    (Join-Path $Root 'assets\LexIA.ico.b64'),
     (Join-Path $Root 'services\standards_service.py'),
     (Join-Path $Root 'services\standards_canonicalizer.py')
 )
@@ -39,7 +40,7 @@ $MissingStandardsFiles = @(
 )
 if ($MissingStandardsFiles.Count -gt 0) {
     throw (
-        "No se puede construir LexIA Windows: faltan componentes de Estándares:`n" +
+        "No se puede construir LexIA Windows: faltan componentes requeridos:`n" +
         ($MissingStandardsFiles -join "`n")
     )
 }
@@ -97,15 +98,28 @@ if (-not (Test-PythonModule '_cffi_backend')) {
     throw '_cffi_backend sigue sin estar disponible después de instalar CFFI.'
 }
 
+# El repositorio conserva el icono como payload base64 para evitar problemas
+# con herramientas que sólo escriben texto. En cada build se materializa un
+# .ico real dentro de la carpeta temporal de compilación.
+$EncodedIcon = Join-Path $Root 'assets\LexIA.ico.b64'
+$GeneratedIcon = Join-Path $BuildRoot 'LexIA.ico'
+if (Test-Path $EncodedIcon) {
+    $RawIcon = (Get-Content -Raw -Path $EncodedIcon).Trim()
+    if ($RawIcon) {
+        [IO.File]::WriteAllBytes(
+            $GeneratedIcon,
+            [Convert]::FromBase64String($RawIcon)
+        )
+    }
+}
+
 $IconCandidates = @(
     (Join-Path $Root 'LexIA.ico'),
     (Join-Path $Root 'assets\LexIA.ico'),
-    (Join-Path $Root 'app\ui2\assets\LexIA.ico')
+    (Join-Path $Root 'app\ui2\assets\LexIA.ico'),
+    $GeneratedIcon
 )
 $Icon = $IconCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-# Si todavía no existe un LexIA.ico propio, impedir que PyInstaller herede su
-# icono por defecto (Python). Windows mostrará un icono genérico junto al título
-# LexIA hasta que incorporemos el .ico definitivo.
 $IconArgs = if ($Icon) { @('--icon', $Icon) } else { @('--icon', 'NONE') }
 
 # ONEDIR es deliberado. El antiguo --onefile debía descomprimir pywebview y sus
@@ -168,10 +182,13 @@ Write-Host ''
 Write-Host "LexIA instalada en: $ExeTarget"
 Write-Host "Acceso directo creado en: $Shortcut"
 Write-Host 'Modo de arranque: ONEDIR (sin extracción temporal por cada inicio).'
+if ($Icon) {
+    Write-Host "Icono LexIA aplicado: $Icon"
+}
 if ($LocalQdrant) {
     Write-Host 'Modo Qdrant: LOCAL embebido experimental. No usa Docker Desktop.'
     Write-Host 'IMPORTANTE: requiere reconstruir el índice vectorial local antes de comparar búsquedas.'
 }
 if (-not $Icon) {
-    Write-Host 'No se encontró LexIA.ico; se desactivó el icono de Python y Windows usará el icono genérico del ejecutable hasta incorporar el icono LexIA definitivo.'
+    Write-Host 'No se encontró un icono LexIA válido; Windows usará el icono genérico del ejecutable.'
 }
