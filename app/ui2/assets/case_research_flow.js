@@ -22,12 +22,12 @@
     style.id='lexiaCaseResearchFlowStyle';
     style.textContent=`
       ${CASE_PAGE} .argument-block{position:relative!important;padding-right:38px!important}
-      ${CASE_PAGE} .argument-block .argument-actions{
+      ${CASE_PAGE} .argument-block .argument-block-actions{
         position:absolute!important;top:7px!important;right:5px!important;bottom:auto!important;
         display:flex!important;flex-direction:column!important;align-items:center!important;
         justify-content:flex-start!important;gap:3px!important;width:28px!important;margin:0!important
       }
-      ${CASE_PAGE} .argument-block .argument-actions .cases-icon{
+      ${CASE_PAGE} .argument-block .argument-block-actions .cases-icon{
         width:26px!important;min-width:26px!important;height:26px!important;min-height:26px!important;
         display:grid!important;place-items:center!important;padding:0!important
       }
@@ -190,10 +190,10 @@
     [...page.querySelectorAll('details')].forEach(section=>{
       if(!norm(section.querySelector('summary')?.textContent).includes('nuestra postura'))return;
       section.querySelectorAll('.argument-block').forEach(article=>{
-        const actions=article.querySelector('.argument-actions');if(!actions||actions.querySelector('.lexia-case-investigate'))return;
+        const actions=article.querySelector('.argument-block-actions');if(!actions||actions.querySelector('.lexia-case-investigate'))return;
         const button=document.createElement('button');button.type='button';button.className='cases-icon lexia-case-investigate';button.title='Investigar este fundamento';button.setAttribute('aria-label','Investigar este fundamento');button.innerHTML=svgSearch();
         button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();startCaseResearch(article);});
-        const remove=actions.querySelector('.remove,.cases-danger,[title*="Eliminar" i]');if(remove)actions.insertBefore(button,remove);else actions.appendChild(button);
+        const remove=actions.querySelector('.cases-danger,[title*="Eliminar" i]');if(remove)actions.insertBefore(button,remove);else actions.appendChild(button);
       });
     });
   }
