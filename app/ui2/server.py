@@ -2645,12 +2645,7 @@ def _legal_citation_fts_query(intent):
 def _legal_article_fts_query(intent):
     if not intent:
         return ""
-    article_number = str(intent["article"])
-    article = "(" + " OR ".join((
-        _fts_quote(article_number),
-        _fts_quote(article_number + "º"),
-        _fts_quote(article_number + "°"),
-    )) + ")"
+    article = _fts_quote(intent["article"])
     suffix = (
         " AND " + _fts_quote(intent["suffix"])
         if intent.get("suffix") else ""
@@ -2856,89 +2851,6 @@ def _content_search_v2(
         ).fetchone()
         if not fts_exists:
             raise RuntimeError("El índice FTS5 fragments_fts no existe.")
-
-        # Some legacy PDFs contain readable but mojibake-damaged headings such
-        # as ``ART═CULO 5║``. Their text is present in fragments_fts, yet the
-        # FTS tokenizer may expose no searchable ``art``/``5`` tokens at all.
-        # When the query names a concrete statute, locate that statute by its
-        # file metadata and inspect its stored fragments directly. This avoids
-        # both OCR/reindexing and false negatives caused by the tokenizer.
-        direct_legislation_allowed = bool(
-            legal_intent
-            and (
-                not category
-                or _filter_category_key(category) == "legislacion"
-            )
-        )
-        document_pattern = _legal_citation_document_pattern(legal_intent)
-        if direct_legislation_allowed and document_pattern:
-            direct_params = [document_pattern, document_pattern]
-            direct_folder_sql = ""
-            if folder:
-                direct_folder_sql = (
-                    " AND REPLACE(f.document_path, '\\', '/') LIKE ? "
-                    "COLLATE NOCASE ESCAPE '!' "
-                )
-                direct_params.append(_filter_like_pattern(folder))
-            direct_params.append(max(wanted * 4, 400))
-            direct_rows = con.execute(
-                "SELECT "
-                " f.document_path, f.fragment_index, f.category, "
-                " f.document_name, f.text_content, "
-                " fr.page_start, fr.page_end "
-                "FROM fragments_fts AS f "
-                "LEFT JOIN fragments AS fr "
-                " ON fr.document_path=f.document_path "
-                " AND fr.fragment_index=CAST(f.fragment_index AS INTEGER) "
-                "LEFT JOIN documents AS d ON d.path=f.document_path "
-                "WHERE ("
-                " REPLACE(LOWER(f.document_name),'.','') LIKE ? "
-                " OR REPLACE(LOWER(f.document_path),'.','') LIKE ?"
-                ") "
-                + direct_folder_sql +
-                " AND COALESCE(d.is_deleted,0)=0 "
-                "ORDER BY f.document_path, CAST(f.fragment_index AS INTEGER) "
-                "LIMIT ?",
-                direct_params,
-            ).fetchall()
-
-            for row_position, row in enumerate(direct_rows):
-                if _filter_category_key(row["category"]) != "legislacion":
-                    continue
-                text = str(row["text_content"] or "")
-                article_excerpt = _legal_article_excerpt(text, legal_intent)
-                if not article_excerpt:
-                    continue
-                path = str(row["document_path"] or "")
-                document_name = str(
-                    row["document_name"] or Path(path).name or "Documento"
-                )
-                article_match, _ = _legal_citation_fragment_signals(
-                    text, legal_intent
-                )
-                _, instrument_match = _legal_citation_fragment_signals(
-                    f"{document_name} {path} {text}", legal_intent
-                )
-                if not article_match or not instrument_match:
-                    continue
-                frag_index = int(row["fragment_index"] or 0)
-                candidates[(path, frag_index)] = {
-                    "document_path": path,
-                    "document_name": document_name,
-                    "category": str(row["category"] or ""),
-                    "text": article_excerpt,
-                    "page_start": row["page_start"],
-                    "page_end": row["page_end"],
-                    "lexical_rank": 0,
-                    "semantic_rank": None,
-                    "_rank_score": 50000.0 - row_position * 0.5,
-                    "_source": "direct_legislation",
-                    "legal_article_match": True,
-                    "legal_instrument_match": True,
-                    "article_focused": True,
-                    "legislation_priority": not category,
-                    "direct_legislation_match": True,
-                }
 
         for stage_index, (stage_name, match_query) in enumerate(stages):
             params = [match_query]
@@ -3205,7 +3117,7 @@ def _content_search_v2(
         source = item.pop("_source", "fts5")
         raw_score = float(item.pop("_rank_score", 0.0))
         # UI score is descriptive, not a probability.
-        if source in {"fts5", "direct_legislation"}:
+        if source == "fts5":
             display_score = min(99.9, 70.0 + min(29.9, raw_score / 500.0))
         else:
             display_score = max(1.0, min(69.9, raw_score / 10.0))
