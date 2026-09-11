@@ -107,7 +107,7 @@
     const ctx=loadContext();
     if(!ctx?.caseId||!ctx?.blockId){
       alert('Esta investigación ya no conserva el vínculo con el bloque de origen.');
-      syncButton();
+      ensureButton();
       return;
     }
 
@@ -228,18 +228,28 @@
   }
 
   function syncBurst(){
-    [0,100,350,900,1700].forEach(delay=>window.setTimeout(ensureButton,delay));
+    [0,100,350,900,1700,3000,5000].forEach(delay=>window.setTimeout(ensureButton,delay));
+  }
+
+  function isResearchAction(target){
+    if(!target)return false;
+    if(target.closest('.lexia-case-investigate,#researchTab,#startContext,#reviewResearchSources'))return true;
+    const button=target.closest('#contextpage button');
+    const label=String(button?.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+    return label==='investigar'||label==='revisar fuentes';
   }
 
   document.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;
-    if(!target)return;
-    if(target.closest('.lexia-case-investigate')||target.closest('#researchTab')||target.closest('#reviewResearchSources')){
-      syncBurst();
-    }
+    if(isResearchAction(target))syncBurst();
   },true);
 
-  window.lexiaCaseResearchReturn={sync:ensureButton};
+  document.addEventListener('change',event=>{
+    const target=event.target instanceof Element?event.target:null;
+    if(target?.matches('.research-source-check'))ensureButton();
+  },true);
+
+  window.lexiaCaseResearchReturn={sync:ensureButton,burst:syncBurst};
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncBurst,{once:true});
   else syncBurst();
