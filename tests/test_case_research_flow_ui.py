@@ -17,10 +17,13 @@ def test_case_blocks_expose_investigate_and_individual_source_delete_actions():
     flow = (ASSETS / "case_research_flow.js").read_text(encoding="utf-8")
 
     assert ".argument-block-actions" in flow
+    assert "flex-direction:row!important" in flow
     assert "lexia-case-investigate" in flow
     assert "Investigar este fundamento" in flow
     assert "/api/cases/block/highlight/delete" in flow
-    assert "Eliminar sub-bloque" in flow
+    assert "Eliminar esta fuente del bloque" in flow
+    assert "highlightForEvidence" in flow
+    assert "item.selected_text" in flow
 
 
 def test_case_research_uses_own_position_as_query_and_counterpart_as_adversarial_context():
@@ -33,6 +36,16 @@ def test_case_research_uses_own_position_as_query_and_counterpart_as_adversarial
     assert "Planteá primero el fundamento propio" in flow
 
 
+def test_case_research_uses_safe_global_navigation_before_click_fallback():
+    flow = (ASSETS / "case_research_flow.js").read_text(encoding="utf-8")
+
+    assert "window.lexiaUI2NavigateGlobal||window.lexiaUI2NavigateSafe||window.lexiaUI2Navigate||window.lexiaUI2Show" in flow
+    assert "navigate('contextpage')" in flow
+    assert "No se pudo abrir Investigación." in flow
+    assert "resetCompactMenuToggle" in flow
+    assert "aria-expanded','false'" in flow
+
+
 def test_selected_research_sources_link_to_the_same_case_block():
     flow = (ASSETS / "case_research_flow.js").read_text(encoding="utf-8")
 
@@ -41,6 +54,7 @@ def test_selected_research_sources_link_to_the_same_case_block():
     assert "/api/cases/block/highlight" in flow
     assert "block_id:ctx.blockId" in flow
     assert "Incorporar fuentes seleccionadas" in flow
+    assert ".source-list>*" in flow
 
 
 def test_research_removes_legacy_to_case_action_and_prevents_compact_overlap():
