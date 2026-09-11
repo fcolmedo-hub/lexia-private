@@ -1,5 +1,5 @@
 /* LexIA Windows — ajustes visuales aislados para Investigación.
-   Sin MutationObserver: el botón principal sólo se recoloca en cambios de tamaño
+   Sin observación continua del DOM: el botón principal sólo se recoloca en cambios de tamaño
    o al navegar por Investigación. */
 (function(){
   'use strict';
