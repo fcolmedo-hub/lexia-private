@@ -9,7 +9,8 @@ Instrumenta EN MEMORIA los métodos del catálogo para contar:
 y el vector store para:
 - search
 
-No modifica código ni bases de producción.
+No modifica contenido documental ni Qdrant. En Windows puede crear el índice
+auxiliar idx_document_locations_path para acelerar la resolución de rutas.
 Usa feedback/history temporales.
 """
 
@@ -100,6 +101,12 @@ def main():
     from storage.search_feedback_repository import SearchFeedbackRepository
     from storage.search_history_repository import SearchHistoryRepository
     from search.embedding_service import EmbeddingService
+    from search.windows_vector_path_lookup import (
+        install_windows_vector_path_lookup,
+    )
+
+    install_windows_vector_path_lookup()
+
     from search.vector_store import VectorStore
     from search.professional_search import ProfessionalLegalSearchEngine
 
@@ -174,7 +181,7 @@ def main():
         print("-" * 110)
         print()
 
-    print("No se modificó ninguna base de producción.")
+    print("No se modificó contenido documental ni Qdrant.")
 
 
 if __name__ == "__main__":
