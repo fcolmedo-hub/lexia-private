@@ -10,22 +10,33 @@ def test_windows_investigation_fix_is_loaded_without_dom_observer():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     fix = (ASSETS / "windows_investigation_layout_fix.js").read_text(encoding="utf-8")
 
-    assert "assets/windows_investigation_layout_fix.js?v=investigation-layout-2" in loader
+    assert "assets/windows_investigation_layout_fix.js?v=investigation-layout-3" in loader
     assert "lexiaWindowsInvestigationLayout" in loader
     assert "MutationObserver" not in fix
 
 
-def test_compact_research_action_is_moved_to_visible_dock():
+def test_compact_research_action_block_is_moved_to_visible_dock():
     fix = (ASSETS / "windows_investigation_layout_fix.js").read_text(encoding="utf-8")
 
     assert "lexiaWindowsResearchActionDock" in fix
-    assert "normalize(button.textContent)!=='investigar'" in fix
+    assert "function mainResearchActionNode()" in fix
+    assert "panel.querySelector('.context-actions')" in fix
+    assert "#startResearch,#runResearch,#buildContext" in fix
     assert "window.innerWidth>1199" in fix
-    assert "dock.appendChild(button)" in fix
+    assert "dock.appendChild(node)" in fix
     assert "window.addEventListener('resize'" in fix
     assert "display:inline-flex!important" in fix
     assert "visibility:visible!important" in fix
     assert "overflow:visible!important" in fix
+
+
+def test_research_action_sync_uses_bounded_retries_only():
+    fix = (ASSETS / "windows_investigation_layout_fix.js").read_text(encoding="utf-8")
+
+    assert "function syncBurst()" in fix
+    assert "[0,80,220,500,900,1500,2400]" in fix
+    assert "setInterval(" not in fix
+    assert "MutationObserver" not in fix
 
 
 def test_source_selector_respects_sidebar_and_compact_viewport():
