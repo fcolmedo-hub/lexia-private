@@ -3,6 +3,17 @@
   'use strict';
 
   document.documentElement.classList.add('lexia-windows-search-polish');
+
+  // Cargar una única hoja de correcciones de Investigación exclusiva de
+  // Windows. Es CSS puro: no observa ni reescribe el DOM de Investigación.
+  if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
+    const investigationLayout = document.createElement('script');
+    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-1';
+    investigationLayout.async = false;
+    investigationLayout.dataset.lexiaWindowsInvestigationLayout = '1';
+    (document.body || document.documentElement).appendChild(investigationLayout);
+  }
+
   if (document.getElementById('lexiaWindowsSearchResultsPolish')) return;
 
   const style = document.createElement('style');
