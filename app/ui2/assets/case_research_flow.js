@@ -21,25 +21,26 @@
     const style=document.createElement('style');
     style.id='lexiaCaseResearchFlowStyle';
     style.textContent=`
-      ${CASE_PAGE} .argument-block{position:relative!important;padding-right:38px!important}
+      ${CASE_PAGE} .argument-block{position:relative!important;padding-right:0!important}
       ${CASE_PAGE} .argument-block .argument-block-actions{
-        position:absolute!important;top:7px!important;right:5px!important;bottom:auto!important;
-        display:flex!important;flex-direction:column!important;align-items:center!important;
-        justify-content:flex-start!important;gap:3px!important;width:28px!important;margin:0!important
+        position:static!important;inset:auto!important;transform:none!important;
+        display:flex!important;flex-direction:row!important;align-items:flex-start!important;
+        justify-content:flex-end!important;gap:2px!important;width:auto!important;margin:1px 0 0!important;
+        align-self:start!important
       }
       ${CASE_PAGE} .argument-block .argument-block-actions .cases-icon{
-        width:26px!important;min-width:26px!important;height:26px!important;min-height:26px!important;
+        width:24px!important;min-width:24px!important;height:24px!important;min-height:24px!important;
         display:grid!important;place-items:center!important;padding:0!important
       }
       ${CASE_PAGE} .lexia-case-investigate{color:#5146f6!important}
       ${CASE_PAGE} .lexia-case-investigate:hover{background:#eceaff!important;color:#352ac7!important}
-      ${CASE_PAGE} .lexia-case-evidence-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 26px;gap:4px;align-items:start}
-      ${CASE_PAGE} .lexia-case-evidence-row>.argument-evidence{min-width:0;margin-right:0!important}
+      ${CASE_PAGE} .lexia-case-evidence-row{position:relative;display:block;min-width:0}
+      ${CASE_PAGE} .lexia-case-evidence-row>.argument-evidence{box-sizing:border-box;min-width:0;margin-right:0!important;padding-right:30px!important}
       ${CASE_PAGE} .lexia-case-evidence-delete{
-        box-sizing:border-box;width:24px;height:24px;margin-top:3px;padding:0;border:0;border-radius:6px;
-        display:grid;place-items:center;background:transparent;color:#b23848;cursor:pointer
+        position:absolute;z-index:2;top:5px;right:4px;box-sizing:border-box;width:20px;height:20px;padding:0;border:0;border-radius:5px;
+        display:grid;place-items:center;background:transparent;color:#b23848;cursor:pointer;opacity:.76
       }
-      ${CASE_PAGE} .lexia-case-evidence-delete:hover{background:#fff0f2;color:#982b3a}
+      ${CASE_PAGE} .lexia-case-evidence-delete:hover{background:#fff0f2;color:#982b3a;opacity:1}
       ${CASE_PAGE} .lexia-case-block-warning{margin:5px 0 0;color:#a43b45;font-size:10px;font-weight:750}
 
       ${RESEARCH_PAGE} #lexiaCaseResearchContext{
@@ -87,14 +88,30 @@
     document.head.appendChild(style);
   }
 
+  function compactMenuToggles(){
+    const selectors=[
+      '.global-menu-toggle','.global-nav-toggle','.nav-toggle','.menu-toggle',
+      '[data-lexia-nav-toggle]','#globalMenuToggle','#globalNavToggle',
+      '[aria-controls*="globalSidebar" i]','[aria-controls*="sidebar" i]'
+    ];
+    return [...new Set(document.querySelectorAll(selectors.join(',')))];
+  }
+
+  function resetCompactMenuToggle(){
+    compactMenuToggles().forEach(node=>{
+      node.setAttribute('aria-expanded','false');
+      node.classList.remove('open','active','show','expanded','is-open','is-active');
+      const text=String(node.textContent||'').trim();
+      if(!node.querySelector('svg')&&/^[×✕✖]$/.test(text))node.textContent='☰';
+    });
+  }
+
   function closeCompactDrawer(){
     if(window.innerWidth>1199)return;
     document.documentElement.classList.remove('lexia-nav-open');
     document.body?.classList.remove('lexia-nav-open');
     document.querySelectorAll('.lexia-nav-open').forEach(node=>node.classList.remove('lexia-nav-open'));
-    document.querySelectorAll('[aria-expanded="true"]').forEach(node=>{
-      if(node.matches('.global-menu-toggle,.global-nav-toggle,[data-lexia-nav-toggle],[aria-controls*="sidebar" i]'))node.setAttribute('aria-expanded','false');
-    });
+    resetCompactMenuToggle();
     const backdrop=document.querySelector('.lexia-nav-backdrop');
     if(backdrop){backdrop.classList.remove('open','active','show');backdrop.setAttribute('aria-hidden','true');}
   }
@@ -148,11 +165,21 @@
     const rootTitle=activeBranchRootTitle(article),questionTitle=activeQuestionTitle(article);
     const root=roots.find(node=>norm(node.title)===norm(rootTitle))||roots[0];
     const candidateNodes=flattenNodes(root?[root]:roots,[]);
-    const node=candidateNodes.find(item=>norm(item.title)===norm(questionTitle))||candidateNodes.find(item=>(item.blocks?.propia||[]).length);
-    if(!node)throw new Error('No se pudo identificar la cuestión jurídica activa.');
-    const index=ownBlockIndex(article),block=(node.blocks?.propia||[])[index];
-    if(!block?.id)throw new Error('No se pudo identificar el bloque de nuestra postura.');
-    return {caseId:Number(selected.id),caseName:selected.name||caseName,rootTitle:root?.title||rootTitle,nodeId:node.id,nodeTitle:node.title||questionTitle,blockId:block.id,blockIndex:index,snapshot,block};
+    const index=ownBlockIndex(article),visibleText=norm(article?.querySelector('textarea')?.value);
+    let node=candidateNodes.find(item=>norm(item.title)===norm(questionTitle))||null;
+    let block=node?(node.blocks?.propia||[])[index]:null;
+    if(!block?.id||(visibleText&&norm(block.content)!==visibleText)){
+      const exact=[];
+      candidateNodes.forEach(candidate=>(candidate.blocks?.propia||[]).forEach((item,itemIndex)=>{
+        if(visibleText&&norm(item.content)===visibleText)exact.push({node:candidate,block:item,index:itemIndex});
+      }));
+      if(exact.length===1){node=exact[0].node;block=exact[0].block;}
+    }
+    if(!node)node=candidateNodes.find(item=>(item.blocks?.propia||[]).length)||null;
+    if(!block?.id&&node)block=(node.blocks?.propia||[])[index];
+    if(!node||!block?.id)throw new Error('No se pudo identificar el bloque de nuestra postura.');
+    const actualIndex=Math.max(0,(node.blocks?.propia||[]).findIndex(item=>String(item.id)===String(block.id)));
+    return {caseId:Number(selected.id),caseName:selected.name||caseName,rootTitle:root?.title||rootTitle,nodeId:node.id,nodeTitle:node.title||questionTitle,blockId:block.id,blockIndex:actualIndex,snapshot,block};
   }
 
   function saveResearchContext(ctx){localStorage.setItem(STORAGE_KEY,JSON.stringify(ctx));}
@@ -163,9 +190,15 @@
     return [...document.querySelectorAll('.global-sidebar .nav button,button[data-target],button[data-page]')].find(button=>norm(button.textContent).includes(wanted));
   }
   function navigateToResearch(){
-    const button=navButton('investigacion');if(button){button.click();closeCompactDrawer();return;}
-    if(typeof window.lexiaUI2NavigateGlobal==='function')window.lexiaUI2NavigateGlobal('contextpage');
-    const casePage=document.querySelector(CASE_PAGE),research=document.querySelector(RESEARCH_PAGE);if(casePage)casePage.style.display='none';if(research)research.style.display='block';document.getElementById('researchTab')?.click();
+    const casePage=document.querySelector(CASE_PAGE);if(casePage)casePage.style.display='none';
+    const navigate=window.lexiaUI2NavigateGlobal||window.lexiaUI2NavigateSafe||window.lexiaUI2Navigate||window.lexiaUI2Show;
+    if(typeof navigate==='function'){
+      navigate('contextpage');closeCompactDrawer();return true;
+    }
+    const button=document.querySelector('#globalSidebar .nav button[data-route="contextpage"]')||navButton('investigacion');
+    if(button){button.click();closeCompactDrawer();return true;}
+    ['home','library','searchpage','contextpage','activitypage','systempage','maintenance'].forEach(id=>{const page=document.getElementById(id);if(page)page.style.display='none';});
+    const research=document.querySelector(RESEARCH_PAGE);if(!research)return false;research.style.display='grid';closeCompactDrawer();return true;
   }
   function navigateToCases(){
     const button=navButton('casos');if(button){button.click();closeCompactDrawer();return;}
@@ -181,7 +214,9 @@
     try{
       const base=await resolveBlockContext(article),counter=counterpartText(article,base.blockIndex);
       const ctx=Object.assign(base,{ownText:own,counterText:counter,createdAt:new Date().toISOString()});delete ctx.snapshot;delete ctx.block;
-      saveResearchContext(ctx);navigateToResearch();[0,80,220,500].forEach(delay=>setTimeout(()=>applyResearchContext(),delay));
+      saveResearchContext(ctx);
+      if(!navigateToResearch())throw new Error('No se pudo abrir Investigación.');
+      [80,250,600,1000].forEach(delay=>setTimeout(()=>{try{applyResearchContext();}catch(error){console.error('LexIA Casos→Investigación:',error);}},delay));
     }catch(error){alert(error.message||String(error));}
   }
 
@@ -198,11 +233,32 @@
     });
   }
 
+  function highlightForEvidence(context,row){
+    const evidence=row.querySelector('.argument-evidence'),highlights=context.block?.highlights||[];
+    if(!evidence||!highlights.length)return null;
+    const savedId=row.dataset.highlightId;
+    if(savedId){const saved=highlights.find(item=>String(item.id)===String(savedId));if(saved)return saved;}
+    const text=norm(evidence.textContent),title=norm(evidence.getAttribute('title'));
+    let matches=highlights.filter(item=>norm(item.selected_text)===text);
+    if(matches.length>1&&title){
+      const byDocument=matches.filter(item=>item.document_name&&title.includes(norm(item.document_name)));
+      if(byDocument.length)matches=byDocument;
+    }
+    if(matches.length>1){
+      const pageMatch=String(evidence.getAttribute('title')||'').match(/p[aá]g\.?\s*(\d+)/i);
+      if(pageMatch){const byPage=matches.filter(item=>Number(item.page_start||0)===Number(pageMatch[1]));if(byPage.length)matches=byPage;}
+    }
+    if(matches[0])return matches[0];
+    const index=[...row.closest('.argument-block').querySelectorAll('.lexia-case-evidence-row')].indexOf(row);
+    return highlights[index]||null;
+  }
+
   async function deleteEvidence(article,row){
     try{
-      const index=[...article.querySelectorAll('.lexia-case-evidence-row')].indexOf(row),context=await resolveBlockContext(article),highlight=(context.block?.highlights||[])[index];
-      if(!highlight?.id)throw new Error('No se pudo identificar el sub-bloque seleccionado.');
-      if(!confirm('¿Eliminar este sub-bloque?\n\nEl archivo continuará disponible en “Archivos del caso”.'))return;
+      const context=await resolveBlockContext(article),highlight=highlightForEvidence(context,row);
+      if(!highlight?.id)throw new Error('No se pudo identificar esta fuente dentro del bloque.');
+      row.dataset.highlightId=String(highlight.id);
+      if(!confirm('¿Eliminar esta fuente del bloque?\n\nEl archivo continuará disponible en “Archivos del caso”.'))return;
       await jsonFetch('/api/cases/block/highlight/delete',{method:'POST',body:JSON.stringify({case_id:context.caseId,highlight_id:highlight.id,confirmed:true})});row.remove();
     }catch(error){alert(error.message||String(error));}
   }
@@ -213,7 +269,7 @@
       [...article.querySelectorAll('.argument-evidence')].forEach(evidence=>{
         if(evidence.closest('.lexia-case-evidence-row'))return;
         const row=document.createElement('div');row.className='lexia-case-evidence-row';evidence.parentNode.insertBefore(row,evidence);row.appendChild(evidence);
-        const button=document.createElement('button');button.type='button';button.className='lexia-case-evidence-delete';button.title='Eliminar sub-bloque';button.setAttribute('aria-label','Eliminar sub-bloque');button.innerHTML=svgTrash();
+        const button=document.createElement('button');button.type='button';button.className='lexia-case-evidence-delete';button.title='Eliminar esta fuente del bloque';button.setAttribute('aria-label','Eliminar esta fuente del bloque');button.innerHTML=svgTrash();
         button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();deleteEvidence(article,row);});row.appendChild(button);
       });
     });
@@ -224,6 +280,7 @@
   }
 
   function fieldByLabel(root,terms,exclude){
+    if(!root)return null;
     const controls=[...root.querySelectorAll('textarea,input[type="text"],input[type="search"]')].filter(node=>!exclude?.includes(node)&&!node.closest('#lexiaCaseResearchContext'));
     let best=null,bestScore=0;
     controls.forEach(control=>{
@@ -243,16 +300,18 @@
     if(!card){
       card=document.createElement('section');card.id='lexiaCaseResearchContext';
       card.innerHTML='<div class="lexia-case-research-head"><div><h3>Investigación vinculada al caso</h3><p></p></div></div><div class="lexia-case-research-grid"><label>Nuestra postura a investigar<textarea id="lexiaCaseResearchOwn"></textarea></label><label>Planteo de la contraparte<textarea id="lexiaCaseResearchCounter"></textarea></label><p class="lexia-case-adversarial-note">El planteo de la contraparte se incorpora sólo como referencia adversarial: sirve para buscar refutaciones, distinciones, límites y respuestas. No debe orientar la búsqueda hacia fundamentos que sostengan esa tesis.</p></div>';
-      const panel=document.getElementById('researchPanel')||document.querySelector(RESEARCH_PAGE+' .research-main-column')||document.querySelector(RESEARCH_PAGE+' .context-grid')||document.querySelector(RESEARCH_PAGE);panel?.insertBefore(card,panel.firstChild);
+      const panel=document.getElementById('researchPanel')||document.querySelector(RESEARCH_PAGE+' .research-main-column')||document.querySelector(RESEARCH_PAGE+' .context-grid')||document.querySelector(RESEARCH_PAGE);
+      if(!panel)return null;
+      panel.insertBefore(card,panel.firstChild);
       card.querySelectorAll('textarea').forEach(node=>node.addEventListener('input',()=>syncVisibleResearchFields(ctx)));
     }
     const subtitle=card.querySelector('.lexia-case-research-head p'),subtitleText=(ctx.caseName||'Caso')+' · '+(ctx.nodeTitle||'Cuestión jurídica');if(subtitle&&subtitle.textContent!==subtitleText)subtitle.textContent=subtitleText;
-    const own=card.querySelector('#lexiaCaseResearchOwn'),counter=card.querySelector('#lexiaCaseResearchCounter');if(document.activeElement!==own&&own.value!==String(ctx.ownText||''))own.value=String(ctx.ownText||'');if(document.activeElement!==counter&&counter.value!==String(ctx.counterText||''))counter.value=String(ctx.counterText||'');
+    const own=card.querySelector('#lexiaCaseResearchOwn'),counter=card.querySelector('#lexiaCaseResearchCounter');if(own&&document.activeElement!==own&&own.value!==String(ctx.ownText||''))own.value=String(ctx.ownText||'');if(counter&&document.activeElement!==counter&&counter.value!==String(ctx.counterText||''))counter.value=String(ctx.counterText||'');
     return card;
   }
 
   function syncVisibleResearchFields(ctx){
-    const panel=document.getElementById('researchPanel')||document.querySelector(RESEARCH_PAGE);
+    const panel=document.getElementById('researchPanel')||document.querySelector(RESEARCH_PAGE);if(!panel)return;
     const own=document.getElementById('lexiaCaseResearchOwn')?.value.trim()||String(ctx.ownText||'').trim(),counter=document.getElementById('lexiaCaseResearchCounter')?.value.trim()||String(ctx.counterText||'').trim();
     const query=fieldByLabel(panel,['consulta','pregunta','tema','investigacion','buscar','cuestion'],[]),facts=fieldByLabel(panel,['hechos relevantes','hechos','contexto','antecedentes'],query?[query]:[]);
     if(query&&document.activeElement!==query&&(!query.value.trim()||query.dataset.lexiaCaseAutofill==='1')){setNativeValue(query,own);query.dataset.lexiaCaseAutofill='1';}
@@ -263,7 +322,9 @@
 
   function applyResearchContext(){
     const ctx=loadResearchContext();if(!ctx||!document.querySelector(RESEARCH_PAGE))return;
-    document.getElementById('researchTab')?.click();createResearchContextCard(ctx);syncVisibleResearchFields(ctx);removeResearchCaseButtons();syncResearchSources(ctx);
+    document.getElementById('researchTab')?.click();
+    const card=createResearchContextCard(ctx);if(!card)return;
+    syncVisibleResearchFields(ctx);removeResearchCaseButtons();syncResearchSources(ctx);
   }
 
   function decodeMaybe(value){try{return decodeURIComponent(value);}catch(_){return value;}}
@@ -277,7 +338,8 @@
   }
   function sourceCards(){
     const root=document.getElementById('researchPanel')||document.querySelector(RESEARCH_PAGE);if(!root)return [];
-    return [...root.querySelectorAll('.source-item,.result-card,[class*="source-card"]')].filter(card=>!card.closest('#lexiaCaseResearchContext')&&!card.closest('#lexiaCaseResearchSelectionBar')&&(card.querySelector('[data-path],.source-name-link,.result-title,.result-title-btn')||card.dataset?.path));
+    const candidates=[...root.querySelectorAll('.source-item,.result-card,[class*="source-card"],.source-list>*')];
+    return [...new Set(candidates)].filter(card=>card instanceof Element&&!card.closest('#lexiaCaseResearchContext')&&!card.closest('#lexiaCaseResearchSelectionBar')&&(card.querySelector('[data-path],.source-name-link,.result-title,.result-title-btn')||card.dataset?.path));
   }
   function updateSelectionBar(){
     const bar=document.getElementById('lexiaCaseResearchSelectionBar');if(!bar)return;const count=document.querySelectorAll(RESEARCH_PAGE+' .lexia-case-source-select:checked').length;
@@ -285,7 +347,7 @@
   }
 
   async function incorporateSelectedSources(ctx,button){
-    const selected=[...document.querySelectorAll(RESEARCH_PAGE+' .lexia-case-source-select:checked')].map(check=>check.closest('.source-item,.result-card,[class*="source-card"]')).filter(Boolean);if(!selected.length)return;
+    const selected=[...document.querySelectorAll(RESEARCH_PAGE+' .lexia-case-source-select:checked')].map(check=>check.closest('.source-item,.result-card,[class*="source-card"],.source-list>*')).filter(Boolean);if(!selected.length)return;
     button.disabled=true;const original=button.textContent;button.textContent='Incorporando…';let done=0;
     try{
       for(const card of selected){
