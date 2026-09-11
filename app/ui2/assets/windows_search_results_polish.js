@@ -4,11 +4,12 @@
 
   document.documentElement.classList.add('lexia-windows-search-polish');
 
-  // Cargar una única hoja de correcciones de Investigación exclusiva de
-  // Windows. Es CSS puro: no observa ni reescribe el DOM de Investigación.
+  // Cargar una única corrección de Investigación exclusiva de Windows.
+  // No usa MutationObserver: sólo recoloca la acción principal al cambiar
+  // el tamaño de ventana o al navegar dentro de Investigación.
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
     const investigationLayout = document.createElement('script');
-    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-1';
+    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-2';
     investigationLayout.async = false;
     investigationLayout.dataset.lexiaWindowsInvestigationLayout = '1';
     (document.body || document.documentElement).appendChild(investigationLayout);
