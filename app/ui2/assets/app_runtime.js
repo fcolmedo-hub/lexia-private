@@ -13,19 +13,9 @@
     (document.body||document.documentElement).appendChild(caseWorkspace);
   }
 
-  function loadCaseResearchFlow(){
-    if(document.querySelector('script[data-lexia-case-research-flow]'))return;
-    const script=document.createElement('script');
-    script.src='assets/case_research_flow.js?v=case-research-1';
-    script.async=false;
-    script.dataset.lexiaCaseResearchFlow='1';
-    (document.body||document.documentElement).appendChild(script);
-  }
-
   // Casos es un menú principal compartido: debe estar disponible aunque
   // PyWebView no conserve el parámetro lexia_app en la URL inicial.
   loadCaseWorkspace();
-  loadCaseResearchFlow();
   if(params.get('lexia_app')!=='1')return;
 
   document.documentElement.dataset.lexiaApp='1';
@@ -494,6 +484,5 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
   else initialize();
   loadCaseWorkspace();
-  loadCaseResearchFlow();
 
 })();
