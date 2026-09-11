@@ -5,11 +5,11 @@
   document.documentElement.classList.add('lexia-windows-search-polish');
 
   // Cargar una única corrección de Investigación exclusiva de Windows.
-  // No usa MutationObserver: sólo recoloca la acción principal al cambiar
+  // No usa observación continua: sólo recoloca la acción principal al cambiar
   // el tamaño de ventana o al navegar dentro de Investigación.
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
     const investigationLayout = document.createElement('script');
-    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-2';
+    investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-3';
     investigationLayout.async = false;
     investigationLayout.dataset.lexiaWindowsInvestigationLayout = '1';
     (document.body || document.documentElement).appendChild(investigationLayout);
