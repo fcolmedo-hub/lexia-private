@@ -10,33 +10,38 @@ def test_windows_investigation_fix_is_loaded_without_dom_observer():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     fix = (ASSETS / "windows_investigation_layout_fix.js").read_text(encoding="utf-8")
 
-    assert "assets/windows_investigation_layout_fix.js?v=investigation-layout-3" in loader
+    assert "assets/windows_investigation_layout_fix.js?v=investigation-layout-4" in loader
     assert "lexiaWindowsInvestigationLayout" in loader
     assert "MutationObserver" not in fix
 
 
-def test_compact_research_action_block_is_moved_to_visible_dock():
+def test_compact_research_layout_uses_natural_vertical_flow():
     fix = (ASSETS / "windows_investigation_layout_fix.js").read_text(encoding="utf-8")
 
-    assert "lexiaWindowsResearchActionDock" in fix
-    assert "function mainResearchActionNode()" in fix
-    assert "panel.querySelector('.context-actions')" in fix
-    assert "#startResearch,#runResearch,#buildContext" in fix
-    assert "window.innerWidth>1199" in fix
-    assert "dock.appendChild(node)" in fix
-    assert "window.addEventListener('resize'" in fix
-    assert "display:inline-flex!important" in fix
-    assert "visibility:visible!important" in fix
+    assert "@media (min-width:701px) and (max-width:1199px)" in fix
+    assert "#researchPanel:not([hidden])" in fix
+    assert "#researchPanel .context-grid" in fix
+    assert "display:flex!important" in fix
+    assert "flex-direction:column!important" in fix
+    assert "#researchPanel .research-main-column" in fix
+    assert "height:auto!important" in fix
+    assert "max-height:none!important" in fix
+    assert "#researchPanel .context-side" in fix
+    assert "order:2!important" in fix
     assert "overflow:visible!important" in fix
 
 
-def test_research_action_sync_uses_bounded_retries_only():
+def test_compact_research_action_stays_in_normal_flow():
     fix = (ASSETS / "windows_investigation_layout_fix.js").read_text(encoding="utf-8")
 
-    assert "function syncBurst()" in fix
-    assert "[0,80,220,500,900,1500,2400]" in fix
+    assert "#researchPanel .context-actions" in fix
+    assert "position:static!important" in fix
+    assert "visibility:visible!important" in fix
+    assert "#researchPanel #startResearch" in fix
+    assert "#researchPanel #runResearch" in fix
+    assert "#researchPanel #buildContext" in fix
+    assert "lexiaWindowsResearchActionDock" not in fix
     assert "setInterval(" not in fix
-    assert "MutationObserver" not in fix
 
 
 def test_source_selector_respects_sidebar_and_compact_viewport():
@@ -48,6 +53,16 @@ def test_source_selector_respects_sidebar_and_compact_viewport():
     assert "calc(100vw - var(--global-side,196px) - 28px)" in fix
     assert "@media (max-width:1199px)" in fix
     assert "width:calc(100vw - 20px)!important" in fix
+
+
+def test_standards_home_card_and_sidebar_have_lavender_active_state():
+    polish = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
+
+    assert "[data-lexia-standards-home]:hover" in polish
+    assert "[data-lexia-standards-home][aria-current=\"page\"]" in polish
+    assert "background:#f4f3ff!important" in polish
+    assert ".global-sidebar .nav [data-lexia-standards-nav].active" in polish
+    assert "background:#efeeff!important" in polish
 
 
 def test_windows_build_uses_bundled_lexia_icon_payload():
