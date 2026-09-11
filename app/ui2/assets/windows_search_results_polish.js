@@ -4,6 +4,16 @@
 
   document.documentElement.classList.add('lexia-windows-search-polish');
 
+  // Investigación en Windows: mantener el seguimiento ante fallos transitorios
+  // del puente local. Sólo reintenta GET de estado/resultado, nunca inicia dos trabajos.
+  if (!document.querySelector('script[data-lexia-windows-research-resilience]')) {
+    const researchResilience = document.createElement('script');
+    researchResilience.src = 'assets/windows_research_transport_resilience.js?v=research-resilience-1';
+    researchResilience.async = false;
+    researchResilience.dataset.lexiaWindowsResearchResilience = '1';
+    (document.body || document.documentElement).appendChild(researchResilience);
+  }
+
   // Cargar una única corrección de Investigación exclusiva de Windows.
   // Es CSS puro: corrige el flujo compacto sin vigilancia continua del DOM.
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
