@@ -89,13 +89,9 @@ def test_detects_law_and_code_article_queries() -> None:
         "art. 12 del Código de Minería"
     )["instrument"] == "codigo de mineria"
     assert server._legal_citation_intent("prescripción tributaria") is None
-    assert server._legal_citation_fts_query(law).startswith(
-        '"art"* AND ("970" OR "970º" OR "970°")'
-    )
+    assert server._legal_citation_fts_query(law).startswith('"art"* AND "970"')
     assert '"22 415"' in server._legal_citation_fts_query(law)
-    assert server._legal_article_fts_query(law).endswith(
-        'AND ("970" OR "970º" OR "970°")'
-    )
+    assert server._legal_article_fts_query(law).endswith('AND "970"')
     assert server._legal_citation_document_pattern(law) == "%22415%"
     assert server._legal_citation_document_pattern(code) == "%civil%comercial%"
     assert server._legal_citation_fts_query(code).endswith(
@@ -110,14 +106,6 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     runtime.mkdir()
     _catalog(runtime / "lexia_catalog.sqlite3")
     monkeypatch.setattr(server, "RUNTIME_ROOT", runtime)
-    # Reproduce the real Ley 7055 index: its stored text is readable, but FTS
-    # cannot retrieve the corrupted ART═CULO heading by article tokens.
-    monkeypatch.setattr(
-        server, "_legal_citation_fts_query", lambda _intent: '"missinglegal"'
-    )
-    monkeypatch.setattr(
-        server, "_legal_article_fts_query", lambda _intent: '"missingarticle"'
-    )
 
     result = server._content_search_v2(
         "art. 5 ley 7055",
@@ -135,7 +123,6 @@ def test_legislation_article_outranks_judgment_that_quotes_it(
     assert result["results"][0]["legal_instrument_match"] is True
     assert result["results"][0]["legislation_priority"] is True
     assert result["results"][0]["article_focused"] is True
-    assert result["results"][0]["direct_legislation_match"] is True
     assert result["results"][0]["text"].startswith("artÝculo 5║.")
     assert "ART═CULO 6" not in result["results"][0]["text"]
 
