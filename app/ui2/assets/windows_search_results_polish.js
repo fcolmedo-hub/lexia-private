@@ -33,6 +33,37 @@
       position:relative!important;
       top:-6px!important;
     }
+
+    /* Acciones de las fuentes recuperadas por una investigación. */
+    .lexia-windows-search-polish #contextpage .source-actions .study-source {
+      background:#5146f6!important;
+      border-color:#5146f6!important;
+      color:#fff!important;
+    }
+    .lexia-windows-search-polish #contextpage .source-actions .study-source:hover {
+      background:#4338e8!important;
+      border-color:#4338e8!important;
+    }
+    .lexia-windows-search-polish #contextpage .source-actions .lexia-case-link {
+      background:#8a5a2b!important;
+      border-color:#8a5a2b!important;
+      color:#fff!important;
+      border-radius:6px!important;
+    }
+    .lexia-windows-search-polish #contextpage .source-actions .lexia-case-link:hover {
+      background:#70451f!important;
+      border-color:#70451f!important;
+    }
+    .lexia-windows-search-polish #contextpage .source-actions .lexia-ocr-reprocess {
+      background:#e87514!important;
+      border-color:#e87514!important;
+      color:#fff!important;
+      border-radius:6px!important;
+    }
+    .lexia-windows-search-polish #contextpage .source-actions .lexia-ocr-reprocess:hover {
+      background:#c95e08!important;
+      border-color:#c95e08!important;
+    }
   `;
   document.head.appendChild(style);
 })();
