@@ -85,3 +85,29 @@ def test_case_to_research_keeps_only_investigation_nav_selected():
     assert "aria-current" in nav_fix
     assert "MutationObserver" not in nav_fix
     assert "setInterval(" not in nav_fix
+
+
+def test_selected_research_sources_return_to_originating_case_block():
+    loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
+    return_flow = (ASSETS / "windows_case_research_return.js").read_text(encoding="utf-8")
+
+    assert "assets/windows_case_research_return.js?v=case-return-1" in loader
+    assert "data-lexia-windows-case-research-return" in loader
+    assert "#researchSourcesModalList .research-source-check:checked" in return_flow
+    assert "/api/research-candidates-result" in return_flow
+    assert "/api/cases/link-document" in return_flow
+    assert "/api/cases/block/highlight" in return_flow
+    assert "block_id:Number(ctx.blockId)" in return_flow
+    assert "case_document_id:caseDocumentId" in return_flow
+    assert "relation_kind:'fuente de investigación'" in return_flow
+    assert "Incorporar al caso y volver" in return_flow
+    assert "MutationObserver" not in return_flow
+    assert "setInterval(" not in return_flow
+
+
+def test_return_flow_avoids_duplicate_highlights_on_retry_after_partial_failure():
+    return_flow = (ASSETS / "windows_case_research_return.js").read_text(encoding="utf-8")
+
+    assert "incorporatedSourceIndexes" in return_flow
+    assert "if(already.has(index))continue" in return_flow
+    assert "saveContext(ctx)" in return_flow
