@@ -7,10 +7,6 @@ from pathlib import Path
 
 from models.document import Document
 from models.fragment import Fragment
-from core.text_encoding import (
-    looks_like_legacy_cp850_mojibake,
-    translate_legacy_cp850_mojibake,
-)
 
 
 def _relocated_metadata_json(raw_metadata, category):
@@ -172,12 +168,6 @@ class DocumentCatalog:
                     completed_at TEXT
                 );
 
-                CREATE TABLE IF NOT EXISTS catalog_migrations (
-                    name TEXT PRIMARY KEY,
-                    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    details TEXT NOT NULL DEFAULT '{}'
-                );
-
                 CREATE INDEX IF NOT EXISTS
                     idx_documents_active_name
                 ON documents(
@@ -287,112 +277,6 @@ class DocumentCatalog:
                   AND content_hash != ''
                 """
             )
-
-            self._repair_legacy_cp850_catalog_text(connection)
-
-    def _repair_legacy_cp850_catalog_text(
-        self,
-        connection: sqlite3.Connection,
-    ) -> int:
-        """Repair existing CP850-mapped text once and rebuild its FTS rows."""
-        migration = "repair_legacy_cp850_text_v1"
-        claimed = connection.execute(
-            "INSERT OR IGNORE INTO catalog_migrations(name, details) "
-            "VALUES(?, ?)",
-            (migration, '{"status":"running"}'),
-        )
-        if not claimed.rowcount:
-            return 0
-
-        candidate_rows = connection.execute(
-            """
-            SELECT path, text_content, metadata_json
-            FROM documents
-            WHERE COALESCE(is_deleted, 0)=0
-              AND (
-                INSTR(text_content, '═') > 0 OR INSTR(text_content, '║') > 0
-                OR INSTR(text_content, '░') > 0 OR INSTR(text_content, '┴') > 0
-                OR INSTR(text_content, '¾') > 0 OR INSTR(text_content, '±') > 0
-                OR INSTR(text_content, 'ß') > 0 OR INSTR(text_content, 'Ý') > 0
-                OR INSTR(text_content, 'Ú') > 0 OR INSTR(text_content, '·') > 0
-                OR INSTR(text_content, 'Ë') > 0 OR INSTR(text_content, 'Ð') > 0
-                OR INSTR(text_content, '³') > 0 OR INSTR(text_content, '½') > 0
-                OR INSTR(text_content, 'ô') > 0 OR INSTR(text_content, 'ö') > 0
-                OR INSTR(text_content, 'æ') > 0 OR INSTR(text_content, 'Æ') > 0
-                OR INSTR(text_content, 'û') > 0 OR INSTR(text_content, 'ù') > 0
-                OR INSTR(text_content, 'à') > 0
-              )
-            """
-        ).fetchall()
-
-        repaired_paths = []
-        for row in candidate_rows:
-            text = str(row["text_content"] or "")
-            if not looks_like_legacy_cp850_mojibake(text):
-                continue
-            path = str(row["path"] or "")
-            repaired_text = translate_legacy_cp850_mojibake(text)
-            repaired_metadata = translate_legacy_cp850_mojibake(
-                str(row["metadata_json"] or "{}")
-            )
-            connection.execute(
-                """
-                UPDATE documents
-                SET text_content = ?, metadata_json = ?,
-                    vector_indexed_hash = NULL,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE path = ?
-                """,
-                (repaired_text, repaired_metadata, path),
-            )
-            fragment_rows = connection.execute(
-                """
-                SELECT fragment_index, text_content
-                FROM fragments WHERE document_path = ?
-                """,
-                (path,),
-            ).fetchall()
-            connection.executemany(
-                """
-                UPDATE fragments SET text_content = ?
-                WHERE document_path = ? AND fragment_index = ?
-                """,
-                [
-                    (
-                        translate_legacy_cp850_mojibake(fragment["text_content"]),
-                        path,
-                        fragment["fragment_index"],
-                    )
-                    for fragment in fragment_rows
-                ],
-            )
-            connection.execute(
-                "DELETE FROM fragments_fts WHERE document_path = ?", (path,)
-            )
-            connection.execute(
-                """
-                INSERT INTO fragments_fts (
-                    document_path, fragment_index, category,
-                    document_name, text_content
-                )
-                SELECT f.document_path, f.fragment_index, f.category,
-                       d.name, f.text_content
-                FROM fragments AS f
-                JOIN documents AS d ON d.path = f.document_path
-                WHERE f.document_path = ?
-                """,
-                (path,),
-            )
-            repaired_paths.append(path)
-
-        connection.execute(
-            "UPDATE catalog_migrations SET details = ? WHERE name = ?",
-            (
-                json.dumps({"repaired_documents": len(repaired_paths)}),
-                migration,
-            ),
-        )
-        return len(repaired_paths)
 
     def _ensure_column(
         self,
