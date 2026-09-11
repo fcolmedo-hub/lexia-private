@@ -31,6 +31,7 @@ $RequiredStandardsFiles = @(
     (Join-Path $Root 'app\ui2\assets\search_investigation_bridge.js'),
     (Join-Path $Root 'app\ui2\assets\windows_search_results_polish.js'),
     (Join-Path $Root 'app\ui2\assets\windows_investigation_layout_fix.js'),
+    (Join-Path $Root 'app\ui2\assets\windows_case_research_bridge.js'),
     (Join-Path $Root 'assets\LexIA.ico.b64'),
     (Join-Path $Root 'services\standards_service.py'),
     (Join-Path $Root 'services\standards_canonicalizer.py')
