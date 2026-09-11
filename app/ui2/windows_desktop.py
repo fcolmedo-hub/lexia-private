@@ -17,14 +17,6 @@ from urllib import request as urllib_request
 
 import psutil
 
-# The Windows rebuild script uses this minimal path to prove that PyInstaller's
-# embedded interpreter can initialize before replacing the working install.
-if "--lexia-embedded-smoke-test" in sys.argv:
-    marker = str(os.environ.get("LEXIA_EMBEDDED_SMOKE_MARKER", "") or "").strip()
-    if marker:
-        Path(marker).write_text("ok", encoding="utf-8")
-    raise SystemExit(0)
-
 PORT = os.environ.get("LEXIA_UI2_PORT", "8512")
 STANDARDS_PORT = int(os.environ.get("LEXIA_STANDARDS_PORT", "8515"))
 BASE_URL = f"http://127.0.0.1:{PORT}"
