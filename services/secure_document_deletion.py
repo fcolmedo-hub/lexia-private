@@ -129,12 +129,6 @@ class SecureDocumentDeletionService:
         return path
 
     def _move_to_staging(self, path: Path, staged: Path) -> None:
-        """Move a source to the private staging area before deleting its records.
-
-        APFS may reject a direct rename from Documents to Application Support.
-        The copy-and-unlink fallback preserves the transaction boundary: the
-        original remains authoritative until the staged copy is complete.
-        """
         try:
             os.replace(path, staged)
             return
@@ -170,7 +164,6 @@ class SecureDocumentDeletionService:
             raise
 
     def _restore_from_staging(self, staged: Path, path: Path) -> None:
-        """Restore the source if a later catalog/vector operation fails."""
         try:
             os.replace(staged, path)
             return
@@ -295,12 +288,6 @@ class SecureDocumentDeletionService:
         return total
 
     def _delete_knowledge_rows(self, path: Path) -> int:
-        """Remove one document from the deterministic Knowledge DB only.
-
-        Duplicate catalog rows are intentionally excluded from KnowledgeEngine indexing.
-        Deleting a duplicate therefore must never trigger a full sync or fail merely
-        because there was nothing to remove from Knowledge.
-        """
         repository = getattr(self.knowledge_engine, "repository", None)
         if repository is None:
             return 0
@@ -339,8 +326,11 @@ class SecureDocumentDeletionService:
                 self.vector_store.delete_document(path, wait=True)
 
                 if is_duplicate:
-                    self._set_stage("Omitiendo Knowledge Engine para duplicado")
-                    knowledge_removed = self._delete_knowledge_rows(path)
+                    # Los duplicados nunca ingresan al Knowledge Engine. No se
+                    # consulta ni se modifica esa base: esto evita depender de
+                    # esquemas históricos y elimina el error "no such column: path".
+                    self._set_stage("Knowledge Engine no aplica a duplicados")
+                    knowledge_removed = 0
                 else:
                     self._set_stage("Actualizando Knowledge Engine")
                     knowledge_removed = self._delete_knowledge_rows(path)
@@ -369,7 +359,7 @@ class SecureDocumentDeletionService:
                     raise RuntimeError("El documento aun figura en el catalogo.")
                 if self._ocr_count(path) != 0:
                     raise RuntimeError("El documento aun figura en OCR.")
-                if self._knowledge_count(path) != 0:
+                if not is_duplicate and self._knowledge_count(path) != 0:
                     raise RuntimeError("El documento aun figura en Knowledge Engine.")
                 if staged.exists():
                     staged.unlink()
