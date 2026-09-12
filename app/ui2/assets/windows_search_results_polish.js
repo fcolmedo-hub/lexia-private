@@ -64,6 +64,22 @@
     (document.body || document.documentElement).appendChild(caseResearchReturn);
   }
 
+  // En los tres buscadores el acceso lleva a la pestaña Estudiar, no a una
+  // investigación completa. Se corrige el rótulo sólo cuando el usuario abre
+  // el menú de acciones; no requiere observadores ni trabajo continuo del DOM.
+  if (!window.__lexiaWindowsStudyActionLabelInstalled) {
+    window.__lexiaWindowsStudyActionLabelInstalled = true;
+    document.addEventListener('click', event => {
+      const trigger = event.target?.closest?.('#searchpage #realSearchResults .lexia-result-menu-trigger');
+      if (!trigger) return;
+      const card = trigger.closest('.result-card');
+      const study = card?.querySelector('[data-lexia-search-investigate="1"]');
+      if (!study) return;
+      study.textContent = 'Estudiar';
+      study.title = 'Cargar este archivo en Estudiar';
+    }, true);
+  }
+
   if (document.getElementById('lexiaWindowsSearchResultsPolish')) return;
 
   const style = document.createElement('style');
@@ -137,6 +153,20 @@
        en esta vista de Windows. */
     .lexia-windows-search-polish #contextpage .source-actions .lexia-ocr-reprocess {
       display:none!important;
+    }
+
+    /* Explorador de archivos: Eliminar debe ser una acción destructiva inequívoca. */
+    .lexia-windows-search-polish #lexiaNavigatorFiles .search-delete-file,
+    .lexia-windows-search-polish .lexia-nav-preview-actions .search-delete-file {
+      background:#d92d20!important;
+      border-color:#d92d20!important;
+      color:#fff!important;
+    }
+    .lexia-windows-search-polish #lexiaNavigatorFiles .search-delete-file:hover,
+    .lexia-windows-search-polish .lexia-nav-preview-actions .search-delete-file:hover {
+      background:#b42318!important;
+      border-color:#b42318!important;
+      color:#fff!important;
     }
   `;
   document.head.appendChild(style);
