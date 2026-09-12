@@ -146,8 +146,6 @@ class SecureDocumentDeletionService:
             }:
                 raise
 
-        # Finder can mark imported files immutable. Clear only the user flag
-        # when the running platform supports it, then retry the atomic move.
         if sys.platform == "darwin" and hasattr(os, "chflags"):
             try:
                 os.chflags(path, 0)
@@ -296,6 +294,18 @@ class SecureDocumentDeletionService:
                     )
         return total
 
+    def _delete_knowledge_rows(self, path: Path) -> int:
+        """Remove one document from the deterministic Knowledge DB only.
+
+        Duplicate catalog rows are intentionally excluded from KnowledgeEngine indexing.
+        Deleting a duplicate therefore must never trigger a full sync or fail merely
+        because there was nothing to remove from Knowledge.
+        """
+        repository = getattr(self.knowledge_engine, "repository", None)
+        if repository is None:
+            return 0
+        return int(repository.remove_path(str(path)) or 0)
+
     def delete(self, path_value) -> dict:
         path = self._validate_path(path_value)
         if self.ocr_queue.state().get("running"):
@@ -308,7 +318,6 @@ class SecureDocumentDeletionService:
         staged = staging_root / f"{uuid.uuid4().hex}{path.suffix}"
         moved = False
 
-        # AutoSync usa este mismo bloqueo durante una sincronizacion completa.
         with self.autosync._sync_lock:
             self._set_stage("Verificando catalogo")
             state = self.catalog.get_file_state(path)
@@ -316,6 +325,7 @@ class SecureDocumentDeletionService:
                 raise FileNotFoundError(
                     "El documento ya no existe en el catalogo activo."
                 )
+            is_duplicate = bool(str(state.get("duplicate_of") or "").strip())
 
             try:
                 if path.exists():
@@ -328,14 +338,12 @@ class SecureDocumentDeletionService:
                 vectors_before = self._vector_count(path)
                 self.vector_store.delete_document(path, wait=True)
 
-                self._set_stage("Actualizando Knowledge Engine")
-                knowledge = self.knowledge_engine.sync_paths(
-                    [],
-                    deleted_paths=[str(path)],
-                    rebuild_relations=False,
-                )
-                if int(getattr(knowledge, "errors", 0) or 0):
-                    raise RuntimeError("Knowledge Engine no pudo eliminar el documento.")
+                if is_duplicate:
+                    self._set_stage("Omitiendo Knowledge Engine para duplicado")
+                    knowledge_removed = self._delete_knowledge_rows(path)
+                else:
+                    self._set_stage("Actualizando Knowledge Engine")
+                    knowledge_removed = self._delete_knowledge_rows(path)
 
                 self._set_stage("Limpiando OCR, catalogo y fragmentos")
                 ocr_removed = self._delete_ocr_rows(path)
@@ -374,9 +382,7 @@ class SecureDocumentDeletionService:
                         catalog_result.get("fragments_deleted", 0)
                     ),
                     "ocr_rows_deleted": ocr_removed,
-                    "knowledge_rows_deleted": int(
-                        getattr(knowledge, "removed", 0) or 0
-                    ),
+                    "knowledge_rows_deleted": knowledge_removed,
                     "duplicates_released": int(
                         catalog_result.get("duplicates_released", 0)
                     ),
