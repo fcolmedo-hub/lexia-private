@@ -6,9 +6,9 @@ from pathlib import Path
 import json
 import sys
 import threading
+import uuid
 
 from config.settings import SETTINGS
-from core.document_extractor import DocumentExtractor
 from models.search_result import SearchResult
 
 
@@ -23,10 +23,6 @@ _SERVER: ThreadingHTTPServer | None = None
 _THREAD: threading.Thread | None = None
 _MANUAL_SOURCES: dict[str, dict] = {}
 _PATCHED_BUILDERS: set[int] = set()
-
-
-def _path_key(path: str | Path) -> str:
-    return str(Path(path).expanduser().resolve()).casefold()
 
 
 def _category_from_path(path: Path, fallback: str = "") -> str:
@@ -70,20 +66,25 @@ def _state_for(application, path: Path) -> dict:
     return state if isinstance(state, dict) else {}
 
 
-def _build_manual_source(application, path: Path) -> SearchResult:
-    state = _state_for(application, path)
-    text = str(state.get("text_content") or "").strip()
-    total_pages = None
+def _build_manual_fragment(
+    application,
+    path: Path,
+    selected_text: str,
+    page_start: int | None,
+    page_end: int | None,
+    fragment_id: str,
+) -> SearchResult:
+    text = str(selected_text or "").strip()
     if not text:
-        extraction = DocumentExtractor().extract(path)
-        text = str(extraction.text or "").strip()
-        total_pages = extraction.total_pages
-    if not text:
-        raise RuntimeError("El documento no contiene texto utilizable.")
+        raise ValueError("Seleccioná un pasaje del documento antes de agregarlo a la investigación.")
 
+    state = _state_for(application, path)
     category = _category_from_path(path, str(state.get("category") or ""))
+    start = int(page_start) if page_start else None
+    end = int(page_end) if page_end else start
     metadata = {
         "manual_source": "1",
+        "manual_fragment_id": fragment_id,
         "court": str(state.get("court") or ""),
         "date": str(state.get("date") or ""),
     }
@@ -94,22 +95,26 @@ def _build_manual_source(application, path: Path) -> SearchResult:
         fragment_index=0,
         text=text,
         score=1.0,
-        page_start=1 if total_pages else None,
-        page_end=total_pages if total_pages and total_pages > 1 else None,
+        page_start=start,
+        page_end=end,
         metadata=metadata,
     )
 
 
-def _public_source(source: SearchResult, selected: bool = True) -> dict:
-    text = " ".join(str(source.text or "").split())
+def _public_source(source: SearchResult, source_id: str, selected: bool = True) -> dict:
+    text = str(source.text or "").strip()
     return {
+        "id": source_id,
         "manual": True,
         "selected": bool(selected),
         "name": source.document_name,
         "path": str(source.document_path),
         "category": source.category,
+        "page_start": source.page_start,
+        "page_end": source.page_end,
         "page_label": source.page_label,
-        "snippet": text[:900],
+        "snippet": text,
+        "selected_text": text,
         "score": float(source.score or 0),
     }
 
@@ -117,38 +122,61 @@ def _public_source(source: SearchResult, selected: bool = True) -> dict:
 def _sources_snapshot() -> list[dict]:
     with _LOCK:
         return [
-            _public_source(item["source"], bool(item.get("selected", True)))
-            for item in _MANUAL_SOURCES.values()
+            _public_source(item["source"], source_id, bool(item.get("selected", True)))
+            for source_id, item in _MANUAL_SOURCES.items()
         ]
 
 
-def _add_source(application, path_value: str) -> dict:
+def _add_fragment(
+    application,
+    path_value: str,
+    selected_text: str,
+    page_start: int | None,
+    page_end: int | None,
+) -> dict:
     path = _validate_library_file(path_value)
-    key = _path_key(path)
+    normalized_text = " ".join(str(selected_text or "").split())
+    if not normalized_text:
+        raise ValueError("Seleccioná un pasaje del documento antes de agregarlo a la investigación.")
+
     with _LOCK:
-        existing = _MANUAL_SOURCES.get(key)
-        if existing:
-            existing["selected"] = True
-            return _public_source(existing["source"], True)
+        for source_id, item in _MANUAL_SOURCES.items():
+            source = item["source"]
+            same_path = str(source.document_path).casefold() == str(path).casefold()
+            same_text = " ".join(str(source.text or "").split()) == normalized_text
+            same_pages = (source.page_start or None) == (page_start or None) and (source.page_end or None) == (page_end or page_start or None)
+            if same_path and same_text and same_pages:
+                item["selected"] = True
+                return _public_source(source, source_id, True)
 
-    source = _build_manual_source(application, path)
+    source_id = uuid.uuid4().hex
+    source = _build_manual_fragment(
+        application,
+        path,
+        str(selected_text or "").strip(),
+        page_start,
+        page_end,
+        source_id,
+    )
     with _LOCK:
-        _MANUAL_SOURCES[key] = {"source": source, "selected": True}
-    return _public_source(source, True)
+        _MANUAL_SOURCES[source_id] = {"source": source, "selected": True}
+    return _public_source(source, source_id, True)
 
 
-def _set_selected(path_value: str, selected: bool) -> dict:
-    key = _path_key(_validate_library_file(path_value))
+def _set_selected(source_id: str, selected: bool) -> dict:
+    key = str(source_id or "").strip()
     with _LOCK:
         item = _MANUAL_SOURCES.get(key)
         if not item:
-            raise KeyError("La fuente manual ya no está disponible.")
+            raise KeyError("El fragmento manual ya no está disponible.")
         item["selected"] = bool(selected)
-        return _public_source(item["source"], bool(selected))
+        return _public_source(item["source"], key, bool(selected))
 
 
-def _remove_source(path_value: str) -> None:
-    key = _path_key(_validate_library_file(path_value))
+def _remove_source(source_id: str) -> None:
+    key = str(source_id or "").strip()
+    if not key:
+        raise ValueError("Falta identificar el fragmento manual.")
     with _LOCK:
         _MANUAL_SOURCES.pop(key, None)
 
@@ -167,6 +195,15 @@ def _selected_manual_sources() -> list[SearchResult]:
         ]
 
 
+def _manual_fragment_key(source: SearchResult) -> tuple[str, int | None, int | None, str]:
+    return (
+        str(source.document_path).casefold(),
+        source.page_start or None,
+        source.page_end or None,
+        " ".join(str(source.text or "").split()).casefold(),
+    )
+
+
 def _install_curate_extension(application) -> None:
     builder = application.context_builder
     marker = id(builder)
@@ -182,16 +219,13 @@ def _install_curate_extension(application) -> None:
             return curated
 
         combined = list(curated.sources)
-        existing_paths = {
-            str(source.document_path).casefold()
-            for source in combined
-        }
+        existing = {_manual_fragment_key(source) for source in combined}
         for source in manual:
-            key = str(source.document_path).casefold()
-            if key in existing_paths:
+            key = _manual_fragment_key(source)
+            if key in existing:
                 continue
             combined.append(source)
-            existing_paths.add(key)
+            existing.add(key)
 
         if len(combined) == len(curated.sources):
             return curated
@@ -219,7 +253,7 @@ def _install_curate_extension(application) -> None:
 
 def _handler(application):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "LexIA-Windows-Research-Sources/1.0"
+        server_version = "LexIA-Windows-Research-Sources/2.0"
 
         def log_message(self, _format, *_args):
             return
@@ -265,17 +299,23 @@ def _handler(application):
         def do_POST(self):
             try:
                 body = self._body()
-                if self.path == "/add-source":
-                    source = _add_source(application, str(body.get("path") or ""))
+                if self.path == "/add-fragment":
+                    source = _add_fragment(
+                        application,
+                        str(body.get("path") or ""),
+                        str(body.get("selected_text") or ""),
+                        int(body["page_start"]) if body.get("page_start") else None,
+                        int(body["page_end"]) if body.get("page_end") else None,
+                    )
                     return self._json({"ok": True, "source": source, "sources": _sources_snapshot()})
                 if self.path == "/set-selected":
                     source = _set_selected(
-                        str(body.get("path") or ""),
+                        str(body.get("id") or ""),
                         bool(body.get("selected", True)),
                     )
                     return self._json({"ok": True, "source": source, "sources": _sources_snapshot()})
                 if self.path == "/remove-source":
-                    _remove_source(str(body.get("path") or ""))
+                    _remove_source(str(body.get("id") or ""))
                     return self._json({"ok": True, "sources": _sources_snapshot()})
                 if self.path == "/clear":
                     clear_manual_sources()
