@@ -28,6 +28,30 @@
     (document.body || document.documentElement).appendChild(manualSelectionFix);
   }
 
+  if (!document.querySelector('script[data-lexia-windows-research-manual-sources-merge]')) {
+    const manualSourcesMerge = document.createElement('script');
+    manualSourcesMerge.src = 'assets/windows_research_manual_sources_merge.js?v=manual-sources-merge-1';
+    manualSourcesMerge.async = false;
+    manualSourcesMerge.dataset.lexiaWindowsResearchManualSourcesMerge = '1';
+    (document.body || document.documentElement).appendChild(manualSourcesMerge);
+  }
+
+  if (!document.querySelector('script[data-lexia-windows-maintenance-status-detail]')) {
+    const maintenanceStatusDetail = document.createElement('script');
+    maintenanceStatusDetail.src = 'assets/windows_maintenance_status_detail.js?v=maintenance-status-1';
+    maintenanceStatusDetail.async = false;
+    maintenanceStatusDetail.dataset.lexiaWindowsMaintenanceStatusDetail = '1';
+    (document.body || document.documentElement).appendChild(maintenanceStatusDetail);
+  }
+
+  if (!document.querySelector('script[data-lexia-windows-maintenance-duplicates]')) {
+    const maintenanceDuplicates = document.createElement('script');
+    maintenanceDuplicates.src = 'assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-1';
+    maintenanceDuplicates.async = false;
+    maintenanceDuplicates.dataset.lexiaWindowsMaintenanceDuplicates = '1';
+    (document.body || document.documentElement).appendChild(maintenanceDuplicates);
+  }
+
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
     const investigationLayout = document.createElement('script');
     investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-4';
