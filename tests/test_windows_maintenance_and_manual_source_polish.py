@@ -8,8 +8,8 @@ ASSETS = ROOT / "app" / "ui2" / "assets"
 def test_windows_loader_includes_maintenance_and_manual_source_polish():
     source = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     assert "windows_maintenance_status_detail.js?v=maintenance-status-1" in source
-    assert "windows_maintenance_duplicates.js?v=maintenance-duplicates-1" in source
-    assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-1" in source
+    assert "windows_maintenance_duplicates.js?v=maintenance-duplicates-2" in source
+    assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-2" in source
 
 
 def test_autosync_detail_explains_phases_without_continuous_observer():
