@@ -43,17 +43,28 @@ def test_duplicate_maintenance_panel_requires_user_delete_action():
     assert "setInterval(" not in source
 
 
-def test_manual_sources_are_loaded_directly_into_native_source_list_with_green_identity():
+def test_manual_sources_are_stable_and_green_in_modal_and_main_list():
     source = (ASSETS / "windows_research_manual_sources_merge.js").read_text(encoding="utf-8")
     assert "researchSourcesModalList" in source
+    assert "lexiaManualSourcesMainList" in source
     assert "sidecar('/sources')" in source
-    assert "FUENTE ${nativeCount+index+1} · AGREGADA POR EL USUARIO" in source
+    assert "lexia-manual-native-card" in source
+    assert "lexia-manual-native-name" in source
+    assert "color:#168054" in source
     assert "accent-color:#169b62" in source
-    assert "accent-color:#5146f6" in source
-    assert "list.appendChild(label)" in source
+    assert "renderInto(document.getElementById(MODAL_LIST_ID),sources,start,'modal')" in source
+    assert "renderInto(ensureMainContainer(),sources,start,'main')" in source
+    assert "previous===sig" in source
     assert "cloneNode(true)" not in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source
+
+
+def test_native_source_text_is_constrained_inside_cards():
+    source = (ASSETS / "windows_research_manual_sources_merge.js").read_text(encoding="utf-8")
+    assert "overflow-wrap:anywhere" in source
+    assert "max-width:100%" in source
+    assert "min-width:0" in source
 
 
 def test_manual_search_keeps_investigation_as_modal_background():
