@@ -14,9 +14,12 @@ def test_windows_loader_includes_maintenance_and_manual_source_polish():
 
 def test_autosync_detail_explains_phases_without_continuous_observer():
     source = (ASSETS / "windows_maintenance_status_detail.js").read_text(encoding="utf-8")
-    assert "Analizando cambios: comparando la biblioteca con el catálogo." in source
-    assert "Indexando los documentos modificados." in source
-    assert "Actualizando el Knowledge Engine" in source
+    assert "Comparando la biblioteca física con el catálogo" in source
+    assert "Indexando los documentos modificados y actualizando sus vectores." in source
+    assert "Actualizando el Knowledge Engine con los documentos procesados." in source
+    assert "Analizando biblioteca…" in source
+    assert "Fase: detección y comparación de cambios" in source
+    assert "[0,40,140]" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source
 
