@@ -20,6 +20,14 @@
     (document.body || document.documentElement).appendChild(manualSources);
   }
 
+  if (!document.querySelector('script[data-lexia-windows-research-manual-selection-fix]')) {
+    const manualSelectionFix = document.createElement('script');
+    manualSelectionFix.src = 'assets/windows_research_manual_selection_fix.js?v=manual-selection-1';
+    manualSelectionFix.async = false;
+    manualSelectionFix.dataset.lexiaWindowsResearchManualSelectionFix = '1';
+    (document.body || document.documentElement).appendChild(manualSelectionFix);
+  }
+
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
     const investigationLayout = document.createElement('script');
     investigationLayout.src = 'assets/windows_investigation_layout_fix.js?v=investigation-layout-4';
