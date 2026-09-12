@@ -9,6 +9,7 @@
   const BUTTON_ID='lexiaCaseReturnSelectedSources';
   const ACTIONS_ID='lexiaCaseReturnActions';
   const STYLE_ID='lexiaCaseReturnStyle';
+  const MANUAL_SOURCES_URL='http://127.0.0.1:8516/sources';
 
   function loadContext(){
     try{return JSON.parse(sessionStorage.getItem(STORAGE_KEY)||'null');}
@@ -61,6 +62,13 @@
       .filter(Number.isFinite);
   }
 
+  async function selectedManualSources(){
+    try{
+      const data=await jsonFetch(MANUAL_SOURCES_URL);
+      return (Array.isArray(data.sources)?data.sources:[]).filter(source=>source.selected!==false);
+    }catch(_){return [];}
+  }
+
   function pageOf(source){
     const direct=Number(source?.page_start||source?.page||0);
     if(direct>0)return direct;
@@ -103,6 +111,45 @@
     return Array.isArray(data?.result?.sources)?data.result.sources:[];
   }
 
+  async function addSourceToCase(source,ctx,linkIds){
+    const path=String(source?.path||'').trim();
+    if(!path)throw new Error('La fuente “'+sourceName(source)+'” no conserva una ruta utilizable.');
+
+    let caseDocumentId=linkIds.get(path);
+    if(!caseDocumentId){
+      const linked=await jsonFetch('/api/cases/link-document',{
+        method:'POST',
+        body:JSON.stringify({
+          case_id:Number(ctx.caseId),
+          document_id:source.document_id||null,
+          document_name:sourceName(source),
+          document_path:path,
+          category:String(source.category||''),
+          relation_kind:'fuente de investigación',
+          note:'Fuente incorporada desde Investigación · '+String(ctx.nodeTitle||'bloque del caso')
+        })
+      });
+      caseDocumentId=Number(linked.link_id||0);
+      if(!caseDocumentId)throw new Error('No se pudo vincular “'+sourceName(source)+'” a Archivos del caso.');
+      linkIds.set(path,caseDocumentId);
+    }
+
+    const page=pageOf(source);
+    const selectedText=String(source.snippet||'').trim()||sourceName(source);
+    await jsonFetch('/api/cases/block/highlight',{
+      method:'POST',
+      body:JSON.stringify({
+        case_id:Number(ctx.caseId),
+        block_id:Number(ctx.blockId),
+        case_document_id:caseDocumentId,
+        page_start:page,
+        page_end:page,
+        selected_text:selectedText,
+        anchor_data:''
+      })
+    });
+  }
+
   async function incorporateSelected(button){
     const ctx=loadContext();
     if(!ctx?.caseId||!ctx?.blockId){
@@ -112,7 +159,8 @@
     }
 
     const indices=selectedIndices();
-    if(!indices.length){
+    const manual=await selectedManualSources();
+    if(!indices.length&&!manual.length){
       alert('Seleccioná al menos una fuente antes de incorporarla al caso.');
       return;
     }
@@ -124,9 +172,10 @@
 
     let done=0;
     const already=new Set((ctx.incorporatedSourceIndexes||[]).map(Number));
+    const alreadyManual=new Set((ctx.incorporatedManualPaths||[]).map(value=>String(value).casefold?.()||String(value).toLowerCase()));
 
     try{
-      const sources=await resultSources();
+      const sources=indices.length?await resultSources():[];
       const byIndex=new Map(sources.map(source=>[Number(source.index),source]));
       const linkIds=new Map();
 
@@ -134,51 +183,25 @@
         if(already.has(index))continue;
         const source=byIndex.get(index);
         if(!source)throw new Error('No se pudo recuperar la fuente '+(index+1)+' de la investigación.');
-
-        const path=String(source.path||'').trim();
-        if(!path)throw new Error('La fuente “'+sourceName(source)+'” no conserva una ruta utilizable.');
-
-        let caseDocumentId=linkIds.get(path);
-        if(!caseDocumentId){
-          const linked=await jsonFetch('/api/cases/link-document',{
-            method:'POST',
-            body:JSON.stringify({
-              case_id:Number(ctx.caseId),
-              document_id:source.document_id||null,
-              document_name:sourceName(source),
-              document_path:path,
-              category:String(source.category||''),
-              relation_kind:'fuente de investigación',
-              note:'Fuente incorporada desde Investigación · '+String(ctx.nodeTitle||'bloque del caso')
-            })
-          });
-          caseDocumentId=Number(linked.link_id||0);
-          if(!caseDocumentId)throw new Error('No se pudo vincular “'+sourceName(source)+'” a Archivos del caso.');
-          linkIds.set(path,caseDocumentId);
-        }
-
-        const page=pageOf(source);
-        const selectedText=String(source.snippet||'').trim()||sourceName(source);
-        await jsonFetch('/api/cases/block/highlight',{
-          method:'POST',
-          body:JSON.stringify({
-            case_id:Number(ctx.caseId),
-            block_id:Number(ctx.blockId),
-            case_document_id:caseDocumentId,
-            page_start:page,
-            page_end:page,
-            selected_text:selectedText,
-            anchor_data:''
-          })
-        });
-
+        await addSourceToCase(source,ctx,linkIds);
         already.add(index);
         ctx.incorporatedSourceIndexes=[...already];
         saveContext(ctx);
         done+=1;
       }
 
-      if(!done&&indices.every(index=>already.has(index))){
+      for(const source of manual){
+        const path=String(source?.path||'').trim();
+        const key=path.toLowerCase();
+        if(!path||alreadyManual.has(key))continue;
+        await addSourceToCase(source,ctx,linkIds);
+        alreadyManual.add(key);
+        ctx.incorporatedManualPaths=[...alreadyManual];
+        saveContext(ctx);
+        done+=1;
+      }
+
+      if(!done){
         setHelp('Las fuentes seleccionadas ya estaban incorporadas al bloque.');
       }else{
         setHelp('Fuentes incorporadas correctamente. Volviendo al caso…');
@@ -246,7 +269,7 @@
 
   document.addEventListener('change',event=>{
     const target=event.target instanceof Element?event.target:null;
-    if(target?.matches('.research-source-check'))ensureButton();
+    if(target?.matches('.research-source-check,.lexia-manual-source-check'))ensureButton();
   },true);
 
   window.lexiaCaseResearchReturn={sync:ensureButton,burst:syncBurst};
