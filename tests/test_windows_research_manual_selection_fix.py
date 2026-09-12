@@ -47,6 +47,16 @@ def test_manual_viewer_sends_each_selected_fragment_with_pages():
     assert "lexiaResearchManualSources?.refresh" in source
 
 
+def test_manual_viewer_closes_after_add_and_returns_to_sources():
+    source = (ASSETS / "windows_research_manual_selection_fix.js").read_text(encoding="utf-8")
+
+    assert "closeViewerAndShowSources" in source
+    assert "dialog.remove()" in source
+    assert "restoreInvestigationAfterViewer" in source
+    assert "window.lexiaMergeManualResearchSources?.()" in source
+    assert "document.getElementById('viewSources')||document.getElementById('reviewResearchSources')" in source
+
+
 def test_manual_selection_fix_has_no_continuous_dom_watch():
     source = (ASSETS / "windows_research_manual_selection_fix.js").read_text(encoding="utf-8")
 
