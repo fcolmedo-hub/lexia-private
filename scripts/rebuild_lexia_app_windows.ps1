@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $Root = if ($env:LEXIA_ROOT) { $env:LEXIA_ROOT } else { 'D:\LexIA_2.3_DEV' }
 $Py = Join-Path $Root '.venv\Scripts\python.exe'
-$EntryName = if ($LocalQdrant) { 'windows_desktop_local.py' } else { 'windows_desktop.py' }
+$EntryName = if ($LocalQdrant) { 'windows_desktop_local.py' } else { 'windows_desktop_fast.py' }
 $Entry = Join-Path $Root (Join-Path 'app\ui2' $EntryName)
 $AppName = if ($LocalQdrant) { 'LexIA_LocalQdrant' } else { 'LexIA' }
 $ShortcutName = if ($LocalQdrant) { 'LexIA Local Qdrant.lnk' } else { 'LexIA.lnk' }
