@@ -147,6 +147,88 @@
       box-shadow:inset 3px 0 0 #5146f6!important;
     }
 
+    /* Paleta de acciones coherente con LexIA: verde para abrir, violeta para
+       estudiar, lavandas para acciones secundarias y ciruela para eliminar. */
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="open"],
+    .lexia-windows-search-polish #searchpage .result-actions .search-open-file[data-lexia-content-open="1"] {
+      background:#dff3e7!important;
+      border-color:#c7e8d4!important;
+      color:#177245!important;
+    }
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="open"]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions .search-open-file[data-lexia-content-open="1"]:hover {
+      background:#cfeadb!important;
+      border-color:#b6ddc6!important;
+      color:#12633b!important;
+    }
+
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="investigate"],
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-search-investigate="1"] {
+      background:#5146f6!important;
+      border-color:#5146f6!important;
+      color:#fff!important;
+    }
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="investigate"]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-search-investigate="1"]:hover {
+      background:#4338e8!important;
+      border-color:#4338e8!important;
+      color:#fff!important;
+    }
+
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="case"],
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-case-link],
+    .lexia-windows-search-polish #searchpage .result-actions .lexia-case-link {
+      background:#e5e0ff!important;
+      border-color:#d5ceff!important;
+      color:#3428c7!important;
+    }
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="case"]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-case-link]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions .lexia-case-link:hover {
+      background:#d8d1ff!important;
+      border-color:#c4bcff!important;
+      color:#2f25b8!important;
+    }
+
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="details"],
+    .lexia-windows-search-polish #searchpage .result-actions .search-file-info {
+      background:#f0edff!important;
+      border-color:#dfd9ff!important;
+      color:#4036b4!important;
+    }
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="details"]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions .search-file-info:hover {
+      background:#e6e1ff!important;
+      border-color:#d1caff!important;
+      color:#352bc7!important;
+    }
+
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="ocr"],
+    .lexia-windows-search-polish #searchpage .result-actions .lexia-ocr-reprocess {
+      background:#ececf6!important;
+      border-color:#ddddea!important;
+      color:#59627a!important;
+    }
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="ocr"]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions .lexia-ocr-reprocess:hover {
+      background:#e2e2f0!important;
+      border-color:#d2d2e2!important;
+      color:#4d5670!important;
+    }
+
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="delete"],
+    .lexia-windows-search-polish #searchpage .result-actions .search-delete-file {
+      background:#9a3b8f!important;
+      border-color:#9a3b8f!important;
+      color:#fff!important;
+    }
+    .lexia-windows-search-polish #searchpage .result-actions [data-lexia-file-action-kind="delete"]:hover,
+    .lexia-windows-search-polish #searchpage .result-actions .search-delete-file:hover {
+      background:#7f2f76!important;
+      border-color:#7f2f76!important;
+      color:#fff!important;
+    }
+
     /* Acciones de las fuentes recuperadas por una investigación. */
     .lexia-windows-search-polish #contextpage .source-actions .study-source {
       background:#5146f6!important;
@@ -158,14 +240,15 @@
       border-color:#4338e8!important;
     }
     .lexia-windows-search-polish #contextpage .source-actions .lexia-case-link {
-      background:#8a5a2b!important;
-      border-color:#8a5a2b!important;
-      color:#fff!important;
+      background:#e5e0ff!important;
+      border-color:#d5ceff!important;
+      color:#3428c7!important;
       border-radius:6px!important;
     }
     .lexia-windows-search-polish #contextpage .source-actions .lexia-case-link:hover {
-      background:#70451f!important;
-      border-color:#70451f!important;
+      background:#d8d1ff!important;
+      border-color:#c4bcff!important;
+      color:#2f25b8!important;
     }
 
     /* OCR pertenece al mantenimiento documental, no a la selección de fuentes
@@ -175,17 +258,18 @@
       display:none!important;
     }
 
-    /* Explorador de archivos: Eliminar debe ser una acción destructiva inequívoca. */
+    /* Explorador de archivos: eliminar conserva significado destructivo, pero
+       usa ciruela para integrarse con la paleta violeta general de LexIA. */
     .lexia-windows-search-polish #lexiaNavigatorFiles .search-delete-file,
     .lexia-windows-search-polish .lexia-nav-preview-actions .search-delete-file {
-      background:#d92d20!important;
-      border-color:#d92d20!important;
+      background:#9a3b8f!important;
+      border-color:#9a3b8f!important;
       color:#fff!important;
     }
     .lexia-windows-search-polish #lexiaNavigatorFiles .search-delete-file:hover,
     .lexia-windows-search-polish .lexia-nav-preview-actions .search-delete-file:hover {
-      background:#b42318!important;
-      border-color:#b42318!important;
+      background:#7f2f76!important;
+      border-color:#7f2f76!important;
       color:#fff!important;
     }
   `;
