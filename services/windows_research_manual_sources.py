@@ -4,6 +4,7 @@ from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import json
+import sqlite3
 import sys
 import threading
 import uuid
@@ -125,6 +126,65 @@ def _sources_snapshot() -> list[dict]:
             _public_source(item["source"], source_id, bool(item.get("selected", True)))
             for source_id, item in _MANUAL_SOURCES.items()
         ]
+
+
+def _duplicates_snapshot() -> list[dict]:
+    database = Path(SETTINGS.catalog_path).expanduser().resolve()
+    if not database.is_file():
+        return []
+    with sqlite3.connect(str(database), timeout=10) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            SELECT
+                d.path,
+                d.name,
+                d.category,
+                d.size,
+                d.updated_at,
+                d.duplicate_of,
+                o.name AS original_name,
+                o.category AS original_category
+            FROM documents AS d
+            LEFT JOIN documents AS o
+              ON o.path = d.duplicate_of
+             AND COALESCE(o.is_deleted, 0) = 0
+            WHERE COALESCE(d.is_deleted, 0) = 0
+              AND d.duplicate_of IS NOT NULL
+              AND TRIM(d.duplicate_of) <> ''
+            ORDER BY COALESCE(o.name, d.duplicate_of) COLLATE NOCASE,
+                     d.name COLLATE NOCASE,
+                     d.path COLLATE NOCASE
+            """
+        ).fetchall()
+    return [
+        {
+            "path": str(row["path"] or ""),
+            "name": str(row["name"] or Path(str(row["path"] or "")).name),
+            "category": str(row["category"] or ""),
+            "size": int(row["size"] or 0),
+            "updated_at": str(row["updated_at"] or ""),
+            "duplicate_of": str(row["duplicate_of"] or ""),
+            "original_name": str(row["original_name"] or Path(str(row["duplicate_of"] or "")).name),
+            "original_category": str(row["original_category"] or ""),
+            "exists": Path(str(row["path"] or "")).is_file(),
+        }
+        for row in rows
+    ]
+
+
+def _delete_duplicate(application, path_value: str) -> dict:
+    path = _validate_library_file(path_value)
+    duplicates = {item["path"].casefold(): item for item in _duplicates_snapshot()}
+    item = duplicates.get(str(path).casefold())
+    if not item:
+        raise ValueError("El archivo ya no figura como duplicado activo en LexIA.")
+    result = application.secure_document_deletion.delete(path)
+    return {
+        "deleted": str(path),
+        "result": result,
+        "duplicates": _duplicates_snapshot(),
+    }
 
 
 def _add_fragment(
@@ -253,7 +313,7 @@ def _install_curate_extension(application) -> None:
 
 def _handler(application):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "LexIA-Windows-Research-Sources/2.0"
+        server_version = "LexIA-Windows-Research-Sources/2.1"
 
         def log_message(self, _format, *_args):
             return
@@ -294,6 +354,9 @@ def _handler(application):
                 return self._json({"ok": True})
             if self.path == "/sources":
                 return self._json({"ok": True, "sources": _sources_snapshot()})
+            if self.path == "/duplicates":
+                duplicates = _duplicates_snapshot()
+                return self._json({"ok": True, "count": len(duplicates), "duplicates": duplicates})
             return self._json({"ok": False, "error": "Ruta no encontrada."}, 404)
 
         def do_POST(self):
@@ -320,12 +383,15 @@ def _handler(application):
                 if self.path == "/clear":
                     clear_manual_sources()
                     return self._json({"ok": True, "sources": []})
+                if self.path == "/delete-duplicate":
+                    result = _delete_duplicate(application, str(body.get("path") or ""))
+                    return self._json({"ok": True, **result})
                 return self._json({"ok": False, "error": "Ruta no encontrada."}, 404)
             except PermissionError as error:
                 return self._json({"ok": False, "error": str(error)}, 403)
             except FileNotFoundError as error:
                 return self._json({"ok": False, "error": str(error)}, 404)
-            except (KeyError, ValueError) as error:
+            except (KeyError, ValueError, RuntimeError) as error:
                 return self._json({"ok": False, "error": str(error)}, 409)
             except Exception as error:
                 return self._json({"ok": False, "error": str(error)}, 500)
