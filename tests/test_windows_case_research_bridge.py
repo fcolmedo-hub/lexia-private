@@ -111,7 +111,7 @@ def test_return_button_is_revealed_after_case_context_exists():
     assert "#startContext" in return_flow
     assert "label==='investigar'||label==='revisar fuentes'" in return_flow
     assert "[0,100,350,900,1700,3000,5000]" in return_flow
-    assert "target?.matches('.research-source-check')" in return_flow
+    assert "target?.matches('.research-source-check,.lexia-manual-source-check')" in return_flow
     assert "button.hidden=!(ctx?.caseId&&ctx?.blockId)" in return_flow
 
 
