@@ -147,9 +147,16 @@ class KnowledgeEngine:
                 )
 
             try:
-                removed += self.repository.remove_path(
-                    path
-                )
+                # Los documentos marcados como duplicados nunca ingresan al
+                # Knowledge Engine (ver filtros duplicate_of IS NULL). Al
+                # borrarlos no hay nada que purgar aquí: tratarlos como error
+                # bloqueaba innecesariamente la eliminación segura del archivo.
+                if self.repository.knowledge_for_path(path) is None:
+                    skipped += 1
+                else:
+                    removed += self.repository.remove_path(
+                        path
+                    )
             except Exception:
                 errors += 1
 
