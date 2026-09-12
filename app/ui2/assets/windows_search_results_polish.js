@@ -64,19 +64,39 @@
     (document.body || document.documentElement).appendChild(caseResearchReturn);
   }
 
-  // En los tres buscadores el acceso lleva a la pestaña Estudiar, no a una
-  // investigación completa. Se corrige el rótulo sólo cuando el usuario abre
-  // el menú de acciones; no requiere observadores ni trabajo continuo del DOM.
+  // En los tres buscadores esta acción abre Estudiar. La versión anterior sólo
+  // renombraba el botón al abrir un tipo concreto de menú; aquí se sincronizan
+  // todos los botones equivalentes, tanto compactos como desplegables.
   if (!window.__lexiaWindowsStudyActionLabelInstalled) {
     window.__lexiaWindowsStudyActionLabelInstalled = true;
+    const syncStudyLabels = scope => {
+      const root = scope?.querySelectorAll ? scope : document;
+      root.querySelectorAll(
+        '[data-lexia-search-investigate="1"], .search-investigate-file, [data-lexia-file-action-kind="investigate"]'
+      ).forEach(study => {
+        const label = String(study.textContent || '').trim().toLocaleLowerCase('es-AR');
+        if (label === 'investigar' || label === 'estudiar') study.textContent = 'Estudiar';
+        study.title = 'Cargar este archivo en Estudiar';
+      });
+    };
+
+    const burst = scope => {
+      [0, 80, 220, 500, 1000, 1800, 3200].forEach(delay => {
+        window.setTimeout(() => syncStudyLabels(scope || document), delay);
+      });
+    };
+
+    burst(document);
+    document.addEventListener('pointerover', event => {
+      const card = event.target?.closest?.('#searchpage .result-card');
+      if (card) syncStudyLabels(card);
+    }, true);
     document.addEventListener('click', event => {
-      const trigger = event.target?.closest?.('#searchpage #realSearchResults .lexia-result-menu-trigger');
-      if (!trigger) return;
-      const card = trigger.closest('.result-card');
-      const study = card?.querySelector('[data-lexia-search-investigate="1"]');
-      if (!study) return;
-      study.textContent = 'Estudiar';
-      study.title = 'Cargar este archivo en Estudiar';
+      const card = event.target?.closest?.('#searchpage .result-card');
+      if (card) syncStudyLabels(card);
+      if (event.target?.closest?.('#searchpage button, #searchpage [role="tab"], #searchpage .tab')) {
+        burst(document);
+      }
     }, true);
   }
 
