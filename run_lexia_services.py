@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import signal
+import sys
 import threading
 
 from search.windows_vector_path_lookup import (
@@ -25,6 +26,7 @@ def main() -> None:
 
     stop_event = threading.Event()
     application: LexIAApplication | None = None
+    stop_manual_sources = None
 
     def request_stop(*_args) -> None:
         stop_event.set()
@@ -34,6 +36,18 @@ def main() -> None:
 
     try:
         application = LexIAApplication()
+
+        # Extensión exclusiva de Windows: permite incorporar a una investigación
+        # documentos conocidos por el usuario que el ranking no recuperó. Se
+        # mantiene fuera del puente central para no alterar el comportamiento de Mac.
+        if sys.platform == "win32":
+            from services.windows_research_manual_sources import (
+                start_windows_research_manual_sources,
+                stop_windows_research_manual_sources,
+            )
+
+            start_windows_research_manual_sources(application)
+            stop_manual_sources = stop_windows_research_manual_sources
 
         if not start_ui2_delete_bridge(application):
             raise RuntimeError(
@@ -46,6 +60,11 @@ def main() -> None:
         while not stop_event.wait(1.0):
             pass
     finally:
+        if stop_manual_sources is not None:
+            try:
+                stop_manual_sources()
+            except Exception:
+                pass
         if application is not None:
             try:
                 application.autosync.stop()
