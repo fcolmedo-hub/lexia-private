@@ -16,25 +16,17 @@
     catch(_){return null;}
   }
 
-  function saveContext(ctx){
-    sessionStorage.setItem(STORAGE_KEY,JSON.stringify(ctx));
-  }
-
+  function saveContext(ctx){sessionStorage.setItem(STORAGE_KEY,JSON.stringify(ctx));}
   function clearContext(){
     sessionStorage.removeItem(STORAGE_KEY);
     try{window.lexiaCaseResearchBridge?.clear?.();}catch(_){}
   }
 
   async function jsonFetch(url,options){
-    const response=await fetch(url,Object.assign({
-      cache:'no-store',
-      headers:{'Content-Type':'application/json'}
-    },options||{}));
+    const response=await fetch(url,Object.assign({cache:'no-store',headers:{'Content-Type':'application/json'}},options||{}));
     let data={};
     try{data=await response.json();}catch(_){}
-    if(!response.ok||data.ok===false){
-      throw new Error(data.detail||data.error||data.message||('HTTP '+response.status));
-    }
+    if(!response.ok||data.ok===false)throw new Error(data.detail||data.error||data.message||('HTTP '+response.status));
     return data;
   }
 
@@ -44,11 +36,7 @@
     style.id=STYLE_ID;
     style.textContent=`
       #${ACTIONS_ID}{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
-      #${BUTTON_ID}{
-        min-height:34px;padding:7px 11px;border:1px solid #5146f6;border-radius:8px;
-        background:#5146f6;color:#fff;font:800 10px/1.15 system-ui,-apple-system,"Segoe UI",sans-serif;
-        cursor:pointer;white-space:normal
-      }
+      #${BUTTON_ID}{min-height:34px;padding:7px 11px;border:1px solid #5146f6;border-radius:8px;background:#5146f6;color:#fff;font:800 10px/1.15 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;white-space:normal}
       #${BUTTON_ID}:hover{background:#4338e8;border-color:#4338e8}
       #${BUTTON_ID}:disabled{opacity:.5;cursor:default}
       @media(max-width:700px){#${ACTIONS_ID}{width:100%}#${ACTIONS_ID}>button{flex:1 1 180px}}
@@ -58,8 +46,7 @@
 
   function selectedIndices(){
     return [...document.querySelectorAll('#researchSourcesModalList .research-source-check:checked')]
-      .map(box=>Number(box.dataset.sourceIndex))
-      .filter(Number.isFinite);
+      .map(box=>Number(box.dataset.sourceIndex)).filter(Number.isFinite);
   }
 
   async function selectedManualSources(){
@@ -69,16 +56,27 @@
     }catch(_){return [];}
   }
 
-  function pageOf(source){
+  function pageStartOf(source){
     const direct=Number(source?.page_start||source?.page||0);
     if(direct>0)return direct;
     const match=String(source?.page_label||'').match(/\d+/);
     return match?Math.max(1,Number(match[0])):1;
   }
 
+  function pageEndOf(source){
+    const direct=Number(source?.page_end||0);
+    return direct>0?direct:pageStartOf(source);
+  }
+
   function sourceName(source){
     const fromPath=String(source?.path||'').split(/[\\/]/).pop();
     return String(source?.name||fromPath||'Fuente de investigación').trim();
+  }
+
+  function manualKey(source){
+    const id=String(source?.id||'').trim();
+    if(id)return id;
+    return [String(source?.path||'').toLowerCase(),pageStartOf(source),pageEndOf(source),String(source?.snippet||source?.selected_text||'').trim().toLowerCase()].join('|');
   }
 
   function setHelp(message){
@@ -87,11 +85,8 @@
   }
 
   function casesNavButton(){
-    const norm=value=>String(value||'')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .replace(/\s+/g,' ').trim().toLowerCase();
-    return [...document.querySelectorAll('#globalSidebar .nav button,.global-sidebar .nav button')]
-      .find(button=>norm(button.textContent)==='casos');
+    const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+    return [...document.querySelectorAll('#globalSidebar .nav button,.global-sidebar .nav button')].find(button=>norm(button.textContent)==='casos');
   }
 
   function navigateToCases(){
@@ -100,9 +95,7 @@
     const button=casesNavButton();
     if(!button)return false;
     button.click();
-    [100,300,700].forEach(delay=>window.setTimeout(()=>{
-      try{window.lexiaCaseResearchBridge?.sync?.();}catch(_){}
-    },delay));
+    [100,300,700].forEach(delay=>window.setTimeout(()=>{try{window.lexiaCaseResearchBridge?.sync?.();}catch(_){}},delay));
     return true;
   }
 
@@ -120,12 +113,8 @@
       const linked=await jsonFetch('/api/cases/link-document',{
         method:'POST',
         body:JSON.stringify({
-          case_id:Number(ctx.caseId),
-          document_id:source.document_id||null,
-          document_name:sourceName(source),
-          document_path:path,
-          category:String(source.category||''),
-          relation_kind:'fuente de investigación',
+          case_id:Number(ctx.caseId),document_id:source.document_id||null,document_name:sourceName(source),document_path:path,
+          category:String(source.category||''),relation_kind:'fuente de investigación',
           note:'Fuente incorporada desde Investigación · '+String(ctx.nodeTitle||'bloque del caso')
         })
       });
@@ -134,45 +123,33 @@
       linkIds.set(path,caseDocumentId);
     }
 
-    const page=pageOf(source);
-    const selectedText=String(source.snippet||'').trim()||sourceName(source);
+    const pageStart=pageStartOf(source),pageEnd=pageEndOf(source);
+    const selectedText=String(source.selected_text||source.snippet||'').trim()||sourceName(source);
     await jsonFetch('/api/cases/block/highlight',{
       method:'POST',
       body:JSON.stringify({
-        case_id:Number(ctx.caseId),
-        block_id:Number(ctx.blockId),
-        case_document_id:caseDocumentId,
-        page_start:page,
-        page_end:page,
-        selected_text:selectedText,
-        anchor_data:''
+        case_id:Number(ctx.caseId),block_id:Number(ctx.blockId),case_document_id:caseDocumentId,
+        page_start:pageStart,page_end:pageEnd,selected_text:selectedText,
+        anchor_data:source.manual?JSON.stringify({manual_research_fragment_id:String(source.id||''),source:'investigacion_manual'}):''
       })
     });
   }
 
   async function incorporateSelected(button){
     const ctx=loadContext();
-    if(!ctx?.caseId||!ctx?.blockId){
-      alert('Esta investigación ya no conserva el vínculo con el bloque de origen.');
-      ensureButton();
-      return;
-    }
+    if(!ctx?.caseId||!ctx?.blockId){alert('Esta investigación ya no conserva el vínculo con el bloque de origen.');ensureButton();return;}
 
     const indices=selectedIndices();
     const manual=await selectedManualSources();
-    if(!indices.length&&!manual.length){
-      alert('Seleccioná al menos una fuente antes de incorporarla al caso.');
-      return;
-    }
+    if(!indices.length&&!manual.length){alert('Seleccioná al menos una fuente antes de incorporarla al caso.');return;}
 
     const previous=button.textContent;
-    button.disabled=true;
-    button.textContent='Incorporando…';
+    button.disabled=true;button.textContent='Incorporando…';
     setHelp('Incorporando las fuentes seleccionadas al bloque del caso…');
 
     let done=0;
     const already=new Set((ctx.incorporatedSourceIndexes||[]).map(Number));
-    const alreadyManual=new Set((ctx.incorporatedManualPaths||[]).map(value=>String(value).casefold?.()||String(value).toLowerCase()));
+    const alreadyManual=new Set((ctx.incorporatedManualIds||[]).map(value=>String(value)));
 
     try{
       const sources=indices.length?await resultSources():[];
@@ -184,41 +161,23 @@
         const source=byIndex.get(index);
         if(!source)throw new Error('No se pudo recuperar la fuente '+(index+1)+' de la investigación.');
         await addSourceToCase(source,ctx,linkIds);
-        already.add(index);
-        ctx.incorporatedSourceIndexes=[...already];
-        saveContext(ctx);
-        done+=1;
+        already.add(index);ctx.incorporatedSourceIndexes=[...already];saveContext(ctx);done+=1;
       }
 
       for(const source of manual){
-        const path=String(source?.path||'').trim();
-        const key=path.toLowerCase();
-        if(!path||alreadyManual.has(key))continue;
+        const key=manualKey(source);
+        if(!key||alreadyManual.has(key))continue;
         await addSourceToCase(source,ctx,linkIds);
-        alreadyManual.add(key);
-        ctx.incorporatedManualPaths=[...alreadyManual];
-        saveContext(ctx);
-        done+=1;
+        alreadyManual.add(key);ctx.incorporatedManualIds=[...alreadyManual];saveContext(ctx);done+=1;
       }
 
-      if(!done){
-        setHelp('Las fuentes seleccionadas ya estaban incorporadas al bloque.');
-      }else{
-        setHelp('Fuentes incorporadas correctamente. Volviendo al caso…');
-      }
-
+      setHelp(done?'Fuentes incorporadas correctamente. Volviendo al caso…':'Las fuentes seleccionadas ya estaban incorporadas al bloque.');
       clearContext();
-      if(!navigateToCases()){
-        alert('Las fuentes se incorporaron correctamente, pero no se pudo abrir el menú Casos.');
-        return;
-      }
+      if(!navigateToCases())alert('Las fuentes se incorporaron correctamente, pero no se pudo abrir el menú Casos.');
     }catch(error){
       setHelp('No se pudo completar la incorporación al caso.');
       alert((done?'Se incorporaron '+done+' fuente(s). ':'')+(error.message||String(error)));
-    }finally{
-      button.textContent=previous;
-      button.disabled=false;
-    }
+    }finally{button.textContent=previous;button.disabled=false;}
   }
 
   function ensureButton(){
@@ -226,34 +185,17 @@
     const footer=document.querySelector('#researchSourcesModal .lexia-sources-foot');
     const build=document.getElementById('buildResearchPackage');
     if(!footer||!build)return false;
-
     let actions=document.getElementById(ACTIONS_ID);
-    if(!actions){
-      actions=document.createElement('div');
-      actions.id=ACTIONS_ID;
-      footer.insertBefore(actions,build);
-      actions.appendChild(build);
-    }
-
+    if(!actions){actions=document.createElement('div');actions.id=ACTIONS_ID;footer.insertBefore(actions,build);actions.appendChild(build);}
     let button=document.getElementById(BUTTON_ID);
     if(!button){
-      button=document.createElement('button');
-      button.type='button';
-      button.id=BUTTON_ID;
-      button.textContent='Incorporar al caso y volver';
-      button.addEventListener('click',()=>incorporateSelected(button));
-      actions.appendChild(button);
+      button=document.createElement('button');button.type='button';button.id=BUTTON_ID;button.textContent='Incorporar al caso y volver';
+      button.addEventListener('click',()=>incorporateSelected(button));actions.appendChild(button);
     }
-
-    const ctx=loadContext();
-    button.hidden=!(ctx?.caseId&&ctx?.blockId);
-    return true;
+    const ctx=loadContext();button.hidden=!(ctx?.caseId&&ctx?.blockId);return true;
   }
 
-  function syncBurst(){
-    [0,100,350,900,1700,3000,5000].forEach(delay=>window.setTimeout(ensureButton,delay));
-  }
-
+  function syncBurst(){[0,100,350,900,1700,3000,5000].forEach(delay=>window.setTimeout(ensureButton,delay));}
   function isResearchAction(target){
     if(!target)return false;
     if(target.closest('.lexia-case-investigate,#researchTab,#startContext,#reviewResearchSources'))return true;
@@ -262,18 +204,10 @@
     return label==='investigar'||label==='revisar fuentes';
   }
 
-  document.addEventListener('click',event=>{
-    const target=event.target instanceof Element?event.target:null;
-    if(isResearchAction(target))syncBurst();
-  },true);
-
-  document.addEventListener('change',event=>{
-    const target=event.target instanceof Element?event.target:null;
-    if(target?.matches('.research-source-check,.lexia-manual-source-check'))ensureButton();
-  },true);
+  document.addEventListener('click',event=>{const target=event.target instanceof Element?event.target:null;if(isResearchAction(target))syncBurst();},true);
+  document.addEventListener('change',event=>{const target=event.target instanceof Element?event.target:null;if(target?.matches('.research-source-check,.lexia-manual-source-check'))ensureButton();},true);
 
   window.lexiaCaseResearchReturn={sync:ensureButton,burst:syncBurst};
-
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncBurst,{once:true});
   else syncBurst();
 })();
