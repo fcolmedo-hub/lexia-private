@@ -2,8 +2,8 @@
 (function(){
   'use strict';
 
-  if(window.__lexiaWindowsResearchManualSelectionFix)return;
-  window.__lexiaWindowsResearchManualSelectionFix=true;
+  if(window.__lexiaWindowsResearchManualSelectionFixV2)return;
+  window.__lexiaWindowsResearchManualSelectionFixV2=true;
 
   const DIALOG_ID='lexiaManualResearchDialog';
   const VIEWER_ID='lexiaManualResearchSelectionViewer';
@@ -190,6 +190,28 @@
     [0,50,150,350,700].forEach(delay=>window.setTimeout(setupViewer,delay));
   }
 
+  function restoreInvestigationAfterViewer(){
+    document.body.classList.remove('lexia-manual-search-open');
+    const context=document.getElementById('contextpage');
+    const search=document.getElementById('searchpage');
+    if(context)context.style.setProperty('display','block','important');
+    if(search)search.style.setProperty('display','none','important');
+  }
+
+  function closeViewerAndShowSources(dialog){
+    try{dialog.close();}catch(_){}
+    dialog.remove();
+    restoreInvestigationAfterViewer();
+    [0,80,220].forEach(delay=>window.setTimeout(()=>{
+      restoreInvestigationAfterViewer();
+      try{window.lexiaMergeManualResearchSources?.();}catch(_){}
+    },delay));
+    window.setTimeout(()=>{
+      const review=document.getElementById('viewSources')||document.getElementById('reviewResearchSources');
+      review?.click();
+    },120);
+  }
+
   async function addSelections(dialog,button){
     const reader=dialog.querySelector('[data-manual-reader]');
     const state=states.get(dialog);
@@ -226,21 +248,19 @@
       }
       try{await window.lexiaResearchManualSources?.refresh?.();}catch(_){}
       state.ranges=[];
-      redraw(dialog,reader,state,added+' fragmento(s) agregado(s). Podés seguir seleccionando otros párrafos del mismo documento.');
+      closeViewerAndShowSources(dialog);
     }catch(error){
       try{await window.lexiaResearchManualSources?.refresh?.();}catch(_){}
       alert((added?'Se agregaron '+added+' fragmento(s). ':'')+'No se pudo completar la selección.\n\n'+(error.message||String(error)));
     }finally{
       state.busy=false;
-      button.disabled=false;
-      button.textContent=previous;
+      if(document.body.contains(button)){
+        button.disabled=false;
+        button.textContent=previous;
+      }
     }
   }
 
-  /*
-   * El buscador manual vive dentro de un <dialog>. Con consulta vacía no debe
-   * propagarse al buscador principal de LexIA que está detrás del modal.
-   */
   window.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;
     const button=target?.closest?.('#'+DIALOG_ID+' [data-manual-search]');
@@ -265,7 +285,6 @@
     if(status)status.textContent='Escribí el nombre o una parte del nombre del archivo para buscarlo en la biblioteca.';
   },true);
 
-  /* Guardamos el archivo antes de que el módulo original cierre el buscador. */
   window.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;
     const button=target?.closest?.('#'+DIALOG_ID+' [data-manual-select]');
@@ -276,12 +295,6 @@
     scheduleViewerSetup();
   },true);
 
-  /*
-   * El módulo anterior quitaba inmediatamente la selección nativa y sólo
-   * mostraba chips. Aquí interceptamos el mouseup, acumulamos cada pasaje y lo
-   * pintamos en amarillo. Una selección posterior se SUMA por defecto: no hace
-   * falta mantener Shift para conservar párrafos anteriores.
-   */
   window.addEventListener('mouseup',event=>{
     const target=event.target instanceof Element?event.target:null;
     const reader=target?.closest?.('#'+VIEWER_ID+' [data-manual-reader]');
@@ -302,6 +315,16 @@
 
   window.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;
+    const close=target?.closest?.('#'+VIEWER_ID+' [data-viewer-close]');
+    if(close){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const dialog=close.closest('#'+VIEWER_ID);
+      try{dialog.close();}catch(_){}
+      dialog.remove();
+      restoreInvestigationAfterViewer();
+      return;
+    }
     const clear=target?.closest?.('#'+VIEWER_ID+' [data-clear-selection]');
     if(clear){
       event.preventDefault();
