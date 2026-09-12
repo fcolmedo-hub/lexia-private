@@ -14,6 +14,16 @@
     (document.body || document.documentElement).appendChild(researchResilience);
   }
 
+  // Permite sumar a la investigación documentos conocidos por el usuario y
+  // completa automáticamente el tipo de documento de Estudiar según su carpeta.
+  if (!document.querySelector('script[data-lexia-windows-research-manual-sources]')) {
+    const manualSources = document.createElement('script');
+    manualSources.src = 'assets/windows_research_manual_sources.js?v=research-manual-sources-1';
+    manualSources.async = false;
+    manualSources.dataset.lexiaWindowsResearchManualSources = '1';
+    (document.body || document.documentElement).appendChild(manualSources);
+  }
+
   // Cargar una única corrección de Investigación exclusiva de Windows.
   // Es CSS puro: corrige el flujo compacto sin vigilancia continua del DOM.
   if (!document.querySelector('script[data-lexia-windows-investigation-layout]')) {
