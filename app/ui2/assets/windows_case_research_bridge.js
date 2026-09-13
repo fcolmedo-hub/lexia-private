@@ -34,8 +34,8 @@
     style.textContent=`
       ${CASE_PAGE} .argument-block .argument-block-actions{
         position:static!important;inset:auto!important;transform:none!important;
-        display:flex!important;flex-direction:row!important;align-items:flex-start!important;
-        justify-content:flex-end!important;gap:2px!important;width:auto!important;
+        display:flex!important;flex-direction:column!important;align-items:center!important;
+        justify-content:flex-start!important;gap:2px!important;width:24px!important;
         margin:1px 0 0!important;align-self:start!important
       }
       ${CASE_PAGE} .argument-block .argument-block-actions .cases-icon{
@@ -341,18 +341,23 @@
       if(!norm(section.querySelector('summary')?.textContent).includes('nuestra postura'))return;
       section.querySelectorAll('.argument-block').forEach(article=>{
         const actions=article.querySelector('.argument-block-actions');
-        if(!actions||actions.querySelector('.lexia-case-investigate'))return;
-        const button=document.createElement('button');
-        button.type='button';
-        button.className='cases-icon lexia-case-investigate';
-        button.title='Investigar este fundamento';
-        button.setAttribute('aria-label','Investigar este fundamento');
-        button.innerHTML=svgSearch();
-        button.addEventListener('click',event=>{
-          event.preventDefault();event.stopPropagation();
-          startCaseResearch(article);
-        });
+        if(!actions)return;
+        let button=actions.querySelector('.lexia-case-investigate');
+        if(!button){
+          button=document.createElement('button');
+          button.type='button';
+          button.className='cases-icon lexia-case-investigate';
+          button.title='Investigar este fundamento';
+          button.setAttribute('aria-label','Investigar este fundamento');
+          button.innerHTML=svgSearch();
+          button.addEventListener('click',event=>{
+            event.preventDefault();event.stopPropagation();
+            startCaseResearch(article);
+          });
+        }
         const remove=actions.querySelector('.cases-danger,[title*="Eliminar" i]');
+        /* La acción nativa Agregar ya ocupa el primer lugar; Investigar queda
+           inmediatamente antes de Eliminar para formar la columna + / lupa / papelera. */
         if(remove)actions.insertBefore(button,remove);else actions.appendChild(button);
       });
     });

@@ -13,19 +13,22 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-2" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-3" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
 
 
-def test_own_case_blocks_get_horizontal_investigate_action():
+def test_own_case_blocks_get_vertical_add_investigate_delete_actions():
     bridge = _bridge()
 
     assert "nuestra postura" in bridge
     assert ".argument-block-actions" in bridge
     assert "lexia-case-investigate" in bridge
-    assert "flex-direction:row!important" in bridge
+    assert "flex-direction:column!important" in bridge
+    assert "width:24px!important" in bridge
+    assert "actions.insertBefore(button,remove)" in bridge
+    assert "+ / lupa / papelera" in bridge
     assert "Investigar este fundamento" in bridge
 
 
