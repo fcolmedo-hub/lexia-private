@@ -230,6 +230,7 @@ class LexIAApplication:
                 self.query_interpreter,
                 self.knowledge_engine,
                 self.performance_profiler,
+                self.catalog,
             )
         return self._context_package_builder
 

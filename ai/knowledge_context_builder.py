@@ -31,6 +31,7 @@ class KnowledgeContextPackageBuilder(
         query_interpreter,
         knowledge_engine,
         performance_profiler=None,
+        catalog=None,
     ):
         super().__init__(
             interpreted_search,
@@ -40,6 +41,10 @@ class KnowledgeContextPackageBuilder(
         self.performance_profiler = (
             performance_profiler
         )
+        # Investigación es una operación de lectura. Reutilizar el catálogo
+        # inicializado por la aplicación evita volver a ejecutar PRAGMA WAL y
+        # la creación del esquema mientras AutoSync mantiene una escritura.
+        self.catalog = catalog
         self.query_expander = LegalQueryExpander()
         self.legal_authority_ranker = LegalAuthorityRanker()
         self.context_selector = IntelligentContextSelector(
@@ -51,6 +56,13 @@ class KnowledgeContextPackageBuilder(
                     0.88,
                 )
             ),
+        )
+
+    def _research_catalog(self) -> DocumentCatalog:
+        if self.catalog is not None:
+            return self.catalog
+        return DocumentCatalog(
+            Path(SETTINGS.runtime_path) / "lexia_catalog.sqlite3"
         )
 
 
@@ -688,8 +700,7 @@ No preguntes qué debe hacerse con los archivos.
                 # Acceso directo al catálogo activo. Esta ruta no depende de
                 # las capas de caché, hotfix o búsqueda semántica; el catálogo
                 # es la fuente única de verdad para el índice FTS5.
-                catalog_path = Path(SETTINGS.runtime_path) / "lexia_catalog.sqlite3"
-                catalog = DocumentCatalog(catalog_path)
+                catalog = self._research_catalog()
                 fts_query = query
                 rows = catalog.lexical_search(fts_query, recovered_limit)
                 candidates = []
@@ -791,10 +802,7 @@ No preguntes qué debe hacerse con los archivos.
                     54,
                 )
                 fts_query = " OR ".join(fallback_terms)
-                catalog = DocumentCatalog(
-                    Path(SETTINGS.runtime_path)
-                    / "lexia_catalog.sqlite3"
-                )
+                catalog = self._research_catalog()
                 rows = catalog.lexical_search(
                     fts_query,
                     recovered_limit,

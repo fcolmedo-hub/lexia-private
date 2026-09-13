@@ -60,6 +60,14 @@
     (document.body || document.documentElement).appendChild(investigationLayout);
   }
 
+  if (!document.querySelector('script[data-lexia-windows-responsive-layout-guard]')) {
+    const responsiveLayoutGuard = document.createElement('script');
+    responsiveLayoutGuard.src = 'assets/windows_responsive_layout_guard.js?v=responsive-routes-1';
+    responsiveLayoutGuard.async = false;
+    responsiveLayoutGuard.dataset.lexiaWindowsResponsiveLayoutGuard = '1';
+    (document.body || document.documentElement).appendChild(responsiveLayoutGuard);
+  }
+
   if (!document.querySelector('script[data-lexia-windows-case-research-bridge]')) {
     const caseResearchBridge = document.createElement('script');
     caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-4';
