@@ -30,7 +30,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-research-manual-sources-merge]')) {
     const manualSourcesMerge = document.createElement('script');
-    manualSourcesMerge.src = 'assets/windows_research_manual_sources_merge.js?v=manual-sources-merge-2';
+    manualSourcesMerge.src = 'assets/windows_research_manual_sources_merge.js?v=manual-sources-merge-3';
     manualSourcesMerge.async = false;
     manualSourcesMerge.dataset.lexiaWindowsResearchManualSourcesMerge = '1';
     (document.body || document.documentElement).appendChild(manualSourcesMerge);
