@@ -404,8 +404,10 @@
     if(!target)return;
     if(target.matches('.research-source-check')){
       automaticSelectionOverride=automaticIndicesFromDom(target);
-      /* El renderer nativo corre al propagarse el evento; se fusiona de nuevo al terminar. */
-      refreshSoon();
+      /* El renderer nativo sustituye tarjetas y altera tipografía/selección.
+         La capa Windows conserva el DOM estable y aplica el estado explícito. */
+      event.stopImmediatePropagation();
+      applyAutomaticSelectionOverride();
       return;
     }
     if(target.matches('.lexia-manual-source-check[data-manual-id]')){

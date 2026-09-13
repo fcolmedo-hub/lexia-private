@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-5" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-6" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -85,9 +85,24 @@ def test_case_evidence_viewer_exposes_multiple_selection_chips_directly():
     assert "Guardar selecciones" in bridge
     assert "if(label==='cambiar seleccion')button.remove()" in bridge
     assert ".evidence-selection-chip" in bridge
+    assert "flex:0 0 auto!important" in bridge
+    assert "min-height:30px!important;max-height:74px!important" in bridge
     assert "selectedRanges = [existingRange]" in workspace
     assert "windowsMultiSelection ? 'Selección ' : 'Pasaje '" in workspace
+    assert "capture(windowsMultiSelection || event.shiftKey" in workspace
+    assert "cada nueva selección se suma automáticamente" in workspace
     assert "/api/cases/block/highlight/delete" in workspace
+
+
+def test_case_tree_state_survives_navigation_and_research_return_reopens_origin():
+    workspace = (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
+    return_flow = (ASSETS / "windows_case_research_return.js").read_text(encoding="utf-8")
+
+    assert "WINDOWS_CASE_UI_STATE_KEY" in workspace
+    assert "persistCaseUiState(snapshot.case.id)" in workspace
+    assert "restoreCaseUiState(caseId, currentCase.nodes || [])" in workspace
+    assert "window.lexiaCaseWorkspaceFocusQuestion = focusCaseQuestion" in workspace
+    assert "window.lexiaCaseWorkspaceFocusQuestion?.(ctx.caseId,ctx.nodeId)" in return_flow
 
 
 def test_case_block_renders_every_saved_highlight_with_a_stable_identity():
@@ -120,7 +135,7 @@ def test_selected_research_sources_return_to_originating_case_block():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     return_flow = (ASSETS / "windows_case_research_return.js").read_text(encoding="utf-8")
 
-    assert "assets/windows_case_research_return.js?v=case-return-2" in loader
+    assert "assets/windows_case_research_return.js?v=case-return-3" in loader
     assert "data-lexia-windows-case-research-return" in loader
     assert "#researchSourcesModalList .research-source-check:checked" in return_flow
     assert "/api/research-candidates-result" in return_flow

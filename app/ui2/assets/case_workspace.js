@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const PAGE_ID = 'casespage';
+  const WINDOWS_CASE_UI_STATE_KEY = 'lexia.windows.case.ui-state.v1';
   let currentCase = null, caseList = [], expandedNodeId = null;
   const openPrimaryIds = new Set();
   let activeEvidenceBlockId = null;
@@ -9,6 +10,43 @@
   let editingCase = false;
   let activeWorkspaceSide = 'contraparte';
   const autosaveTimers = new Map();
+
+  function windowsCaseUiEnabled() { return window.__lexiaWindowsCaseEvidenceSelectionV2 === true; }
+  function caseUiStates() {
+    try { return JSON.parse(sessionStorage.getItem(WINDOWS_CASE_UI_STATE_KEY) || '{}') || {}; }
+    catch (_) { return {}; }
+  }
+  function persistCaseUiState(caseId) {
+    if (!windowsCaseUiEnabled()) return;
+    const id = Number(caseId || currentCase?.case?.id || 0); if (!id) return;
+    const states = caseUiStates();
+    states[String(id)] = {openPrimaryIds: [...openPrimaryIds].map(Number), expandedNodeId: Number(expandedNodeId || 0) || null};
+    sessionStorage.setItem(WINDOWS_CASE_UI_STATE_KEY, JSON.stringify(states));
+  }
+  function restoreCaseUiState(caseId, nodes) {
+    if (!windowsCaseUiEnabled()) { expandedNodeId = null; return; }
+    const state = caseUiStates()[String(Number(caseId || 0))] || {};
+    openPrimaryIds.clear();
+    (state.openPrimaryIds || []).map(Number).filter(Number.isFinite).forEach(id => openPrimaryIds.add(id));
+    expandedNodeId = Number(state.expandedNodeId || 0) || null;
+    if (expandedNodeId) {
+      const trail = nodeTrail(nodes || [], expandedNodeId);
+      if (trail.length) openPrimaryIds.add(Number(trail[0].id));
+      else expandedNodeId = null;
+    }
+  }
+  function focusCaseQuestion(caseId, nodeId) {
+    if (!windowsCaseUiEnabled()) return;
+    const id = Number(caseId || 0), questionId = Number(nodeId || 0); if (!id || !questionId) return;
+    const states = caseUiStates(), state = states[String(id)] || {openPrimaryIds: []};
+    state.expandedNodeId = questionId;
+    states[String(id)] = state;
+    sessionStorage.setItem(WINDOWS_CASE_UI_STATE_KEY, JSON.stringify(states));
+    if (Number(currentCase?.case?.id || 0) === id) {
+      restoreCaseUiState(id, currentCase.nodes || []);
+      render({cases: caseList});
+    }
+  }
 
   function el(tag, props, ...children) {
     const node = document.createElement(tag);
@@ -446,7 +484,7 @@
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
     const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
     addQuestion.disabled = !canAddQuestion;
-    const togglePrimary = () => { if (openPrimaryIds.has(node.id)) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); };
+    const togglePrimary = () => { if (openPrimaryIds.has(node.id)) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); persistCaseUiState(snapshot.case.id); render({cases: caseList}); };
     toggle.addEventListener('click', togglePrimary);
     upload.addEventListener('click', () => input.click());
     if (replace) replace.addEventListener('click', () => replacePrimaryDocument(snapshot, node));
@@ -474,7 +512,7 @@
     const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
     const active = expandedNodeId === node.id;
     const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = actionIcon(active ? 'hide' : 'show', active ? 'Ocultar cuestión' : 'Mostrar cuestión');
-    const toggleQuestion = () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.question-row-active'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); };
+    const toggleQuestion = () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; persistCaseUiState(snapshot.case.id); render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.question-row-active'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); };
     open.addEventListener('click', toggleQuestion);
     const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
     const addChild = actionIcon('add', canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión');
@@ -804,7 +842,7 @@
   function openEvidenceDialog(snapshot, node, block, documents, existing) {
     if (!documents.length) return alert('Primero cargá o vinculá un archivo a la rama del caso.');
     const windowsMultiSelection = window.__lexiaWindowsCaseEvidenceSelectionV2 === true;
-    const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('div', {className: 'evidence-reader', tabindex: '0', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false', textContent: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar. Mantené Shift para sumar otro pasaje separado.'}), selectionList = el('div', {className: 'evidence-selection-list', 'aria-label': 'Pasajes seleccionados', hidden: 'hidden'});
+    const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('div', {className: 'evidence-reader', tabindex: '0', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false', textContent: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: windowsMultiSelection ? 'Seleccioná un pasaje con el mouse. Cada nueva selección se suma automáticamente.' : 'Seleccioná con el mouse el pasaje exacto que querés conservar. Mantené Shift para sumar otro pasaje separado.'}), selectionList = el('div', {className: 'evidence-selection-list', 'aria-label': 'Pasajes seleccionados', hidden: 'hidden'});
     reader.style.cssText = 'box-sizing:border-box;display:block;width:100%;max-width:100%;min-width:0;white-space:pre-wrap;overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;word-break:break-word;';
     documents.forEach(doc => select.append(el('option', {value: String(doc.id), textContent: doc.document_name})));
     if (existing) select.value = String(existing.case_document_id);
@@ -828,8 +866,8 @@
         const formatted = formatEvidenceText(data.text || '', doc.document_path);
         displayWasReformatted = formatted.reformatted; reader.textContent = formatted.text;
         status.textContent = displayWasReformatted
-          ? 'La vista de Word fue separada en párrafos para facilitar la selección. Seleccioná el pasaje exacto que querés conservar.'
-          : 'Seleccioná con el mouse el pasaje exacto que querés conservar.';
+          ? 'La vista de Word fue separada en párrafos para facilitar la selección. ' + (windowsMultiSelection ? 'Cada nueva selección se suma automáticamente.' : 'Seleccioná el pasaje exacto que querés conservar.')
+          : (windowsMultiSelection ? 'Seleccioná un pasaje con el mouse. Cada nueva selección se suma automáticamente.' : 'Seleccioná con el mouse el pasaje exacto que querés conservar.');
         if (existing) requestAnimationFrame(() => {
           let anchor = {};
           try { anchor = JSON.parse(existing.anchor_data || '{}') || {}; } catch (_) { anchor = {}; }
@@ -876,10 +914,12 @@
       });
       const total = selectedRanges.reduce((sum, item) => sum + item.text.length, 0);
       status.textContent = selectedRanges.length
-        ? selectedRanges.length + ' pasaje(s) seleccionado(s), ' + total + ' caracteres. Usá la × para quitar uno o mantené Shift para sumar otro.'
+        ? selectedRanges.length + ' pasaje(s) seleccionado(s), ' + total + ' caracteres. Usá la × para quitar uno' + (windowsMultiSelection ? '; cada nueva selección se suma automáticamente.' : ' o mantené Shift para sumar otro.')
         : existingRange
           ? 'El resaltado anterior se conserva como referencia. Marcá uno o más pasajes nuevos.'
-          : 'No hay pasajes seleccionados. Marcá uno con el mouse; mantené Shift para sumar otros separados.';
+          : windowsMultiSelection
+            ? 'No hay pasajes seleccionados. Marcá uno con el mouse; cada nueva selección se sumará a las anteriores.'
+            : 'No hay pasajes seleccionados. Marcá uno con el mouse; mantené Shift para sumar otros separados.';
     };
     const capture = append => {
       const range = selectionOffsets(reader); if (!range) return false;
@@ -896,11 +936,11 @@
     reader.addEventListener('drop', event => event.preventDefault());
     reader.addEventListener('selectstart', event => event.stopPropagation());
     reader.addEventListener('mousedown', event => { selectionStartedWithShift = event.shiftKey; });
-    reader.addEventListener('mouseup', event => capture(event.shiftKey || selectionStartedWithShift));
+    reader.addEventListener('mouseup', event => capture(windowsMultiSelection || event.shiftKey || selectionStartedWithShift));
     reader.addEventListener('keyup', event => { if (event.shiftKey) capture(true); });
     select.addEventListener('change', load);
     if (changeSelection) changeSelection.addEventListener('click', enableNewSelection);
-    save.addEventListener('pointerdown', () => capture(false)); save.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') capture(false); });
+    save.addEventListener('pointerdown', () => capture(windowsMultiSelection)); save.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') capture(windowsMultiSelection); });
     close.addEventListener('click', () => { stopSelectionTracking(); dialog.close(); dialog.remove(); });
     dialog.addEventListener('close', stopSelectionTracking, {once: true});
     save.addEventListener('click', async () => {
@@ -1065,7 +1105,7 @@
     try { const response = await api('/api/cases'); caseList = response.cases || []; updateHomeCaseCount(caseList.length); if (refresh && currentCase && currentCase.case) { const selected = caseList.find(item => item.id === currentCase.case.id); if (selected) return loadCase(selected.id, response); currentCase = null; expandedNodeId = null; } render(response); } catch (error) { page().querySelector('.cases-main').textContent = 'No se pudieron cargar los casos: ' + error.message; }
   }
   async function loadCase(caseId, alreadyLoaded) {
-    try { const response = await api('/api/cases/' + caseId); currentCase = response.case; expandedNodeId = null; editingCase = false; render(alreadyLoaded || await api('/api/cases')); } catch (error) { alert(error.message); }
+    try { persistCaseUiState(); const response = await api('/api/cases/' + caseId); currentCase = response.case; restoreCaseUiState(caseId, currentCase.nodes || []); editingCase = false; render(alreadyLoaded || await api('/api/cases')); } catch (error) { alert(error.message); }
   }
   async function cardDocument(card) {
     const name = card.querySelector('.result-title,.result-title-btn,.source-name-link,strong')?.textContent?.trim() || 'Documento';
@@ -1252,5 +1292,6 @@
     }))).observe(document.body, {childList: true, subtree: true});
     if ((location.hash || '').slice(1) === PAGE_ID) show();
   }
+  window.lexiaCaseWorkspaceFocusQuestion = focusCaseQuestion;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, {once: true}); else initialize();
 })();

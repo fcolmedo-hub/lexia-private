@@ -172,6 +172,7 @@
       }
 
       setHelp(done?'Fuentes incorporadas correctamente. Volviendo al caso…':'Las fuentes seleccionadas ya estaban incorporadas al bloque.');
+      try{window.lexiaCaseWorkspaceFocusQuestion?.(ctx.caseId,ctx.nodeId);}catch(_){}
       clearContext();
       if(!navigateToCases())alert('Las fuentes se incorporaron correctamente, pero no se pudo abrir el menú Casos.');
     }catch(error){
