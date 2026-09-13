@@ -191,6 +191,10 @@
   }
 
   function restoreInvestigationAfterViewer(){
+    if(typeof window.lexiaReleaseManualResearchGuard==='function'){
+      window.lexiaReleaseManualResearchGuard();
+      return;
+    }
     document.body.classList.remove('lexia-manual-search-open');
     const context=document.getElementById('contextpage');
     const search=document.getElementById('searchpage');

@@ -9,7 +9,7 @@ def test_manual_selection_fix_is_loaded_after_manual_sources():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
 
     manual = "assets/windows_research_manual_sources.js?v=research-manual-sources-1"
-    fix = "assets/windows_research_manual_selection_fix.js?v=manual-selection-2"
+    fix = "assets/windows_research_manual_selection_fix.js?v=manual-selection-3"
     assert manual in loader
     assert fix in loader
     assert loader.index(manual) < loader.index(fix)
@@ -63,6 +63,7 @@ def test_manual_viewer_closes_after_add_and_returns_to_sources():
     assert "restoreInvestigationAfterViewer" in source
     assert "window.lexiaMergeManualResearchSources?.()" in source
     assert "document.getElementById('viewSources')||document.getElementById('reviewResearchSources')" in source
+    assert "lexiaReleaseManualResearchGuard" in source
 
 
 def test_manual_selection_fix_has_no_continuous_dom_watch():

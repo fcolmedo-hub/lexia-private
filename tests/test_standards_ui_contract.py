@@ -86,7 +86,7 @@ def test_desktop_launchers_refresh_the_shared_runtime_by_content():
 
     assert "hashlib.sha256(app_runtime.read_bytes())" in macos
     assert '_upsert_asset_script(\n        patched, app_runtime, "app-runtime"' in windows
-    assert "case-47-filename-center" in runtime
+    assert "case-48-multi-selection" in runtime
 
 
 def test_windows_refreshes_the_search_frame_styles_by_content():

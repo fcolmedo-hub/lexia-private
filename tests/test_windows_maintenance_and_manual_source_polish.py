@@ -9,7 +9,7 @@ def test_windows_loader_includes_maintenance_and_manual_source_polish():
     source = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     assert "windows_maintenance_status_detail.js?v=maintenance-status-1" in source
     assert "windows_maintenance_duplicates.js?v=maintenance-duplicates-2" in source
-    assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-4" in source
+    assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-5" in source
 
 
 def test_autosync_detail_explains_phases_without_continuous_observer():
@@ -86,6 +86,24 @@ def test_native_checkbox_rerender_restores_cached_manual_sources_event_driven():
     assert "window.setTimeout(()=>{refreshQueued=false;merge();},0)" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source
+
+
+def test_automatic_source_selection_does_not_accept_native_replacement_choice():
+    source = (ASSETS / "windows_research_manual_sources_merge.js").read_text(encoding="utf-8")
+
+    assert "automaticSelectionOverride=automaticIndicesFromDom(target)" in source
+    assert "box.checked=automaticSelectionOverride.has" in source
+    assert "payload.selected_indices=[...automaticSelectionOverride].sort" in source
+    assert "replaceDeselected" not in source
+
+
+def test_manual_dialog_restores_exact_investigation_visibility_on_close():
+    source = (ASSETS / "windows_research_manual_sources_merge.js").read_text(encoding="utf-8")
+
+    assert "investigationBackgroundSnapshot" in source
+    assert "contextValue:context?.style.getPropertyValue('display')" in source
+    assert "restore(document.getElementById('contextpage')" in source
+    assert "document.addEventListener('cancel'" in source
 
 
 def test_unified_source_cards_reserve_equal_dimensions_and_button_sizes():

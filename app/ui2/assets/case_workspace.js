@@ -650,6 +650,7 @@
       const excerpt = el('blockquote', {
         className: 'argument-evidence',
         textContent: highlight.selected_text,
+        'data-highlight-id': String(highlight.id || ''),
         title: 'Abrir y revisar este resaltado · ' + highlight.document_name + (highlight.page_start ? ' · pág. ' + highlight.page_start : ''),
         tabindex: '0',
         role: 'button',
@@ -802,11 +803,12 @@
   }
   function openEvidenceDialog(snapshot, node, block, documents, existing) {
     if (!documents.length) return alert('Primero cargá o vinculá un archivo a la rama del caso.');
+    const windowsMultiSelection = window.__lexiaWindowsCaseEvidenceSelectionV2 === true;
     const dialog = el('dialog', {className: 'lexia-evidence-dialog evidence-selection-dialog'}), select = el('select', {className: 'workspace-enunciado'}), reader = el('div', {className: 'evidence-reader', tabindex: '0', contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false', textContent: 'Elegí un documento para cargar su texto indexado.'}), status = el('p', {className: 'evidence-selection-status', textContent: 'Seleccioná con el mouse el pasaje exacto que querés conservar. Mantené Shift para sumar otro pasaje separado.'}), selectionList = el('div', {className: 'evidence-selection-list', 'aria-label': 'Pasajes seleccionados', hidden: 'hidden'});
     reader.style.cssText = 'box-sizing:border-box;display:block;width:100%;max-width:100%;min-width:0;white-space:pre-wrap;overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;word-break:break-word;';
     documents.forEach(doc => select.append(el('option', {value: String(doc.id), textContent: doc.document_name})));
     if (existing) select.value = String(existing.case_document_id);
-    const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'}), changeSelection = existing ? el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cambiar selección'}) : null, save = el('button', {type: 'button', className: 'cases-button', textContent: existing ? 'Reemplazar resaltado' : 'Incorporar resaltado'});
+    const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cerrar'}), changeSelection = existing && !windowsMultiSelection ? el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cambiar selección'}) : null, save = el('button', {type: 'button', className: 'cases-button', textContent: windowsMultiSelection ? 'Guardar selecciones' : (existing ? 'Reemplazar resaltado' : 'Incorporar resaltado')});
     let selectedRanges = [], existingRange = null, preview = null, displayWasReformatted = false, changingSelection = !existing, selectionStartedWithShift = false;
     const selectedDocument = () => documents.find(item => String(item.id) === select.value);
     const enableNewSelection = () => {
@@ -834,9 +836,17 @@
           const viewerText = String(anchor.viewer_text || existing.selected_text || '').trim();
           existingRange = revealExistingHighlight(reader, viewerText) || null;
           if (existingRange) {
-            status.textContent = anchor.user_approved_ai && anchor.viewer_text
-              ? 'LexIA resaltó el pasaje OCR más cercano para compararlo con la cita elegida de la IA. Podés seleccionar otro texto y reemplazarlo.'
-              : 'Este es el pasaje actualmente incorporado. Podés seleccionar otro texto y reemplazarlo.';
+            if (windowsMultiSelection) {
+              selectedRanges = [existingRange];
+              existingRange = null;
+              changingSelection = true;
+              reader.classList.add('evidence-reader-editing');
+              refreshSelectedRanges();
+            } else {
+              status.textContent = anchor.user_approved_ai && anchor.viewer_text
+                ? 'LexIA resaltó el pasaje OCR más cercano para compararlo con la cita elegida de la IA. Podés seleccionar otro texto y reemplazarlo.'
+                : 'Este es el pasaje actualmente incorporado. Podés seleccionar otro texto y reemplazarlo.';
+            }
           } else {
             status.textContent = 'No se pudo ubicar automáticamente el pasaje anterior. Seleccioná el texto que querés conservar.';
           }
@@ -857,7 +867,8 @@
       selectionList.replaceChildren(); selectionList.hidden = !selectedRanges.length;
       selectedRanges.forEach((item, index) => {
         const excerpt = item.text.replace(/\s+/g, ' ').trim();
-        const remove = el('button', {type: 'button', className: 'evidence-selection-chip', textContent: 'Pasaje ' + (index + 1) + ' ×', title: 'Quitar esta selección: ' + excerpt.slice(0, 140), 'aria-label': 'Quitar pasaje seleccionado ' + (index + 1)});
+        const chipLabel = windowsMultiSelection ? 'Selección ' : 'Pasaje ';
+        const remove = el('button', {type: 'button', className: 'evidence-selection-chip', textContent: chipLabel + (index + 1) + ' ×', title: 'Quitar esta selección: ' + excerpt.slice(0, 140), 'aria-label': 'Quitar selección ' + (index + 1)});
         remove.addEventListener('click', event => {
           event.preventDefault(); event.stopPropagation(); selectedRanges.splice(index, 1); refreshSelectedRanges(); reader.focus({preventScroll: true});
         });
@@ -894,7 +905,7 @@
     dialog.addEventListener('close', stopSelectionTracking, {once: true});
     save.addEventListener('click', async () => {
       const live = selectionOffsets(reader); if (live) capture(false);
-      if (!selectedRanges.length) return alert('Seleccioná uno o más pasajes del documento antes de incorporarlos.');
+      if (!selectedRanges.length && !(windowsMultiSelection && existing)) return alert('Seleccioná uno o más pasajes del documento antes de incorporarlos.');
       const doc = selectedDocument();
       const payloadFor = selected => {
         const overlaps = displayWasReformatted ? [] : (preview?.segments || []).filter(item => selected.start < Number(item.end_char || 0) && selected.end > Number(item.start_char || 0));
@@ -903,6 +914,9 @@
       save.disabled = true;
       try {
         let response;
+        if (windowsMultiSelection && existing && !selectedRanges.length) {
+          response = await api('/api/cases/block/highlight/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, highlight_id: existing.id, confirmed: true})});
+        }
         for (let index = 0; index < selectedRanges.length; index += 1) {
           const payload = payloadFor(selectedRanges[index]);
           response = existing && index === 0

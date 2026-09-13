@@ -15,6 +15,22 @@
   let requestSerial=0;
   let refreshQueued=false;
   let manualSourcesCache=[];
+  let automaticSelectionOverride=null;
+  let automaticSourceSignature='';
+  let investigationBackgroundSnapshot=null;
+  const nativeFetch=window.fetch.bind(window);
+
+  window.fetch=function(input,options){
+    const url=typeof input==='string'?input:String(input?.url||'');
+    if(automaticSelectionOverride&&url.includes('/api/research-package-start')&&typeof options?.body==='string'){
+      try{
+        const payload=JSON.parse(options.body);
+        payload.selected_indices=[...automaticSelectionOverride].sort((a,b)=>a-b);
+        options=Object.assign({},options,{body:JSON.stringify(payload)});
+      }catch(_){/* conserva la solicitud original si el cuerpo no es JSON */}
+    }
+    return nativeFetch(input,options);
+  };
 
   const pageLabel=source=>{
     if(source?.page_label)return String(source.page_label);
@@ -125,6 +141,16 @@
   }
 
   function keepInvestigationBackground(){
+    if(!investigationBackgroundSnapshot){
+      const context=document.getElementById('contextpage');
+      const search=document.getElementById('searchpage');
+      investigationBackgroundSnapshot={
+        contextValue:context?.style.getPropertyValue('display')||'',
+        contextPriority:context?.style.getPropertyPriority('display')||'',
+        searchValue:search?.style.getPropertyValue('display')||'',
+        searchPriority:search?.style.getPropertyPriority('display')||'',
+      };
+    }
     document.body.classList.add('lexia-manual-search-open');
     const context=document.getElementById('contextpage');
     const search=document.getElementById('searchpage');
@@ -135,8 +161,36 @@
   function releaseInvestigationGuard(){
     if(document.getElementById('lexiaManualResearchDialog')||document.getElementById('lexiaManualResearchSelectionViewer'))return;
     document.body.classList.remove('lexia-manual-search-open');
-    document.getElementById('contextpage')?.style.removeProperty('display');
-    document.getElementById('searchpage')?.style.removeProperty('display');
+    const snapshot=investigationBackgroundSnapshot;
+    investigationBackgroundSnapshot=null;
+    const restore=(node,value,priority)=>{
+      if(!node)return;
+      if(value)node.style.setProperty('display',value,priority);else node.style.removeProperty('display');
+    };
+    restore(document.getElementById('contextpage'),snapshot?.contextValue||'',snapshot?.contextPriority||'');
+    restore(document.getElementById('searchpage'),snapshot?.searchValue||'',snapshot?.searchPriority||'');
+  }
+
+  function automaticIndicesFromDom(changed){
+    const boxes=[...document.querySelectorAll('#'+MODAL_LIST_ID+' .research-source-check')];
+    const selected=new Set(boxes.filter(box=>box.checked).map(box=>Number(box.dataset.sourceIndex)).filter(Number.isFinite));
+    if(changed){
+      const index=Number(changed.dataset.sourceIndex);
+      if(Number.isFinite(index)){if(changed.checked)selected.add(index);else selected.delete(index);}
+    }
+    return selected;
+  }
+
+  function applyAutomaticSelectionOverride(){
+    if(!automaticSelectionOverride)return;
+    document.querySelectorAll('.research-source-check').forEach(box=>{
+      box.checked=automaticSelectionOverride.has(Number(box.dataset.sourceIndex));
+    });
+    const count=automaticSelectionOverride.size;
+    const setText=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value;};
+    setText('researchSourceNote',count+' fuente'+(count===1?' seleccionada.':'s seleccionadas. Revisá el texto y ajustá la selección.'));
+    setText('selectedSourcesSummary',count+' fuente'+(count===1?' seleccionada':'s seleccionadas')+' para el paquete');
+    setText('outputSourceCount',count||'—');
   }
 
   function actionBox(button){
@@ -256,6 +310,11 @@
       .map(card=>automaticDescriptor(card,placement))
       .filter(Boolean)
       .map(parts=>({kind:'automatic',parts}));
+    if(placement==='modal'){
+      const signature=automaticSources.map(entry=>String(entry.parts.check?.dataset?.sourceIndex||'')+'|'+String(entry.parts.nameButton?.textContent||'')).join('\n');
+      if(automaticSourceSignature&&signature&&signature!==automaticSourceSignature)automaticSelectionOverride=null;
+      if(signature)automaticSourceSignature=signature;
+    }
     const manualSources=(sources||[])
       .map(source=>({kind:'manual',parts:manualDescriptor(source,placement)}));
     const finalSources=automaticSources.concat(manualSources);
@@ -265,6 +324,7 @@
       const card=renderUnifiedCard(entry.parts,index+1,entry.kind);
       container.appendChild(card);
     });
+    applyAutomaticSelectionOverride();
   }
 
   function renderMergedLists(sources){
@@ -315,6 +375,10 @@
       window.setTimeout(keepInvestigationBackground,60);
       return;
     }
+    if(target.closest('#newContext')||(target.closest('#startContext')&&/investigar/i.test(String(target.closest('#startContext').textContent||'')))){
+      automaticSelectionOverride=null;
+      automaticSourceSignature='';
+    }
     if(target.closest('[data-manual-close],[data-viewer-close]'))window.setTimeout(releaseInvestigationGuard,80);
     if(target.closest('#reviewResearchSources,#viewSources'))refreshSoon();
 
@@ -339,6 +403,7 @@
     const target=event.target instanceof Element?event.target:null;
     if(!target)return;
     if(target.matches('.research-source-check')){
+      automaticSelectionOverride=automaticIndicesFromDom(target);
       /* El renderer nativo corre al propagarse el evento; se fusiona de nuevo al terminar. */
       refreshSoon();
       return;
@@ -358,6 +423,11 @@
     }
   },true);
 
+  document.addEventListener('cancel',event=>{
+    if(event.target?.matches?.('#lexiaManualResearchDialog,#lexiaManualResearchSelectionViewer'))window.setTimeout(releaseInvestigationGuard,0);
+  },true);
+
   [0,250,800].forEach(delay=>window.setTimeout(()=>merge(),delay));
   window.lexiaMergeManualResearchSources=merge;
+  window.lexiaReleaseManualResearchGuard=releaseInvestigationGuard;
 })();

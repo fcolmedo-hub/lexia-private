@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-4" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-5" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -78,12 +78,25 @@ def test_bridge_sync_is_bounded_and_event_driven():
 
 def test_case_evidence_viewer_exposes_multiple_selection_chips_directly():
     bridge = _bridge()
+    workspace = (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
 
     assert "simplifyEvidenceSelectionDialog" in bridge
+    assert "window.__lexiaWindowsCaseEvidenceSelectionV2=true" in bridge
     assert "Guardar selecciones" in bridge
     assert "if(label==='cambiar seleccion')button.remove()" in bridge
     assert ".evidence-selection-chip" in bridge
-    assert "Pasaje" in (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
+    assert "selectedRanges = [existingRange]" in workspace
+    assert "windowsMultiSelection ? 'Selección ' : 'Pasaje '" in workspace
+    assert "/api/cases/block/highlight/delete" in workspace
+
+
+def test_case_block_renders_every_saved_highlight_with_a_stable_identity():
+    workspace = (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
+
+    assert "(block.highlights || []).forEach(highlight =>" in workspace
+    assert "'data-highlight-id': String(highlight.id || '')" in workspace
+    assert "for (let index = 0; index < selectedRanges.length; index += 1)" in workspace
+    assert "/api/cases/block/highlight'" in workspace
 
 
 def test_case_to_research_keeps_only_investigation_nav_selected():

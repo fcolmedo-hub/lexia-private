@@ -9,6 +9,10 @@
   const STORAGE_KEY='lexia.case.research.context.v2';
   const STYLE_ID='lexiaWindowsCaseResearchBridgeStyle';
 
+  /* El visor nativo consulta esta bandera sólo al abrirse. Mantiene el cambio
+     limitado a Windows sin alterar el comportamiento de la versión Mac. */
+  window.__lexiaWindowsCaseEvidenceSelectionV2=true;
+
   const norm=value=>String(value||'')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/\s+/g,' ').trim().toLowerCase();
