@@ -9,7 +9,7 @@ def test_windows_loader_includes_maintenance_and_manual_source_polish():
     source = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     assert "windows_maintenance_status_detail.js?v=maintenance-status-1" in source
     assert "windows_maintenance_duplicates.js?v=maintenance-duplicates-2" in source
-    assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-2" in source
+    assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-3" in source
 
 
 def test_autosync_detail_explains_phases_without_continuous_observer():
@@ -43,17 +43,20 @@ def test_duplicate_maintenance_panel_requires_user_delete_action():
     assert "setInterval(" not in source
 
 
-def test_manual_sources_are_stable_and_green_in_modal_and_main_list():
+def test_manual_sources_share_native_scroll_and_green_identity():
     source = (ASSETS / "windows_research_manual_sources_merge.js").read_text(encoding="utf-8")
     assert "researchSourcesModalList" in source
-    assert "lexiaManualSourcesMainList" in source
     assert "sidecar('/sources')" in source
     assert "lexia-manual-native-card" in source
     assert "lexia-manual-native-name" in source
     assert "color:#168054" in source
     assert "accent-color:#169b62" in source
+    assert "background:#9a3b8f" in source
+    assert "findMainNativeContainer" in source
+    assert "overflowY" in source
     assert "renderInto(document.getElementById(MODAL_LIST_ID),sources,start,'modal')" in source
-    assert "renderInto(ensureMainContainer(),sources,start,'main')" in source
+    assert "if(mainContainer)renderInto(mainContainer,sources,start,'main')" in source
+    assert "cleanupLegacyMainContainer" in source
     assert "previous===sig" in source
     assert "cloneNode(true)" not in source
     assert "MutationObserver" not in source
