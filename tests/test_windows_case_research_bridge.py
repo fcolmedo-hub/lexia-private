@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-3" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-4" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -76,16 +76,29 @@ def test_bridge_sync_is_bounded_and_event_driven():
     assert "document.addEventListener('click'" in bridge
 
 
+def test_case_evidence_viewer_exposes_multiple_selection_chips_directly():
+    bridge = _bridge()
+
+    assert "simplifyEvidenceSelectionDialog" in bridge
+    assert "Guardar selecciones" in bridge
+    assert "if(label==='cambiar seleccion')button.remove()" in bridge
+    assert ".evidence-selection-chip" in bridge
+    assert "Pasaje" in (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
+
+
 def test_case_to_research_keeps_only_investigation_nav_selected():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     nav_fix = (ASSETS / "windows_case_nav_state_fix.js").read_text(encoding="utf-8")
 
-    assert "assets/windows_case_nav_state_fix.js?v=case-nav-1" in loader
+    assert "assets/windows_case_nav_state_fix.js?v=case-nav-2" in loader
     assert "data-lexia-windows-case-nav-state" in loader
     assert "target.closest('.lexia-case-investigate')" in nav_fix
     assert "if(label==='casos')clearSelected(button)" in nav_fix
     assert "selectButton(research)" in nav_fix
     assert "aria-current" in nav_fix
+    assert "lexia-windows-cases-open" in nav_fix
+    assert "overflow:hidden!important" in nav_fix
+    assert "setCasesScrollLock(label==='casos')" in nav_fix
     assert "MutationObserver" not in nav_fix
     assert "setInterval(" not in nav_fix
 

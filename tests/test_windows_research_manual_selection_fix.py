@@ -9,7 +9,7 @@ def test_manual_selection_fix_is_loaded_after_manual_sources():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
 
     manual = "assets/windows_research_manual_sources.js?v=research-manual-sources-1"
-    fix = "assets/windows_research_manual_selection_fix.js?v=manual-selection-1"
+    fix = "assets/windows_research_manual_selection_fix.js?v=manual-selection-2"
     assert manual in loader
     assert fix in loader
     assert loader.index(manual) < loader.index(fix)
@@ -23,6 +23,14 @@ def test_empty_manual_search_stays_inside_popup():
     assert "event.stopImmediatePropagation()" in source
     assert "Escribí el nombre o una parte del nombre del archivo" in source
     assert "[data-manual-query]" in source
+
+
+def test_manual_search_button_uses_the_same_working_enter_route():
+    source = (ASSETS / "windows_research_manual_selection_fix.js").read_text(encoding="utf-8")
+
+    assert "new KeyboardEvent('keydown'" in source
+    assert "key:'Enter'" in source
+    assert "input.dispatchEvent" in source
 
 
 def test_manual_viewer_accumulates_and_paints_multiple_passages():

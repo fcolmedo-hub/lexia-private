@@ -61,6 +61,20 @@
       ${CASE_PAGE} .lexia-case-evidence-delete:hover{
         background:#fff0f2;color:#982b3a;opacity:1
       }
+      .evidence-selection-dialog .evidence-selection-list{
+        display:flex!important;flex-wrap:wrap!important;gap:7px!important;
+        min-height:0;margin:0 0 8px!important
+      }
+      .evidence-selection-dialog .evidence-selection-list[hidden]{display:none!important}
+      .evidence-selection-dialog .evidence-selection-chip{
+        box-sizing:border-box!important;padding:7px 10px!important;
+        border:1px solid #d9d4ff!important;border-radius:999px!important;
+        background:#f1efff!important;color:#5146f6!important;
+        font:750 11px/1.1 system-ui,sans-serif!important
+      }
+      .evidence-selection-dialog .evidence-selection-chip:hover{
+        border-color:#c84955!important;background:#fff1f2!important;color:#a12635!important
+      }
       ${RESEARCH_PAGE} #lexiaCaseResearchOrigin{
         box-sizing:border-box;width:100%;margin:0 0 10px;padding:8px 10px;
         border:1px solid #d9d5ff;border-radius:9px;background:#f8f7ff;
@@ -441,6 +455,24 @@
     installStyle();
     syncInvestigateButtons();
     syncEvidenceDeleteButtons();
+    simplifyEvidenceSelectionDialog();
+  }
+
+  function simplifyEvidenceSelectionDialog(){
+    const dialog=document.querySelector('.evidence-selection-dialog[open]');
+    if(!dialog||dialog.dataset.lexiaWindowsMultiSelection==='1')return;
+    dialog.dataset.lexiaWindowsMultiSelection='1';
+
+    const actions=dialog.querySelector('.evidence-dialog-actions');
+    if(!actions)return;
+    [...actions.querySelectorAll('button')].forEach(button=>{
+      const label=norm(button.textContent);
+      if(label==='cambiar seleccion')button.remove();
+      if(label==='reemplazar resaltado'||label==='incorporar resaltado'){
+        button.textContent='Guardar selecciones';
+        button.title='Guardar los pasajes seleccionados en el bloque';
+      }
+    });
   }
 
   function caseSyncBurst(){

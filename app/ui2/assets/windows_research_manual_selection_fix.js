@@ -261,18 +261,29 @@
     }
   }
 
+  function showEmptySearchMessage(dialog,input){
+    const status=dialog?.querySelector('[data-manual-status]');
+    if(status)status.textContent='Escribí el nombre o una parte del nombre del archivo para buscarlo en la biblioteca.';
+    input?.focus();
+  }
+
   window.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;
     const button=target?.closest?.('#'+DIALOG_ID+' [data-manual-search]');
     if(!button)return;
     const dialog=button.closest('#'+DIALOG_ID);
     const input=dialog?.querySelector('[data-manual-query]');
-    if(String(input?.value||'').trim())return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    const status=dialog.querySelector('[data-manual-status]');
-    if(status)status.textContent='Escribí el nombre o una parte del nombre del archivo para buscarlo en la biblioteca.';
-    input?.focus();
+    if(!String(input?.value||'').trim()){
+      showEmptySearchMessage(dialog,input);
+      return;
+    }
+    /* La implementación nativa ya resuelve correctamente Enter. El botón usa
+       deliberadamente esa misma ruta para evitar dos búsquedas divergentes. */
+    input.dispatchEvent(new KeyboardEvent('keydown',{
+      key:'Enter',code:'Enter',bubbles:true,cancelable:true,
+    }));
   },true);
 
   window.addEventListener('keydown',event=>{
@@ -281,8 +292,7 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     const dialog=input.closest('#'+DIALOG_ID);
-    const status=dialog?.querySelector('[data-manual-status]');
-    if(status)status.textContent='Escribí el nombre o una parte del nombre del archivo para buscarlo en la biblioteca.';
+    showEmptySearchMessage(dialog,input);
   },true);
 
   window.addEventListener('click',event=>{

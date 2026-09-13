@@ -22,7 +22,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-research-manual-selection-fix]')) {
     const manualSelectionFix = document.createElement('script');
-    manualSelectionFix.src = 'assets/windows_research_manual_selection_fix.js?v=manual-selection-1';
+    manualSelectionFix.src = 'assets/windows_research_manual_selection_fix.js?v=manual-selection-2';
     manualSelectionFix.async = false;
     manualSelectionFix.dataset.lexiaWindowsResearchManualSelectionFix = '1';
     (document.body || document.documentElement).appendChild(manualSelectionFix);
@@ -62,7 +62,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-case-research-bridge]')) {
     const caseResearchBridge = document.createElement('script');
-    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-3';
+    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-4';
     caseResearchBridge.async = false;
     caseResearchBridge.dataset.lexiaWindowsCaseResearchBridge = '1';
     (document.body || document.documentElement).appendChild(caseResearchBridge);
@@ -70,7 +70,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-case-nav-state]')) {
     const caseNavState = document.createElement('script');
-    caseNavState.src = 'assets/windows_case_nav_state_fix.js?v=case-nav-1';
+    caseNavState.src = 'assets/windows_case_nav_state_fix.js?v=case-nav-2';
     caseNavState.async = false;
     caseNavState.dataset.lexiaWindowsCaseNavState = '1';
     (document.body || document.documentElement).appendChild(caseNavState);

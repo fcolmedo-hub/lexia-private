@@ -2,8 +2,27 @@
 (function(){
   'use strict';
 
-  if(window.__lexiaWindowsCaseNavStateFix)return;
-  window.__lexiaWindowsCaseNavStateFix=true;
+  if(window.__lexiaWindowsCaseNavStateFixV2)return;
+  window.__lexiaWindowsCaseNavStateFixV2=true;
+
+  const SCROLL_LOCK='lexia-windows-cases-open';
+
+  function installScrollStyle(){
+    if(document.getElementById('lexiaWindowsCasesScrollStyle'))return;
+    const style=document.createElement('style');
+    style.id='lexiaWindowsCasesScrollStyle';
+    style.textContent=`
+      html.${SCROLL_LOCK},html.${SCROLL_LOCK} body{
+        height:100%!important;overflow:hidden!important
+      }
+      html.${SCROLL_LOCK} #casespage{overscroll-behavior:contain}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function setCasesScrollLock(active){
+    document.documentElement.classList.toggle(SCROLL_LOCK,Boolean(active));
+  }
 
   const norm=value=>String(value||'')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -46,16 +65,26 @@
     if(!target)return;
 
     if(target.closest('.lexia-case-investigate')){
+      setCasesScrollLock(false);
       syncBurst();
+      return;
+    }
+
+    if(target.closest('#home [data-home-target="casespage"],#home [data-lexia-cases-home]')){
+      setCasesScrollLock(true);
       return;
     }
 
     const nav=target.closest('#globalSidebar .nav button,.global-sidebar .nav button');
     if(!nav)return;
     const label=norm(nav.textContent);
+    setCasesScrollLock(label==='casos');
     if(label!=='casos'){
       const cases=navButtons().find(button=>norm(button.textContent)==='casos');
       if(cases)window.requestAnimationFrame(()=>clearSelected(cases));
     }
   },true);
+
+  installScrollStyle();
+  setCasesScrollLock((location.hash||'').slice(1)==='casespage');
 })();
