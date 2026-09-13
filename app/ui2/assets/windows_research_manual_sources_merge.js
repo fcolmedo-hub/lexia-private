@@ -1,21 +1,21 @@
-/* LexIA Windows — integra fragmentos manuales con las fuentes nativas sin reflujo. */
+/* LexIA Windows — fusiona fuentes automáticas y manuales en el renderer nativo. */
 (function(){
   'use strict';
-  if(window.__lexiaWindowsResearchManualSourcesMergeV5)return;
-  window.__lexiaWindowsResearchManualSourcesMergeV5=true;
+  if(window.__lexiaWindowsResearchManualSourcesMergeV6)return;
+  window.__lexiaWindowsResearchManualSourcesMergeV6=true;
 
-  const STYLE_ID='lexiaWindowsResearchManualSourcesMergeStyleV5';
+  const STYLE_ID='lexiaWindowsResearchManualSourcesMergeStyleV6';
   const MODAL_LIST_ID='researchSourcesModalList';
+  const MAIN_LIST_ID='researchSourceList';
   const SOURCE_SECTION_ID='lexiaManualResearchModalSources';
   const SIDEBAR_ID='lexiaManualResearchSources';
   const LEGACY_MAIN_LIST_ID='lexiaManualSourcesMainList';
   const ADD_BUTTON_ID='lexiaAddManualResearchSource';
   const SIDECAR='http://127.0.0.1:8516';
   let requestSerial=0;
-  let lastModalSignature='';
-  let lastMainSignature='';
+  let refreshQueued=false;
+  let manualSourcesCache=[];
 
-  const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const pageLabel=source=>{
     if(source?.page_label)return String(source.page_label);
     const start=Number(source?.page_start||0),end=Number(source?.page_end||0);
@@ -23,11 +23,6 @@
     if(start)return 'Página '+start;
     return 'Página no determinada';
   };
-  const signature=sources=>JSON.stringify((sources||[]).map(source=>[
-    String(source.id||''),String(source.name||''),String(source.category||''),
-    String(source.page_start||''),String(source.page_end||''),
-    String(source.snippet||source.selected_text||''),source.selected!==false
-  ]));
 
   async function sidecar(path,options){
     const response=await fetch(SIDECAR+path,Object.assign({cache:'no-store'},options||{}));
@@ -53,59 +48,77 @@
       #contextpage #${ADD_BUTTON_ID}{border:1px solid #bcb6ff!important;background:#f7f6ff!important;color:#352bc7!important}
       #contextpage #${ADD_BUTTON_ID}:hover{background:#efedff!important;border-color:#9f97ff!important}
 
-      /* El contenido de toda fuente debe permanecer dentro de su tarjeta. */
-      #${MODAL_LIST_ID},#${MODAL_LIST_ID} *,#contextpage .research-source-check~*{box-sizing:border-box;min-width:0}
-      #${MODAL_LIST_ID} a,#${MODAL_LIST_ID} b,#${MODAL_LIST_ID} p,#${MODAL_LIST_ID} small,#${MODAL_LIST_ID} span,
-      #contextpage .research-source-check~*{max-width:100%;overflow-wrap:anywhere;word-break:normal}
-      #${MODAL_LIST_ID} .research-source-check{accent-color:#5146f6}
-
-      /* La tarjeta manual replica proporciones, tipografía y espaciado de la nativa.
-         Sólo cambian los acentos verdes y la acción Quitar en púrpura. */
-      .lexia-manual-native-card{
-        width:100%!important;border:1px solid #d9ddea!important;border-radius:10px!important;background:#fff!important;
-        padding:10px 12px!important;display:grid!important;
-        grid-template-columns:18px 28px minmax(0,1fr) auto!important;
-        gap:9px!important;align-items:start!important;box-shadow:none!important;min-width:0!important;
-        font-family:inherit!important;color:#42506b!important;
+      /* Un único esqueleto de tarjeta para automáticas y manuales, en ambas listas. */
+      .lexia-unified-source-card{
+        box-sizing:border-box!important;width:100%!important;height:116px!important;min-height:116px!important;
+        display:grid!important;grid-template-columns:18px 26px minmax(0,1fr) 76px!important;
+        gap:9px!important;align-items:start!important;padding:10px!important;
+        border:1px solid #dfe3ed!important;border-radius:9px!important;background:#fff!important;
+        box-shadow:none!important;font-family:inherit!important;color:#3f4a6c!important;overflow:hidden!important;
       }
-      .lexia-manual-native-card+.lexia-manual-native-card{margin-top:8px!important}
-      .lexia-manual-native-check{accent-color:#169b62!important;margin:3px 0 0!important;width:14px!important;height:14px!important}
-      .lexia-manual-native-number{
-        width:25px;height:25px;border-radius:6px;background:#e7f6ed!important;color:#168054!important;
-        display:flex;align-items:center;justify-content:center;font-size:10px!important;font-weight:800!important;line-height:1!important;
+      .lexia-unified-source-card,.lexia-unified-source-card *{box-sizing:border-box;min-width:0}
+      .lexia-unified-source-check{width:14px!important;height:14px!important;margin:3px 0 0!important}
+      .lexia-source-automatic .lexia-unified-source-check{accent-color:#5146f6!important}
+      .lexia-source-manual .lexia-unified-source-check{accent-color:#169b62!important}
+      .lexia-unified-source-number{
+        width:25px!important;height:25px!important;margin:0!important;border-radius:7px!important;
+        display:grid!important;place-items:center!important;font-size:10px!important;font-weight:800!important;line-height:1!important;
       }
-      .lexia-manual-native-body{min-width:0!important;overflow:hidden!important}
-      .lexia-manual-native-name{
-        display:block!important;color:#168054!important;font-size:12px!important;font-weight:700!important;
-        line-height:1.25!important;text-decoration:underline!important;cursor:pointer!important;
-        overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;max-width:100%!important;
+      .lexia-source-automatic .lexia-unified-source-number{background:#eeecff!important;color:#5146f6!important}
+      .lexia-source-manual .lexia-unified-source-number{background:#e7f6ed!important;color:#168054!important}
+      .lexia-unified-source-details{min-width:0!important;height:94px!important;overflow:hidden!important}
+      .lexia-unified-source-title-row{display:flex!important;align-items:center!important;min-height:16px!important;overflow:hidden!important}
+      .lexia-unified-source-card .source-name-link{
+        display:block!important;width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;border:0!important;
+        background:transparent!important;font-family:inherit!important;font-size:10.5px!important;font-weight:800!important;
+        line-height:1.35!important;text-align:left!important;text-decoration:underline!important;text-underline-offset:2px!important;
+        white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;cursor:pointer!important;
       }
-      .lexia-manual-native-meta{
-        display:block!important;margin-top:5px!important;color:#68738f!important;
-        font-size:10px!important;line-height:1.25!important;font-weight:400!important;
+      .lexia-source-automatic .source-name-link{color:#5146f6!important}
+      .lexia-source-manual .source-name-link{color:#168054!important}
+      .lexia-unified-source-meta{
+        display:flex!important;align-items:center!important;justify-content:space-between!important;gap:7px!important;
+        min-height:14px!important;margin-top:3px!important;color:#687294!important;
       }
-      .lexia-manual-native-snippet{
-        margin:8px 0 0!important;color:#42506b!important;font-size:11px!important;line-height:1.45!important;font-weight:400!important;
+      .lexia-unified-source-meta small{
+        display:block!important;margin:0!important;max-width:100%!important;color:#687294!important;
+        font-size:8.5px!important;line-height:1.25!important;font-weight:400!important;
+        white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+      }
+      .lexia-unified-source-card .source-score{font-size:7.5px!important;padding:2px 4px!important;white-space:nowrap!important}
+      .lexia-unified-source-snippet{
+        margin:5px 0 0!important;max-width:100%!important;color:#3e496b!important;
+        font-size:9.5px!important;line-height:1.35!important;font-weight:400!important;
         display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:3!important;
-        overflow:hidden!important;overflow-wrap:anywhere!important;max-width:100%!important;
+        overflow:hidden!important;overflow-wrap:anywhere!important;word-break:normal!important;
       }
-      .lexia-manual-native-tag{
-        display:block!important;margin-top:5px!important;color:#168054!important;
-        font-size:9px!important;line-height:1.2!important;font-weight:800!important;letter-spacing:.02em!important;
+      .lexia-source-user-tag{
+        display:block!important;height:11px!important;margin-top:3px!important;color:#168054!important;
+        font-size:8px!important;line-height:11px!important;font-weight:800!important;letter-spacing:.02em!important;
+        white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
       }
-      .lexia-manual-native-remove{
-        border:1px solid #9a3b8f!important;background:#9a3b8f!important;color:#fff!important;
-        border-radius:6px!important;padding:6px 10px!important;font-size:10px!important;font-weight:700!important;
-        line-height:1!important;cursor:pointer!important;white-space:nowrap!important;
+      .lexia-source-automatic .lexia-source-user-tag{visibility:hidden!important}
+      .lexia-unified-source-card .source-actions{
+        display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:4px!important;
+        width:76px!important;margin:0!important;padding:1px 0 0!important;
       }
-      .lexia-manual-native-remove:hover{background:#84317b!important;border-color:#84317b!important}
+      .lexia-unified-source-card .source-actions button{
+        box-sizing:border-box!important;width:76px!important;min-width:76px!important;height:24px!important;min-height:24px!important;
+        margin:0!important;padding:0 7px!important;border-radius:6px!important;
+        font-family:inherit!important;font-size:8.5px!important;line-height:1!important;font-weight:700!important;white-space:nowrap!important;
+      }
+      .lexia-source-automatic .study-source{border:1px solid #5146f6!important;background:#5146f6!important;color:#fff!important}
+      .lexia-source-automatic .study-source:hover{border-color:#4338e8!important;background:#4338e8!important}
+      .lexia-manual-native-remove{border:1px solid #9a3b8f!important;background:#9a3b8f!important;color:#fff!important;cursor:pointer!important}
+      .lexia-manual-native-remove:hover{border-color:#84317b!important;background:#84317b!important}
 
       body.lexia-manual-search-open #searchpage{display:none!important}
       body.lexia-manual-search-open #contextpage{display:block!important}
       #lexiaManualResearchDialog::backdrop,#lexiaManualResearchSelectionViewer::backdrop{background:rgba(246,247,252,.96)!important}
       @media(max-width:700px){
-        .lexia-manual-native-card{grid-template-columns:18px 26px minmax(0,1fr)!important}
-        .lexia-manual-native-remove{grid-column:3;justify-self:end}
+        .lexia-unified-source-card{grid-template-columns:18px 24px minmax(0,1fr) 70px!important;gap:7px!important}
+        .lexia-unified-source-card .source-actions{width:70px!important}
+        .lexia-unified-source-card .source-actions button{width:70px!important;min-width:70px!important}
       }
     `;
     document.head.appendChild(style);
@@ -126,73 +139,137 @@
     document.getElementById('searchpage')?.style.removeProperty('display');
   }
 
-  function nativeSourceCount(){
-    const modal=document.getElementById(MODAL_LIST_ID);
-    const modalChecks=modal?[...modal.querySelectorAll('.research-source-check')]:[];
-    const indexes=modalChecks.map(check=>Number(check.dataset.sourceIndex)).filter(Number.isFinite);
-    if(indexes.length)return Math.max(...indexes)+1;
-    if(modalChecks.length)return modalChecks.length;
-    const context=document.getElementById('contextpage');
-    const text=String(context?.textContent||'');
-    const match=text.match(/FUENTES\s+DISPONIBLES\s+(\d+)/i);
-    if(match)return Number(match[1])||0;
-    return [...document.querySelectorAll('#contextpage .research-source-check')]
-      .filter(check=>!check.closest('#'+MODAL_LIST_ID)&&!check.closest('.lexia-manual-native-card')).length;
+  function actionBox(button){
+    const actions=document.createElement('div');
+    actions.className='source-actions';
+    if(button)actions.appendChild(button);
+    return actions;
   }
 
-  function cardHtml(source,number){
-    return `
-      <input type="checkbox" class="lexia-manual-source-check lexia-manual-native-check" data-manual-id="${esc(source.id||'')}" ${source.selected!==false?'checked':''}>
-      <span class="lexia-manual-native-number">${number}</span>
-      <span class="lexia-manual-native-body">
-        <span class="lexia-manual-native-name" data-manual-open-id="${esc(source.id||'')}" title="Abrir ${esc(source.name||'Documento')}">${esc(source.name||'Documento')}</span>
-        <small class="lexia-manual-native-meta">${esc(source.category||'Documento')} · ${esc(pageLabel(source))}</small>
-        <p class="lexia-manual-native-snippet">${esc(source.snippet||source.selected_text||'')}</p>
-        <span class="lexia-manual-native-tag">AGREGADA POR EL USUARIO</span>
-      </span>
-      <button type="button" class="lexia-manual-native-remove" data-manual-inline-remove="${esc(source.id||'')}" aria-label="Quitar fragmento manual">Quitar</button>`;
+  function renderUnifiedCard(parts,number,kind){
+    const manual=kind==='manual';
+    const card=parts.card||document.createElement('div');
+    card.className=(parts.nativeClass||'')+' lexia-unified-source-card '+(manual?'lexia-source-manual':'lexia-source-automatic');
+    card.dataset.sourcePlacement=parts.placement||'';
+    if(manual)card.dataset.manualId=String(parts.source?.id||'');
+
+    const check=parts.check||document.createElement('input');
+    check.type='checkbox';
+    check.classList.add('lexia-unified-source-check');
+
+    const badge=document.createElement('span');
+    badge.className='source-num lexia-unified-source-number';
+    badge.textContent=String(number);
+
+    const details=document.createElement('div');
+    details.className='source-details lexia-unified-source-details';
+    const titleRow=document.createElement('div');
+    titleRow.className='lexia-unified-source-title-row';
+    titleRow.appendChild(parts.nameButton);
+    const meta=document.createElement('div');
+    meta.className='source-meta lexia-unified-source-meta';
+    const metaText=document.createElement('small');
+    metaText.textContent=parts.metaText||'';
+    meta.appendChild(metaText);
+    if(parts.score)meta.appendChild(parts.score);
+    const snippet=document.createElement('p');
+    snippet.className='source-snippet lexia-unified-source-snippet';
+    snippet.textContent=parts.snippetText||'Sin texto relevante recuperado.';
+    const tag=document.createElement('span');
+    tag.className='lexia-source-user-tag';
+    tag.textContent=manual?'AGREGADA POR EL USUARIO':'FUENTE AUTOMÁTICA';
+    if(!manual)tag.setAttribute('aria-hidden','true');
+    details.append(titleRow,meta,snippet,tag);
+
+    card.replaceChildren(check,badge,details,parts.actions);
+    return card;
   }
 
-  function renderInto(container,sources,startNumber,kind){
+  function automaticDescriptor(card,placement){
+    const check=card.querySelector('.research-source-check');
+    const nameButton=card.querySelector('.view-source');
+    const actions=card.querySelector('.source-actions');
+    if(!check||!nameButton||!actions)return null;
+    const metaNode=card.querySelector('.source-meta small')||card.querySelector('.meta');
+    const snippet=card.querySelector('.source-snippet')||card.querySelector('p');
+    return {
+      card,
+      nativeClass:placement==='modal'?'lexia-source-choice':'source-item',
+      placement,
+      check,
+      nameButton,
+      metaText:String(metaNode?.textContent||'').trim(),
+      snippetText:String(snippet?.textContent||'').trim(),
+      score:card.querySelector('.source-score'),
+      actions
+    };
+  }
+
+  function manualDescriptor(source,placement){
+    const check=document.createElement('input');
+    check.className='lexia-manual-source-check';
+    check.dataset.manualId=String(source.id||'');
+    check.checked=source.selected!==false;
+
+    const nameButton=document.createElement('button');
+    nameButton.type='button';
+    nameButton.className='source-name-link';
+    nameButton.dataset.manualOpenId=String(source.id||'');
+    nameButton.title='Abrir '+String(source.name||'Documento');
+    nameButton.textContent=String(source.name||'Documento');
+
+    const remove=document.createElement('button');
+    remove.type='button';
+    remove.className='lexia-manual-native-remove';
+    remove.dataset.manualInlineRemove=String(source.id||'');
+    remove.setAttribute('aria-label','Quitar fragmento manual');
+    remove.textContent='Quitar';
+
+    return {
+      /* Evita que el módulo Casos agregue acciones ajenas: la geometría la da el renderer unificado. */
+      nativeClass:'lexia-source-choice',
+      placement,
+      source,
+      check,
+      nameButton,
+      metaText:String(source.category||'Documento')+' · '+pageLabel(source),
+      snippetText:String(source.snippet||source.selected_text||''),
+      score:null,
+      actions:actionBox(remove)
+    };
+  }
+
+  function directAutomaticCards(container){
+    if(!container)return [];
+    return [...container.children].filter(card=>
+      card instanceof Element&&
+      !card.classList.contains('lexia-source-manual')&&
+      Boolean(card.querySelector('.research-source-check'))
+    );
+  }
+
+  function renderPlacement(container,sources,placement){
     if(!container)return;
-    const sig=kind+'|'+startNumber+'|'+signature(sources);
-    const previous=kind==='modal'?lastModalSignature:lastMainSignature;
-    if(previous===sig&&container.querySelectorAll(':scope > .lexia-manual-native-card').length===sources.length)return;
+    container.querySelectorAll(':scope > .lexia-source-manual').forEach(card=>card.remove());
 
-    container.querySelectorAll(':scope > .lexia-manual-native-card').forEach(node=>node.remove());
-    sources.forEach((source,index)=>{
-      const card=document.createElement('label');
-      card.className='lexia-manual-native-card';
-      card.dataset.manualId=String(source.id||'');
-      card.dataset.manualPlacement=kind;
-      card.innerHTML=cardHtml(source,startNumber+index);
+    const automaticSources=directAutomaticCards(container)
+      .map(card=>automaticDescriptor(card,placement))
+      .filter(Boolean)
+      .map(parts=>({kind:'automatic',parts}));
+    const manualSources=(sources||[])
+      .map(source=>({kind:'manual',parts:manualDescriptor(source,placement)}));
+    const finalSources=automaticSources.concat(manualSources);
+
+    if(finalSources.length)container.querySelectorAll(':scope > .source-empty').forEach(node=>node.remove());
+    finalSources.forEach((entry,index)=>{
+      const card=renderUnifiedCard(entry.parts,index+1,entry.kind);
       container.appendChild(card);
     });
-    if(kind==='modal')lastModalSignature=sig;else lastMainSignature=sig;
   }
 
-  function nativeMainChecks(){
-    return [...document.querySelectorAll('#contextpage .research-source-check')]
-      .filter(check=>!check.closest('#'+MODAL_LIST_ID)&&!check.closest('.lexia-manual-native-card'));
-  }
-
-  function findMainNativeContainer(){
-    const checks=nativeMainChecks();
-    if(!checks.length)return null;
-    const view=document.getElementById('viewSources');
-    let node=checks[0].parentElement;
-    let fallback=null;
-    while(node&&node.id!=='contextpage'){
-      if(checks.every(check=>node.contains(check))){
-        fallback=node;
-        const style=window.getComputedStyle(node);
-        const scrollable=/(auto|scroll)/.test(String(style.overflowY||''));
-        if(scrollable&&(!view||!node.contains(view)))return node;
-      }
-      node=node.parentElement;
-    }
-    if(fallback&&(!view||!fallback.contains(view)))return fallback;
-    return null;
+  function renderMergedLists(sources){
+    renderPlacement(document.getElementById(MODAL_LIST_ID),sources,'modal');
+    renderPlacement(document.getElementById(MAIN_LIST_ID),sources,'main');
   }
 
   function cleanupLegacyMainContainer(){
@@ -203,25 +280,25 @@
   async function merge(){
     installStyle();
     cleanupLegacyMainContainer();
+    renderMergedLists(manualSourcesCache);
     const current=++requestSerial;
-    let sources=[];
     try{
       const data=await sidecar('/sources');
       if(current!==requestSerial)return false;
-      sources=Array.isArray(data.sources)?data.sources:[];
+      manualSourcesCache=Array.isArray(data.sources)?data.sources:[];
+      renderMergedLists(manualSourcesCache);
+      return true;
     }catch(_){return false;}
-
-    const start=nativeSourceCount()+1;
-    renderInto(document.getElementById(MODAL_LIST_ID),sources,start,'modal');
-    const mainContainer=findMainNativeContainer();
-    if(mainContainer)renderInto(mainContainer,sources,start,'main');
-    return true;
   }
 
-  function refreshSoon(){window.setTimeout(()=>merge(),0);}
+  function refreshSoon(){
+    if(refreshQueued)return;
+    refreshQueued=true;
+    window.setTimeout(()=>{refreshQueued=false;merge();},0);
+  }
 
   function openManualById(id){
-    const sources=window.lexiaResearchManualSources?.list?.()||[];
+    const sources=manualSourcesCache.length?manualSourcesCache:(window.lexiaResearchManualSources?.list?.()||[]);
     const source=sources.find(item=>String(item.id||'')===String(id||''));
     if(!source?.path)return;
     const page=Number(source.page_start||0)||1;
@@ -249,19 +326,35 @@
       event.preventDefault();event.stopPropagation();
       const id=String(remove.dataset.manualInlineRemove||'');
       sidecar('/remove-source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})
-        .then(()=>{lastModalSignature='';lastMainSignature='';return merge();})
+        .then(()=>{
+          manualSourcesCache=manualSourcesCache.filter(source=>String(source.id||'')!==id);
+          renderMergedLists(manualSourcesCache);
+          return merge();
+        })
         .catch(error=>alert('No se pudo quitar el fragmento.\n\n'+(error.message||String(error))));
     }
   },true);
 
   document.addEventListener('change',event=>{
     const target=event.target instanceof Element?event.target:null;
-    if(target?.matches('.lexia-manual-source-check[data-manual-id]')){
+    if(!target)return;
+    if(target.matches('.research-source-check')){
+      /* El renderer nativo corre al propagarse el evento; se fusiona de nuevo al terminar. */
+      refreshSoon();
+      return;
+    }
+    if(target.matches('.lexia-manual-source-check[data-manual-id]')){
       const id=String(target.dataset.manualId||'');
       const checked=target.checked;
       document.querySelectorAll('.lexia-manual-source-check[data-manual-id="'+CSS.escape(id)+'"]').forEach(box=>{box.checked=checked;});
+      const cached=manualSourcesCache.find(source=>String(source.id||'')===id);
+      if(cached)cached.selected=checked;
       sidecar('/set-selected',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,selected:checked})})
-        .catch(error=>{target.checked=!checked;alert('No se pudo actualizar la selección.\n\n'+(error.message||String(error)));});
+        .catch(error=>{
+          target.checked=!checked;
+          if(cached)cached.selected=!checked;
+          alert('No se pudo actualizar la selección.\n\n'+(error.message||String(error)));
+        });
     }
   },true);
 
