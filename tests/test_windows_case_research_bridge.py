@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-10" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-11" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -229,3 +229,14 @@ def test_new_research_leaves_case_context_and_restores_ai_action():
     assert "window.lexiaCaseResearchReturn?.sync?.()" in bridge
     assert "#reviewResearchSources,#newContext" in return_flow
     assert "build.hidden=linked" in return_flow
+
+
+def test_case_research_resets_previous_investigation_before_saving_origin():
+    bridge = _bridge()
+
+    assert "function resetPreviousResearch()" in bridge
+    assert "document.getElementById('newContext')" in bridge
+    assert "reset.click()" in bridge
+    start = bridge.index("async function startCaseResearch")
+    flow = bridge[start:]
+    assert flow.index("resetPreviousResearch();") < flow.index("saveContext(ctx);")

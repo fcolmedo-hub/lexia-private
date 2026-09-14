@@ -345,6 +345,19 @@
     },delay));
   }
 
+  function resetPreviousResearch(){
+    const reset=document.getElementById('newContext');
+    if(reset){
+      reset.click();
+      return;
+    }
+    const panel=document.getElementById('researchPanel');
+    panel?.querySelectorAll('textarea,input[type="text"],input[type="search"]').forEach(control=>{
+      setNativeValue(control,'');
+      delete control.dataset.lexiaCaseAutofill;
+    });
+  }
+
   async function startCaseResearch(article){
     const textarea=article.querySelector('textarea');
     const own=String(textarea?.value||'').trim();
@@ -372,6 +385,7 @@
         counterText:counterpartText(article,base.blockIndex,base),
         createdAt:new Date().toISOString()
       };
+      resetPreviousResearch();
       saveContext(ctx);
       if(!navigateToResearch())throw new Error('No se pudo abrir Investigación.');
       applyResearchBurst();

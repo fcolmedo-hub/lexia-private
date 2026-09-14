@@ -19,7 +19,7 @@
     ['lexiaWindowsMaintenanceDuplicates', 'assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-2'],
     ['lexiaWindowsInvestigationLayout', 'assets/windows_investigation_layout_fix.js?v=investigation-layout-4'],
     ['lexiaWindowsResponsiveLayoutGuard', 'assets/windows_responsive_layout_guard.js?v=responsive-routes-1'],
-    ['lexiaWindowsCaseResearchBridge', 'assets/windows_case_research_bridge.js?v=case-research-10'],
+    ['lexiaWindowsCaseResearchBridge', 'assets/windows_case_research_bridge.js?v=case-research-11'],
     ['lexiaWindowsCaseNavState', 'assets/windows_case_nav_state_fix.js?v=case-nav-2'],
     ['lexiaWindowsCaseResearchReturn', 'assets/windows_case_research_return.js?v=case-return-4'],
   ];
@@ -69,6 +69,7 @@
       button.style.setProperty('border-color', colors[1], 'important');
       button.style.setProperty('color', colors[2], 'important');
       const kind = actionKind(button);
+      button.dataset.lexiaActionPalette = kind;
       const icon = button.firstElementChild;
       if ((kind === 'case' || kind === 'ocr') && icon) {
         icon.style.setProperty('background', kind === 'case' ? '#d5ceff' : '#dfd9ff', 'important');
@@ -82,6 +83,22 @@
     const style = document.createElement('style');
     style.id = 'lexiaMacosVisualParityStyle';
     style.textContent = `
+      #searchpage button[data-lexia-action-palette="case"]::before,
+      #searchpage button[data-lexia-action-palette="case"] > :first-child,
+      #searchpage button[data-lexia-action-palette="case"] > :first-child::before {
+        background:#d5ceff!important;
+        background-image:none!important;
+        border-color:#c9c2ff!important;
+        color:#3428c7!important;
+      }
+      #searchpage button[data-lexia-action-palette="ocr"]::before,
+      #searchpage button[data-lexia-action-palette="ocr"] > :first-child,
+      #searchpage button[data-lexia-action-palette="ocr"] > :first-child::before {
+        background:#dfd9ff!important;
+        background-image:none!important;
+        border-color:#d2ccf4!important;
+        color:#5146a8!important;
+      }
       [data-lexia-standards-home]:hover,
       [data-lexia-standards-home]:focus-visible,
       [data-lexia-standards-home].active,

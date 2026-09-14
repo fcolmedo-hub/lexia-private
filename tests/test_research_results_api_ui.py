@@ -47,6 +47,8 @@ def test_shared_ui_hides_package_and_adds_history_and_popup():
     assert "#lexiaAddManualResearchSource:hover{background:#17864f!important" in source
     assert "flex:0 0 210px!important" in source
     assert "width:210px!important" in source
+    assert "height:36px!important" in source
+    assert "#lexiaCaseReturnSelectedSources" in source
     assert "setInterval" not in source
     assert "MutationObserver" not in source
 
@@ -98,5 +100,19 @@ def test_macos_visual_parity_colors_search_actions_and_standards_card():
     assert "[data-lexia-standards-home]:hover" in source
     assert "kind === 'case' || kind === 'ocr'" in source
     assert "'#d5ceff' : '#dfd9ff'" in source
+    assert "button.dataset.lexiaActionPalette = kind" in source
+    assert 'data-lexia-action-palette="case"' in source
+    assert 'data-lexia-action-palette="ocr"' in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source
+
+
+def test_macos_openai_key_configurator_uses_keychain_without_echoing_key():
+    source = (
+        ROOT / "scripts" / "configure_openai_key_macos.sh"
+    ).read_text(encoding="utf-8")
+    assert 'read -rs "openai_key?' in source
+    assert "security add-generic-password" in source
+    assert 'service_name="LexIA OpenAI API"' in source
+    assert "find-generic-password" in source
+    assert "OPENAI_API_KEY guardada correctamente" in source
