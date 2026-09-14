@@ -5,12 +5,12 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "app" / "ui2" / "assets"
 
 
-def test_manual_source_service_is_windows_only_and_extends_curated_package():
+def test_manual_source_service_supports_windows_and_macos_desktop():
     source_path = ROOT / "services" / "windows_research_manual_sources.py"
     source = source_path.read_text(encoding="utf-8")
 
     compile(source, str(source_path), "exec")
-    assert 'if sys.platform != "win32"' in source
+    assert 'if sys.platform not in {"win32", "darwin"}' in source
     assert 'PORT = 8516' in source
     assert 'ThreadingHTTPServer' in source
     assert 'builder.curate_package = curate_with_manual_sources' in source
@@ -35,10 +35,10 @@ def test_manual_fragments_allow_multiple_passages_from_same_document():
     assert 'existing_paths' not in source
 
 
-def test_windows_services_start_and_stop_manual_source_service():
+def test_desktop_services_start_and_stop_manual_source_service():
     source = (ROOT / "run_lexia_services.py").read_text(encoding="utf-8")
 
-    assert 'if sys.platform == "win32"' in source
+    assert 'if sys.platform in {"win32", "darwin"}' in source
     assert 'start_windows_research_manual_sources' in source
     assert 'stop_windows_research_manual_sources' in source
 

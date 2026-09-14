@@ -37,10 +37,9 @@ def main() -> None:
     try:
         application = LexIAApplication()
 
-        # Extensión exclusiva de Windows: permite incorporar a una investigación
-        # documentos conocidos por el usuario que el ranking no recuperó. Se
-        # mantiene fuera del puente central para no alterar el comportamiento de Mac.
-        if sys.platform == "win32":
+        # Extensión de escritorio: permite incorporar a una investigación
+        # documentos conocidos por el usuario que el ranking no recuperó.
+        if sys.platform in {"win32", "darwin"}:
             from services.windows_research_manual_sources import (
                 start_windows_research_manual_sources,
                 stop_windows_research_manual_sources,

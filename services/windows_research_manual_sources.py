@@ -401,7 +401,7 @@ def _handler(application):
 
 def start_windows_research_manual_sources(application, port: int = PORT) -> bool:
     global _SERVER, _THREAD
-    if sys.platform != "win32":
+    if sys.platform not in {"win32", "darwin"}:
         return False
     if _SERVER is not None:
         return True

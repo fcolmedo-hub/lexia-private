@@ -122,12 +122,18 @@ def ensure_ui_assets(root: Path) -> str | None:
     index = here / "index.html"
     jurisprudence = here / "assets" / "jurisprudence_search.js"
     app_runtime = here / "assets" / "app_runtime.js"
+    desktop_parity = here / "assets" / "macos_desktop_parity.js"
     standards_ui = here / "assets" / "standards_ui.js"
     standards_nav_fix = here / "assets" / "standards_nav_fix.js"
     maintenance = here / "assets" / "maintenance.js"
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
-    if not (index.exists() and jurisprudence.exists() and app_runtime.exists()):
+    if not (
+        index.exists()
+        and jurisprudence.exists()
+        and app_runtime.exists()
+        and desktop_parity.exists()
+    ):
         return None
 
     original = index.read_text(encoding="utf-8")
@@ -140,6 +146,27 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if "assets/jurisprudence_search.js" not in patched:
         body_tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
+
+    parity_version = hashlib.sha256(desktop_parity.read_bytes()).hexdigest()[:12]
+    parity_tag = (
+        f'<script src="assets/macos_desktop_parity.js?v=macos-parity-{parity_version}"></script>'
+    )
+    parity_pattern = re.compile(
+        r'<script[^>]+src=["\'][^"\']*assets/macos_desktop_parity\.js[^"\']*["\'][^>]*>\s*</script>',
+        flags=re.IGNORECASE,
+    )
+    if parity_pattern.search(patched):
+        patched = parity_pattern.sub(parity_tag, patched, count=1)
+    else:
+        runtime_match = re.search(
+            r'<script[^>]+src=["\'][^"\']*assets/app_runtime\.js[^"\']*["\'][^>]*>\s*</script>',
+            patched,
+            flags=re.IGNORECASE,
+        )
+        if runtime_match:
+            patched = patched[:runtime_match.start()] + parity_tag + "\n" + patched[runtime_match.start():]
+        else:
+            body_tags.append(parity_tag)
 
     runtime_version = hashlib.sha256(app_runtime.read_bytes()).hexdigest()[:12]
     runtime_tag = (
