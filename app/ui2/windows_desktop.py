@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import ctypes
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -29,6 +31,7 @@ STARTUP_MUTEX_NAME = r"Local\LexIA.Desktop.Startup"
 ERROR_ALREADY_EXISTS = 183
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CREATE_NEW_PROCESS_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+_WINDOW_ICON_HANDLES: list[int] = []
 
 
 def _versioned_script(
@@ -130,6 +133,124 @@ def configure_taskbar_identity() -> None:
         log_startup(f"Taskbar AppUserModelID: {WINDOWS_APP_ID}")
     except Exception as exc:
         log_startup(f"Taskbar AppUserModelID no disponible: {exc}")
+
+
+def prepare_window_icon(root: Path) -> Path | None:
+    """Materialize the bundled LexIA icon for the source-based Windows launcher."""
+    encoded = root / "assets" / "LexIA.ico.b64"
+    if not encoded.exists():
+        return None
+    try:
+        raw = base64.b64decode(encoded.read_text(encoding="ascii").strip(), validate=True)
+        if not raw:
+            return None
+        target = local_appdata() / "LexIA" / "LexIA.ico"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists() or target.read_bytes() != raw:
+            target.write_bytes(raw)
+        return target
+    except (OSError, ValueError):
+        return None
+
+
+def apply_window_icon(root: Path) -> None:
+    """Assign LexIA's icon to the PyWebView HWND created by pythonw.exe."""
+    if os.name != "nt":
+        return
+    try:
+        icon_path = prepare_window_icon(root)
+        if icon_path is None:
+            log_startup("Icono de ventana LexIA no disponible")
+            return
+
+        user32 = ctypes.windll.user32
+        hwnd_type = ctypes.c_void_p
+        lparam_type = ctypes.c_ssize_t
+        wparam_type = ctypes.c_size_t
+        load_image = user32.LoadImageW
+        load_image.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint,
+        ]
+        load_image.restype = ctypes.c_void_p
+        user32.GetWindowThreadProcessId.argtypes = [hwnd_type, ctypes.POINTER(ctypes.c_ulong)]
+        user32.GetWindowThreadProcessId.restype = ctypes.c_ulong
+        user32.IsWindowVisible.argtypes = [hwnd_type]
+        user32.IsWindowVisible.restype = ctypes.c_bool
+        user32.GetWindowTextLengthW.argtypes = [hwnd_type]
+        user32.GetWindowTextLengthW.restype = ctypes.c_int
+        user32.GetWindowTextW.argtypes = [hwnd_type, ctypes.c_wchar_p, ctypes.c_int]
+        user32.GetWindowTextW.restype = ctypes.c_int
+        user32.SendMessageW.argtypes = [hwnd_type, ctypes.c_uint, wparam_type, lparam_type]
+        user32.SendMessageW.restype = lparam_type
+        image_icon = 1
+        load_from_file = 0x0010
+        default_size = 0x0040
+        wm_seticon = 0x0080
+        icon_small = 0
+        icon_big = 1
+        handle = load_image(
+            None,
+            str(icon_path),
+            image_icon,
+            0,
+            0,
+            load_from_file | default_size,
+        )
+        if not handle:
+            raise OSError("Windows no pudo cargar LexIA.ico")
+
+        process_id = os.getpid()
+        applied = 0
+        callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, hwnd_type, lparam_type)
+        user32.EnumWindows.argtypes = [callback_type, lparam_type]
+        user32.EnumWindows.restype = ctypes.c_bool
+
+        @callback_type
+        def assign_icon(hwnd, _lparam):
+            nonlocal applied
+            owner = ctypes.c_ulong()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+            if owner.value != process_id or not user32.IsWindowVisible(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            title = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, title, length + 1)
+            if title.value.strip() != "LexIA":
+                return True
+            user32.SendMessageW(hwnd, wm_seticon, icon_big, int(handle))
+            user32.SendMessageW(hwnd, wm_seticon, icon_small, int(handle))
+            applied += 1
+            return True
+
+        user32.EnumWindows(assign_icon, 0)
+        if applied:
+            _WINDOW_ICON_HANDLES.append(int(handle))
+            log_startup(f"Icono LexIA aplicado a {applied} ventana(s)")
+        else:
+            log_startup("No se encontró la ventana LexIA para aplicar su icono")
+    except Exception as exc:
+        # El icono nunca debe impedir que LexIA abra.
+        log_startup(f"No se pudo aplicar el icono de ventana LexIA: {exc}")
+
+
+def start_desktop_webview(webview, root: Path) -> None:
+    """Start PyWebView with LexIA's icon, retaining an older-version fallback."""
+    icon_path = prepare_window_icon(root)
+    parameters = inspect.signature(webview.start).parameters
+    if icon_path is not None and "icon" in parameters:
+        log_startup(f"Icono LexIA entregado a PyWebView: {icon_path}")
+        webview.start(private_mode=False, icon=str(icon_path))
+        return
+    if icon_path is not None:
+        webview.start(func=apply_window_icon, args=(root,), private_mode=False)
+        return
+    log_startup("Icono de ventana LexIA no disponible")
+    webview.start(private_mode=False)
 
 
 def acquire_startup_mutex() -> tuple[bool, int | None]:
@@ -836,7 +957,7 @@ def _run() -> int:
         webview.create_window("LexIA", URL, width=1440, height=900, min_size=(1000, 700), resizable=True)
         # PyWebView usa modo privado por defecto; desactivarlo conserva
         # localStorage entre reinicios (por ejemplo Indicaciones recientes).
-        webview.start(private_mode=False)
+        start_desktop_webview(webview, root)
         return 0
     finally:
         stop_process(server)

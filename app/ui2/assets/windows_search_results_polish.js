@@ -2,6 +2,10 @@
 (() => {
   'use strict';
 
+  // Debe estar disponible antes de que case_workspace.js renderice. El puente
+  // dinámico la reafirma, pero puede terminar de cargar más tarde en frío.
+  window.__lexiaWindowsCaseEvidenceSelectionV2 = true;
+
   document.documentElement.classList.add('lexia-windows-search-polish');
 
   if (!document.querySelector('script[data-lexia-windows-research-resilience]')) {
@@ -70,7 +74,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-case-research-bridge]')) {
     const caseResearchBridge = document.createElement('script');
-    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-6';
+    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-7';
     caseResearchBridge.async = false;
     caseResearchBridge.dataset.lexiaWindowsCaseResearchBridge = '1';
     (document.body || document.documentElement).appendChild(caseResearchBridge);

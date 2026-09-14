@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 import sqlite3
 import tempfile
@@ -95,6 +96,50 @@ class WindowsDesktopStartupTests(unittest.TestCase):
         launcher = _load_launcher()
         if launcher.os.name != "nt":
             self.assertEqual(launcher.acquire_startup_mutex(), (True, None))
+
+    def test_source_launcher_materializes_bundled_lexia_icon(self) -> None:
+        launcher = _load_launcher()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw) / "project"
+            (root / "assets").mkdir(parents=True)
+            icon_bytes = b"\x00\x00\x01\x00lexia-icon-test"
+            (root / "assets" / "LexIA.ico.b64").write_text(
+                base64.b64encode(icon_bytes).decode("ascii"), encoding="ascii"
+            )
+            appdata = Path(raw) / "appdata"
+            with patch.object(launcher, "local_appdata", return_value=appdata):
+                icon = launcher.prepare_window_icon(root)
+
+            self.assertEqual(icon, appdata / "LexIA" / "LexIA.ico")
+            self.assertEqual(icon.read_bytes(), icon_bytes)
+
+    def test_pywebview_start_applies_runtime_icon_without_pyinstaller(self) -> None:
+        source = LAUNCHER.read_text(encoding="utf-8")
+
+        self.assertIn("def apply_window_icon(root: Path)", source)
+        self.assertIn("user32.SendMessageW(hwnd, wm_seticon, icon_big, int(handle))", source)
+        self.assertIn('if icon_path is not None and "icon" in parameters:', source)
+        self.assertIn("webview.start(private_mode=False, icon=str(icon_path))", source)
+        self.assertIn("start_desktop_webview(webview, root)", source)
+
+    def test_desktop_webview_passes_materialized_icon_to_supported_pywebview(self) -> None:
+        launcher = _load_launcher()
+
+        class FakeWebview:
+            call = None
+
+            def start(self, private_mode=True, icon=None):
+                self.call = {"private_mode": private_mode, "icon": icon}
+
+        fake = FakeWebview()
+        icon = Path("C:/LexIA/LexIA.ico")
+        with (
+            patch.object(launcher, "prepare_window_icon", return_value=icon),
+            patch.object(launcher, "log_startup"),
+        ):
+            launcher.start_desktop_webview(fake, Path("C:/LexIA"))
+
+        self.assertEqual(fake.call, {"private_mode": False, "icon": str(icon)})
 
 
 if __name__ == "__main__":

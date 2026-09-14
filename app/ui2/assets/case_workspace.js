@@ -716,7 +716,26 @@
           openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node), highlight);
         }
       });
-      body.append(excerpt);
+      if (windowsCaseUiEnabled()) {
+        const row = el('div', {className: 'lexia-case-evidence-row'}, excerpt);
+        const removeEvidence = actionIcon('remove', 'Eliminar esta fuente del bloque', 'lexia-case-evidence-delete');
+        removeEvidence.addEventListener('click', async event => {
+          event.preventDefault(); event.stopPropagation();
+          if (!confirm('¿Eliminar esta fuente del bloque?\n\nEl archivo continuará disponible en “Archivos del caso”.')) return;
+          try {
+            const response = await api('/api/cases/block/highlight/delete', {
+              method: 'POST',
+              body: JSON.stringify({case_id: snapshot.case.id, highlight_id: highlight.id, confirmed: true}),
+            });
+            currentCase = response.case;
+            await loadCases(false);
+          } catch (error) { alert(error.message); }
+        });
+        row.append(removeEvidence);
+        body.append(row);
+      } else {
+        body.append(excerpt);
+      }
     });
     const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove)); requestAnimationFrame(resizeText); return article;
   }

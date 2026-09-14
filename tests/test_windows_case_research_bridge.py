@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-6" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-7" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -61,11 +61,22 @@ def test_counterpart_is_only_adversarial_context():
 
 def test_subblock_delete_uses_existing_highlight_endpoint_and_keeps_case_file():
     bridge = _bridge()
+    workspace = (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
 
     assert "/api/cases/block/highlight/delete" in bridge
     assert "highlight_id:highlight.id" in bridge
     assert "El archivo continuará disponible en “Archivos del caso”." in bridge
     assert "highlights.length===evidenceCount" in bridge
+    assert "const row = el('div', {className: 'lexia-case-evidence-row'}, excerpt)" in workspace
+    assert "Eliminar esta fuente del bloque" in workspace
+    assert "highlight_id: highlight.id" in workspace
+    assert "body.append(row)" in workspace
+
+
+def test_windows_case_flag_is_available_before_async_bridge_download():
+    loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
+
+    assert "window.__lexiaWindowsCaseEvidenceSelectionV2 = true" in loader
 
 
 def test_bridge_sync_is_bounded_and_event_driven():

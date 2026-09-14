@@ -58,7 +58,9 @@
       }
       ${CASE_PAGE} .lexia-case-evidence-delete{
         position:absolute;z-index:2;top:5px;right:4px;box-sizing:border-box;
-        width:20px;height:20px;padding:0;border:0;border-radius:5px;
+        width:20px!important;min-width:20px!important;
+        height:20px!important;min-height:20px!important;padding:0!important;
+        border:0;border-radius:5px;
         display:grid;place-items:center;background:transparent;color:#b23848;
         cursor:pointer;opacity:.76
       }
