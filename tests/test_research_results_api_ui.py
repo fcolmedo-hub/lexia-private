@@ -110,8 +110,9 @@ def test_macos_visual_parity_colors_search_actions_and_standards_card():
     assert "#home .hr-lower>.hr-card:nth-child(-n+2)" in source
     assert "#home .hr-lower>.hr-card:nth-child(1) .hr-row>i::before" in source
     assert "#home .hr-lower>.hr-card:nth-child(2) .hr-row>i::before" in source
-    assert 'content:"⌕"' in source
-    assert 'content:"▣"' in source
+    assert ".hr-row>i.lexia-home-recent-icon::before" in source
+    assert ".lexia-home-recent-icon svg" in source
+    assert "stroke-width:1.8" in source
     assert "::-webkit-scrollbar-thumb" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source

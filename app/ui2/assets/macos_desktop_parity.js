@@ -151,6 +151,19 @@
         content:"▣";
         font:800 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif!important;
       }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i.lexia-home-recent-icon::before {
+        content:none!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .lexia-home-recent-icon svg {
+        width:17px;
+        height:17px;
+        display:block;
+        fill:none;
+        stroke:currentColor;
+        stroke-width:1.8;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+      }
       [data-lexia-standards-home]:hover,
       [data-lexia-standards-home]:focus-visible,
       [data-lexia-standards-home].active,

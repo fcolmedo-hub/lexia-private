@@ -448,6 +448,10 @@
       document.querySelectorAll('#home .hr-lower .hr-card:nth-child(-n+2) > .hr-row').forEach(row=>row.remove());
     };
 
+    const recentIcon=kind=>kind==='context'
+      ?'<i class="lexia-home-recent-icon" data-lexia-home-icon="book" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H10a3 3 0 0 1 3 3v15a3 3 0 0 0-3-3H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H16a3 3 0 0 0-3 3v15a3 3 0 0 1 3-3h1.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg></i>'
+      :'<i class="lexia-home-recent-icon" data-lexia-home-icon="file" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h4"/><path d="M10 12h5M10 16h5"/></svg></i>';
+
     const renderRecent=(selector,rows,kind)=>{
       const box=document.querySelector(selector);
       if(!box)return;
@@ -469,10 +473,10 @@
       list.innerHTML=items.map(row=>{
         if(kind==='context'){
           return '<div class="hr-row home-context-link" data-query="'+encodeURIComponent(row.query||'')+'">'+
-            '<i>▤</i><div><b>'+esc(row.query||'Consulta jurídica')+'</b><span>'+esc(row.objective||'Investigación jurídica')+'</span></div><time>'+esc(row.created_at||'')+'</time></div>';
+            recentIcon('context')+'<div><b>'+esc(row.query||'Consulta jurídica')+'</b><span>'+esc(row.objective||'Investigación jurídica')+'</span></div><time>'+esc(row.created_at||'')+'</time></div>';
         }
         return '<div class="hr-row home-document-link" data-path="'+encodeURIComponent(row.path||'')+'">'+
-          '<i>▣</i><div><b>'+esc(row.name||'Documento')+'</b><span>'+esc(row.category||'Documento')+'</span></div><time>'+esc(row.updated_at||'')+'</time></div>';
+          recentIcon('document')+'<div><b>'+esc(row.name||'Documento')+'</b><span>'+esc(row.category||'Documento')+'</span></div><time>'+esc(row.updated_at||'')+'</time></div>';
       }).join('');
     };
 
@@ -493,7 +497,9 @@
         setDelta('search-professional','Ejecutadas hoy',format(searches.today_count)+' hoy');
         setDelta('contextpage','Creadas hoy',format(contexts.today_count)+' hoy');
         setDelta('search-fragments','Indexados','Datos reales');
-        setText(card('search-file'),'p',formatShortDateTime(data.autosync?.last_sync)||'Sin sincronización registrada');
+        const lastSync=formatShortDateTime(data.autosync?.last_sync);
+        setText(card('search-file'),'small',lastSync?'Última sincronización':'Estado del catálogo');
+        setText(card('search-file'),'p',lastSync||'Catálogo validado y disponible');
         setText(card('search-professional'),'p',searches.recent?.[0]?.created_at||'Sin búsquedas registradas');
         setText(card('contextpage'),'p',contexts.recent?.[0]?.created_at||'Sin consultas registradas');
         renderRecent('#home .hr-lower .hr-card:nth-child(1)',contexts.recent,'context');

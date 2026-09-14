@@ -163,7 +163,11 @@ def test_frontend_removes_demo_metrics_and_loads_research_history() -> None:
     assert "catalog.added_today" in javascript
     assert "const formatShortDateTime=value=>" in javascript
     assert "return match?match[3]+'/'+match[2]+' '+match[4]+':'+match[5]:text;" in javascript
-    assert "formatShortDateTime(data.autosync?.last_sync)" in javascript
+    assert "const lastSync=formatShortDateTime(data.autosync?.last_sync)" in javascript
+    assert "lastSync?'Última sincronización':'Estado del catálogo'" in javascript
+    assert "lastSync||'Catálogo validado y disponible'" in javascript
+    assert 'data-lexia-home-icon="book"' in javascript
+    assert 'data-lexia-home-icon="file"' in javascript
     assert "Sin registro histórico" in javascript
     assert "installPersistentResearchHistory" in javascript
     assert "fetch('/api/research-history'" in javascript
