@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from types import SimpleNamespace
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ai.research_answer_service import ResearchAnswerService
 from config.settings import SETTINGS
@@ -1465,7 +1465,13 @@ def _handler_class(application, token):
             request_path = parsed.path
 
             if request_path == "/api/ai-results":
-                return self._json({"ok": True, "results": result_archive.list()})
+                query = parse_qs(parsed.query).get("query", [""])[0]
+                results = (
+                    result_archive.search(query)
+                    if str(query or "").strip()
+                    else result_archive.list()
+                )
+                return self._json({"ok": True, "results": results})
 
             if request_path.startswith("/api/ai-results/"):
                 try:
@@ -1559,11 +1565,14 @@ def _handler_class(application, token):
         def do_POST(self):
             if not self._authorized():
                 return self._json({"ok": False, "error": "Acceso denegado."}, 403)
-            if self.path not in {"/api/delete-file", "/api/import-files", "/api/study-document", "/api/study-start", "/api/research-start", "/api/research-candidates-start", "/api/research-candidates-cancel", "/api/research-candidates-pause", "/api/research-candidates-resume", "/api/research-package-start", "/api/navigator-operation", "/api/maintenance-action"}:
+            if self.path not in {"/api/delete-file", "/api/import-files", "/api/study-document", "/api/study-start", "/api/research-start", "/api/research-candidates-start", "/api/research-candidates-cancel", "/api/research-candidates-pause", "/api/research-candidates-resume", "/api/research-package-start", "/api/ai-results-delete", "/api/navigator-operation", "/api/maintenance-action"}:
                 return self._json({"ok": False, "error": "Ruta no encontrada."}, 404)
 
             try:
                 body = self._body()
+                if self.path == "/api/ai-results-delete":
+                    result_archive.delete(int(body.get("id")))
+                    return self._json({"ok": True, "deleted": True})
                 if self.path == "/api/maintenance-action":
                     payload = _maintenance_action(application, body)
                     payload["same_classic_process"] = True
@@ -1691,6 +1700,8 @@ def _handler_class(application, token):
             except PermissionError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 403)
             except FileNotFoundError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except KeyError as exc:
                 return self._json({"ok": False, "error": str(exc)}, 404)
             except (ValueError, RuntimeError) as exc:
                 return self._json({"ok": False, "error": str(exc)}, 409)

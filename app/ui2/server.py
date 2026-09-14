@@ -1,6 +1,6 @@
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import urlparse, parse_qs, unquote, urlencode
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 import json
@@ -2038,14 +2038,23 @@ def _core_study_result():
     return response
 
 
-def _core_ai_results(path="/api/ai-results"):
+def _core_ai_results(path="/api/ai-results", query=""):
     clean_path = str(path or "/api/ai-results")
     if clean_path != "/api/ai-results":
         suffix = clean_path.removeprefix("/api/ai-results/")
         if not suffix.isdigit():
             raise ValueError("El resultado solicitado no es válido.")
         clean_path = "/api/ai-results/" + suffix
+    if clean_path == "/api/ai-results" and str(query or "").strip():
+        clean_path += "?" + urlencode({"query": str(query).strip()})
     response, _ = _delete_bridge_request("GET", clean_path)
+    return response
+
+
+def _core_ai_result_delete(payload):
+    response, _ = _delete_bridge_request(
+        "POST", "/api/ai-results-delete", payload
+    )
     return response
 
 
@@ -3213,6 +3222,21 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
 
+        if path == "/api/ai-results-delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                if not isinstance(body, dict) or body.get("id") is None:
+                    raise ValueError("Indicá el resultado que querés eliminar.")
+                return self._json(_core_ai_result_delete({"id": int(body["id"])}))
+            except _DeleteBridgeError as exc:
+                return self._json({"ok": False, "error": str(exc)}, exc.status)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
         if path == "/api/cases":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
@@ -4274,7 +4298,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json({"ok": False, "error": str(exc)}, 500)
         if path == "/api/ai-results" or path.startswith("/api/ai-results/"):
             try:
-                return self._json(_core_ai_results(path))
+                query = parse_qs(urlparse(self.path).query).get("query", [""])[0]
+                return self._json(_core_ai_results(path, query=query))
             except _DeleteBridgeError as exc:
                 return self._json({"ok": False, "error": str(exc)}, exc.status)
             except ValueError as exc:

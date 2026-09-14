@@ -46,3 +46,29 @@ def test_archive_persists_both_result_types(tmp_path: Path):
     assert items[0]["preview"] == "Estudio del fallo"
     assert reopened.get(research["id"])["result"] == "Respuesta extensa"
     assert reopened.get(study["id"])["type_label"] == "Estudio de archivo"
+
+
+def test_archive_searches_title_query_and_full_content_and_deletes(tmp_path: Path):
+    archive = ResearchResultArchive(tmp_path / "research_results.sqlite3")
+    first = archive.add(
+        kind="research", query="Responsabilidad contractual",
+        title="Daños por incumplimiento", result="Incluye lucro cesante.",
+    )
+    second = archive.add(
+        kind="file", query="Estudiar sentencia.pdf",
+        title="Sentencia comercial", result="Analiza una cláusula penal.",
+    )
+
+    assert [item["id"] for item in archive.search("DAÑOS")] == [first["id"]]
+    assert [item["id"] for item in archive.search("contractual")] == [first["id"]]
+    assert [item["id"] for item in archive.search("cláusula penal")] == [second["id"]]
+    assert "result" not in archive.search("cláusula penal")[0]
+
+    archive.delete(first["id"])
+    assert [item["id"] for item in archive.list()] == [second["id"]]
+    try:
+        archive.delete(first["id"])
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("Eliminar dos veces debía informar que el registro no existe")

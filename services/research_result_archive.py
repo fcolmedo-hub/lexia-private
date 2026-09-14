@@ -17,6 +17,10 @@ class ResearchResultArchive:
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30)
         connection.row_factory = sqlite3.Row
+        connection.create_function(
+            "lexia_casefold", 1,
+            lambda value: str(value or "").casefold(),
+        )
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=30000")
         return connection
@@ -110,6 +114,36 @@ class ResearchResultArchive:
                 (safe_limit,),
             ).fetchall()
         return [self._public(row, include_result=False) for row in rows]
+
+    def search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
+        """Busca en título, consulta y respuesta completa sin exponerla en la lista."""
+        clean_query = str(query or "").strip()
+        if not clean_query:
+            return self.list(limit)
+        safe_limit = max(1, min(int(limit or 50), 200))
+        folded_query = clean_query.casefold()
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM research_results
+                WHERE instr(lexia_casefold(title), ?) > 0
+                   OR instr(lexia_casefold(query), ?) > 0
+                   OR instr(lexia_casefold(result), ?) > 0
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (folded_query, folded_query, folded_query, safe_limit),
+            ).fetchall()
+        return [self._public(row, include_result=False) for row in rows]
+
+    def delete(self, record_id: int) -> None:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM research_results WHERE id = ?",
+                (int(record_id),),
+            )
+        if cursor.rowcount != 1:
+            raise KeyError("El resultado solicitado no existe.")
 
     def get(self, record_id: int) -> dict[str, Any]:
         with self._connect() as connection:
