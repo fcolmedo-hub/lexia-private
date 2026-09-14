@@ -60,7 +60,9 @@
       #contextpage.lexia-source-review #researchSourceList{display:none!important}
       html[data-lexia-app="1"] #contextpage.lexia-source-review #researchSourcesModalList{display:grid!important;flex:1 1 auto!important;height:auto!important;max-height:none!important;min-height:0!important;overflow-y:auto!important;padding:6px 3px 8px!important}
       #contextpage.lexia-source-review #viewSources{display:none!important}
-      #contextpage.lexia-source-review #lexiaAddManualResearchSource{display:block!important;flex:0 0 auto!important}
+      #contextpage.lexia-source-review #lexiaAddManualResearchSource{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto!important;min-height:34px;padding:7px 12px;margin-left:auto;border:1px solid #17864f!important;border-radius:8px;background:#1b9c5a!important;color:#fff!important;font-weight:800;cursor:pointer}
+      #contextpage.lexia-source-review #lexiaAddManualResearchSource:hover{background:#17864f!important;border-color:#147543!important}
+      #contextpage.lexia-source-review .lexia-sources-foot{align-items:center!important;gap:8px!important}
       #contextpage .context-side>.lexia-sources-foot{display:none}
       #contextpage.lexia-source-review .context-side>.lexia-sources-foot{display:flex;flex:0 0 auto;margin-top:8px;padding:12px 2px 0;border-top:1px solid #e8e9f1;border-bottom:0}
       .lexia-ai-modal{display:none;position:fixed;inset:0;z-index:12000;background:rgba(20,25,43,.5);padding:30px;align-items:center;justify-content:center}
@@ -206,6 +208,11 @@
     if(!page||!side)return;
     if(allSources&&allSources.parentElement!==side)side.appendChild(allSources);
     if(footer&&footer.parentElement!==side)side.appendChild(footer);
+    const addManual=$('lexiaAddManualResearchSource');
+    if(addManual&&footer&&addManual.parentElement!==footer){
+      const actions=footer.querySelector('#lexiaCaseReturnActions,#buildResearchPackage');
+      footer.insertBefore(addManual,actions||null);
+    }
     page.classList.add('lexia-source-review');
     const panel=$('researchPanel');if(panel)panel.hidden=false;
     showAiProcess({percentage:0,status:'Fuentes listas. Revisá la selección y elegí cuáles analizará ChatGPT.'});

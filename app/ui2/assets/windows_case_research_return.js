@@ -183,23 +183,27 @@
 
   function ensureButton(){
     installStyle();
-    const footer=document.querySelector('#researchSourcesModal .lexia-sources-foot');
+    const footer=document.querySelector('#researchSourcesModal .lexia-sources-foot,#contextpage .context-side>.lexia-sources-foot');
     const build=document.getElementById('buildResearchPackage');
     if(!footer||!build)return false;
     let actions=document.getElementById(ACTIONS_ID);
     if(!actions){actions=document.createElement('div');actions.id=ACTIONS_ID;footer.insertBefore(actions,build);actions.appendChild(build);}
     let button=document.getElementById(BUTTON_ID);
     if(!button){
-      button=document.createElement('button');button.type='button';button.id=BUTTON_ID;button.textContent='Incorporar al caso y volver';
+      button=document.createElement('button');button.type='button';button.id=BUTTON_ID;button.textContent='Cargar fuentes en el subbloque del caso';
       button.addEventListener('click',()=>incorporateSelected(button));actions.appendChild(button);
     }
-    const ctx=loadContext();button.hidden=!(ctx?.caseId&&ctx?.blockId);return true;
+    const ctx=loadContext();
+    const linked=Boolean(ctx?.caseId&&ctx?.blockId);
+    button.hidden=!linked;
+    build.hidden=linked;
+    return true;
   }
 
   function syncBurst(){[0,100,350,900,1700,3000,5000].forEach(delay=>window.setTimeout(ensureButton,delay));}
   function isResearchAction(target){
     if(!target)return false;
-    if(target.closest('.lexia-case-investigate,#researchTab,#startContext,#reviewResearchSources'))return true;
+    if(target.closest('.lexia-case-investigate,#researchTab,#startContext,#reviewResearchSources,#newContext'))return true;
     const button=target.closest('#contextpage button');
     const label=String(button?.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
     return label==='investigar'||label==='revisar fuentes';

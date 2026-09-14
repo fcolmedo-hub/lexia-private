@@ -43,6 +43,8 @@ def test_shared_ui_hides_package_and_adds_history_and_popup():
     assert '#contextpage.lexia-source-review #researchPanel>#aiProcessCard{order:2!important' in source
     assert "panel.appendChild(card)" in source
     assert "window.lexiaEnterResearchSourceReview=enterSourceReview" in source
+    assert "footer.insertBefore(addManual,actions||null)" in source
+    assert "#lexiaAddManualResearchSource:hover{background:#17864f!important" in source
     assert "setInterval" not in source
     assert "MutationObserver" not in source
 
@@ -70,3 +72,27 @@ def test_both_desktop_launchers_load_shared_results_ui():
     assert 'here / "assets" / "research_results.js"' in macos
     assert '"research-results"' in windows
     assert "research-results-" in macos
+
+
+def test_macos_launcher_loads_openai_key_from_keychain_before_services():
+    source = (ROOT / "app" / "ui2" / "macos_desktop.py").read_text(
+        encoding="utf-8"
+    )
+    call = "    load_openai_key_from_keychain()"
+    services = '    services_log = open(logs / "services_ui2.log"'
+    assert 'OPENAI_KEYCHAIN_SERVICE = "LexIA OpenAI API"' in source
+    assert '"find-generic-password"' in source
+    assert 'os.environ["OPENAI_API_KEY"] = key' in source
+    assert source.index(call) < source.index(services)
+
+
+def test_macos_visual_parity_colors_search_actions_and_standards_card():
+    source = (
+        ROOT / "app" / "ui2" / "assets" / "macos_desktop_parity.js"
+    ).read_text(encoding="utf-8")
+    assert "const palette = {" in source
+    assert "details: ['#f0edff', '#dfd9ff', '#4036b4']" in source
+    assert "#searchpage .lexia-result-menu-trigger" in source
+    assert "[data-lexia-standards-home]:hover" in source
+    assert "MutationObserver" not in source
+    assert "setInterval(" not in source

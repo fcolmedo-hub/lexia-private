@@ -490,6 +490,12 @@
     document.addEventListener('click',event=>{
       const target=event.target instanceof Element?event.target:null;
       if(!target)return;
+      if(target.closest('#newContext')){
+        clearContext();
+        document.getElementById('lexiaCaseResearchOrigin')?.remove();
+        window.setTimeout(()=>{try{window.lexiaCaseResearchReturn?.sync?.();}catch(_){}},0);
+        return;
+      }
       const nav=target.closest('#globalSidebar .nav button,.global-sidebar .nav button');
       if(nav&&norm(nav.textContent)==='casos'){
         caseSyncBurst();

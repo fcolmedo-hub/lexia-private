@@ -17,6 +17,34 @@ BASE_URL = f"http://127.0.0.1:{PORT}"
 URL = BASE_URL + "/?lexia_app=1"
 BRIDGE_PORT = 8513
 QDRANT_PORT = 6333
+OPENAI_KEYCHAIN_SERVICE = "LexIA OpenAI API"
+
+
+def load_openai_key_from_keychain() -> bool:
+    """Carga la clave del Llavero sólo si el proceso no la recibió por entorno."""
+    if os.environ.get("OPENAI_API_KEY", "").strip():
+        return True
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/security",
+                "find-generic-password",
+                "-s",
+                OPENAI_KEYCHAIN_SERVICE,
+                "-w",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except Exception:
+        return False
+    key = result.stdout.strip() if result.returncode == 0 else ""
+    if not key:
+        return False
+    os.environ["OPENAI_API_KEY"] = key
+    return True
 
 
 def project_root() -> Path:
@@ -296,6 +324,7 @@ def main() -> int:
     logs = Path.home() / "Library" / "Application Support" / "LexIA" / "logs"
     logs.mkdir(parents=True, exist_ok=True)
 
+    load_openai_key_from_keychain()
     ensure_docker()
     kill_stale(root)
 

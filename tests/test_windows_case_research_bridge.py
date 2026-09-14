@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-7" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-8" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -156,7 +156,7 @@ def test_selected_research_sources_return_to_originating_case_block():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     return_flow = (ASSETS / "windows_case_research_return.js").read_text(encoding="utf-8")
 
-    assert "assets/windows_case_research_return.js?v=case-return-3" in loader
+    assert "assets/windows_case_research_return.js?v=case-return-4" in loader
     assert "data-lexia-windows-case-research-return" in loader
     assert "#researchSourcesModalList .research-source-check:checked" in return_flow
     assert "/api/research-candidates-result" in return_flow
@@ -165,7 +165,9 @@ def test_selected_research_sources_return_to_originating_case_block():
     assert "block_id:Number(ctx.blockId)" in return_flow
     assert "case_document_id:caseDocumentId" in return_flow
     assert "relation_kind:'fuente de investigación'" in return_flow
-    assert "Incorporar al caso y volver" in return_flow
+    assert "Cargar fuentes en el subbloque del caso" in return_flow
+    assert "build.hidden=linked" in return_flow
+    assert "#contextpage .context-side>.lexia-sources-foot" in return_flow
     assert "MutationObserver" not in return_flow
     assert "setInterval(" not in return_flow
 
@@ -177,7 +179,9 @@ def test_return_button_is_revealed_after_case_context_exists():
     assert "label==='investigar'||label==='revisar fuentes'" in return_flow
     assert "[0,100,350,900,1700,3000,5000]" in return_flow
     assert "target?.matches('.research-source-check,.lexia-manual-source-check')" in return_flow
-    assert "button.hidden=!(ctx?.caseId&&ctx?.blockId)" in return_flow
+    assert "const linked=Boolean(ctx?.caseId&&ctx?.blockId)" in return_flow
+    assert "button.hidden=!linked" in return_flow
+    assert "build.hidden=linked" in return_flow
 
 
 def test_return_flow_avoids_duplicate_highlights_on_retry_after_partial_failure():
@@ -204,3 +208,16 @@ def test_windows_research_transport_retries_only_safe_get_status_and_result_call
     assert "research-candidates-start" not in resilience
     assert "MutationObserver" not in resilience
     assert "setInterval(" not in resilience
+
+
+def test_new_research_leaves_case_context_and_restores_ai_action():
+    bridge = _bridge()
+    return_flow = (ASSETS / "windows_case_research_return.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "target.closest('#newContext')" in bridge
+    assert "document.getElementById('lexiaCaseResearchOrigin')?.remove()" in bridge
+    assert "window.lexiaCaseResearchReturn?.sync?.()" in bridge
+    assert "#reviewResearchSources,#newContext" in return_flow
+    assert "build.hidden=linked" in return_flow
