@@ -161,6 +161,9 @@ def test_frontend_removes_demo_metrics_and_loads_research_history() -> None:
 
     assert "installHomeLiveDataFix" in javascript
     assert "catalog.added_today" in javascript
+    assert "const formatShortDateTime=value=>" in javascript
+    assert "return match?match[3]+'/'+match[2]+' '+match[4]+':'+match[5]:text;" in javascript
+    assert "formatShortDateTime(data.autosync?.last_sync)" in javascript
     assert "Sin registro histórico" in javascript
     assert "installPersistentResearchHistory" in javascript
     assert "fetch('/api/research-history'" in javascript

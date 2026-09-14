@@ -418,6 +418,11 @@
     const fastWindowsStartup=window.__lexiaWindowsFastStartupV1===true;
     let updateInFlight=false;
     const format=value=>new Intl.NumberFormat('es-AR').format(Number(value||0));
+    const formatShortDateTime=value=>{
+      const text=String(value||'').trim();
+      const match=text.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+      return match?match[3]+'/'+match[2]+' '+match[4]+':'+match[5]:text;
+    };
     const card=target=>document.querySelector('#home .hr-metrics article[data-home-target="'+target+'"]');
     const setText=(root,selector,value)=>{const node=root?.querySelector(selector);if(node)node.textContent=value;};
 
@@ -486,7 +491,7 @@
         setDelta('search-professional','Ejecutadas hoy',format(searches.today_count)+' hoy');
         setDelta('contextpage','Creadas hoy',format(contexts.today_count)+' hoy');
         setDelta('search-fragments','Indexados','Datos reales');
-        setText(card('search-file'),'p',data.autosync?.last_sync||'Sin sincronización registrada');
+        setText(card('search-file'),'p',formatShortDateTime(data.autosync?.last_sync)||'Sin sincronización registrada');
         setText(card('search-professional'),'p',searches.recent?.[0]?.created_at||'Sin búsquedas registradas');
         setText(card('contextpage'),'p',contexts.recent?.[0]?.created_at||'Sin consultas registradas');
         renderRecent('#home .hr-lower .hr-card:nth-child(1)',contexts.recent,'context');
