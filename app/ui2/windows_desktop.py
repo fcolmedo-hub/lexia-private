@@ -632,6 +632,7 @@ def ensure_ui_assets(
     search_investigation_bridge = (
         here / "assets" / "search_investigation_bridge.js"
     )
+    research_results = here / "assets" / "research_results.js"
     navigator = here / "navigator_3_3_4a.js"
     live_badge_cleanup = (
         here / "assets" / "windows_live_badge_cleanup.js"
@@ -748,6 +749,12 @@ def ensure_ui_assets(
         patched, app_runtime, "app-runtime"
     )
     changed = changed or asset_changed
+
+    if research_results.exists():
+        patched, asset_changed = _upsert_asset_script(
+            patched, research_results, "research-results"
+        )
+        changed = changed or asset_changed
 
     patched, asset_changed = _upsert_asset_script(
         patched, search_results_polish, "windows-search-results"
