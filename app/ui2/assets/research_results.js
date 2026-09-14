@@ -167,6 +167,11 @@
 
   function install(){
     installStyle();ensureModal();
+    // El paquete es un insumo técnico no editable. No debe ocupar espacio ni
+    // quedar visible después de obtener la respuesta final de ChatGPT.
+    const packageCard=$('investigationOutput')?.closest('.output-card')
+      ||document.querySelector('#contextpage .output-card');
+    packageCard?.remove();
     if(!ensureHistoryPanel())return;
     const build=$('buildResearchPackage');
     if(build){
