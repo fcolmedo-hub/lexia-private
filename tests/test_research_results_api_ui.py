@@ -22,12 +22,22 @@ def test_shared_ui_hides_package_and_adds_history_and_popup():
         encoding="utf-8"
     )
     assert "#contextpage .output-card{display:none!important}" in source
+    assert "packageCard?.remove()" in source
     assert "Últimos resultados" in source
     assert "Investigaciones y estudios guardados" in source
     assert "'/api/ai-results/'" in source
     assert "showResult(data.result||{})" in source
     assert "setInterval" not in source
     assert "MutationObserver" not in source
+
+
+def test_ui2_server_proxies_result_history_to_the_core_bridge():
+    source = (ROOT / "app" / "ui2" / "server.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'def _core_ai_results(path="/api/ai-results")' in source
+    assert '_delete_bridge_request("GET", clean_path)' in source
+    assert 'path == "/api/ai-results" or path.startswith("/api/ai-results/")' in source
 
 
 def test_both_desktop_launchers_load_shared_results_ui():
