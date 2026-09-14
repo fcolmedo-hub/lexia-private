@@ -168,6 +168,10 @@ def test_frontend_removes_demo_metrics_and_loads_research_history() -> None:
     assert "lastSync||'Catálogo validado y disponible'" in javascript
     assert 'data-lexia-home-icon="book"' in javascript
     assert 'data-lexia-home-icon="file"' in javascript
+    assert "style.id='lexiaHomeRecentIconStyles'" in javascript
+    assert ".hr-row>i.lexia-home-recent-icon::before" in javascript
+    assert "display:none!important" in javascript
+    assert "ensureRecentIconStyles();" in javascript
     assert "Sin registro histórico" in javascript
     assert "installPersistentResearchHistory" in javascript
     assert "fetch('/api/research-history'" in javascript
