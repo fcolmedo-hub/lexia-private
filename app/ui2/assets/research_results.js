@@ -60,7 +60,7 @@
       #contextpage.lexia-source-review #researchSourceList{display:none!important}
       html[data-lexia-app="1"] #contextpage.lexia-source-review #researchSourcesModalList{display:grid!important;flex:1 1 auto!important;height:auto!important;max-height:none!important;min-height:0!important;overflow-y:auto!important;padding:6px 3px 8px!important}
       #contextpage.lexia-source-review #viewSources{display:none!important}
-      #contextpage.lexia-source-review #lexiaAddManualResearchSource{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto!important;min-height:34px;padding:7px 12px;margin-left:auto;border:1px solid #17864f!important;border-radius:8px;background:#1b9c5a!important;color:#fff!important;font-weight:800;cursor:pointer}
+      #contextpage.lexia-source-review #lexiaAddManualResearchSource{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 210px!important;width:210px!important;min-width:210px!important;max-width:100%!important;min-height:34px;padding:7px 12px;margin-left:auto!important;align-self:center!important;border:1px solid #17864f!important;border-radius:8px;background:#1b9c5a!important;color:#fff!important;font-weight:800;cursor:pointer}
       #contextpage.lexia-source-review #lexiaAddManualResearchSource:hover{background:#17864f!important;border-color:#147543!important}
       #contextpage.lexia-source-review .lexia-sources-foot{align-items:center!important;gap:8px!important}
       #contextpage .context-side>.lexia-sources-foot{display:none}

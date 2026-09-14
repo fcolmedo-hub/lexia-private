@@ -13,7 +13,7 @@ def test_bridge_is_loaded_from_windows_runtime_without_continuous_dom_watch():
     loader = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     bridge = _bridge()
 
-    assert "assets/windows_case_research_bridge.js?v=case-research-8" in loader
+    assert "assets/windows_case_research_bridge.js?v=case-research-9" in loader
     assert "data-lexia-windows-case-research-bridge" in loader
     assert "MutationObserver" not in bridge
     assert "setInterval(" not in bridge
@@ -57,6 +57,10 @@ def test_counterpart_is_only_adversarial_context():
     assert "únicamente como contexto adversarial" in bridge
     assert "Buscá refutaciones, distinciones, límites y respuestas" in bridge
     assert "no orientes la investigación a sostener esta tesis" in bridge
+
+    assert "querySelectorAll('.argument-section')" in bridge
+    assert "resolved?.node?.blocks?.contraparte" in bridge
+    assert "counterpartText(article,base.blockIndex,base)" in bridge
 
 
 def test_subblock_delete_uses_existing_highlight_endpoint_and_keeps_case_file():

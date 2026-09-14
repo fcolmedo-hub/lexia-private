@@ -45,6 +45,8 @@ def test_shared_ui_hides_package_and_adds_history_and_popup():
     assert "window.lexiaEnterResearchSourceReview=enterSourceReview" in source
     assert "footer.insertBefore(addManual,actions||null)" in source
     assert "#lexiaAddManualResearchSource:hover{background:#17864f!important" in source
+    assert "flex:0 0 210px!important" in source
+    assert "width:210px!important" in source
     assert "setInterval" not in source
     assert "MutationObserver" not in source
 
@@ -94,5 +96,7 @@ def test_macos_visual_parity_colors_search_actions_and_standards_card():
     assert "details: ['#f0edff', '#dfd9ff', '#4036b4']" in source
     assert "#searchpage .lexia-result-menu-trigger" in source
     assert "[data-lexia-standards-home]:hover" in source
+    assert "kind === 'case' || kind === 'ocr'" in source
+    assert "'#d5ceff' : '#dfd9ff'" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source

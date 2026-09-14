@@ -191,15 +191,16 @@
   }
 
   function restoreInvestigationAfterViewer(){
-    if(typeof window.lexiaReleaseManualResearchGuard==='function'){
-      window.lexiaReleaseManualResearchGuard();
-      return;
-    }
+    try{window.lexiaReleaseManualResearchGuard?.();}catch(_){}
     document.body.classList.remove('lexia-manual-search-open');
     const context=document.getElementById('contextpage');
     const search=document.getElementById('searchpage');
-    if(context)context.style.setProperty('display','block','important');
+    if(context){
+      context.style.setProperty('display','block','important');
+      context.hidden=false;
+    }
     if(search)search.style.setProperty('display','none','important');
+    try{window.lexiaUI2NavigateGlobal?.('contextpage');}catch(_){}
   }
 
   function closeViewerAndShowSources(dialog){

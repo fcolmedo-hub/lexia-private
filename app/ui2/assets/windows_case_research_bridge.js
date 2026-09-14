@@ -127,15 +127,18 @@
     const blocks=section?[...section.querySelectorAll('.argument-block')]:[];
     return Math.max(0,blocks.indexOf(article));
   }
-  function counterpartText(article,index){
+  function counterpartText(article,index,resolved){
     const workspace=article?.closest('.case-workspace-inline,.case-workspace')||document.querySelector(CASE_PAGE);
-    const counterpart=[...(workspace?.querySelectorAll('details')||[])].find(section=>
-      norm(section.querySelector('summary')?.textContent).includes('contraparte')
+    const counterpart=[...(workspace?.querySelectorAll('.argument-section')||[])].find(section=>
+      norm(section.querySelector(':scope > summary')?.textContent).includes('contraparte')
     );
-    if(!counterpart)return '';
-    const texts=[...counterpart.querySelectorAll('.argument-block textarea')]
+    const visible=[...(counterpart?.querySelectorAll('.argument-block textarea')||[])]
       .map(node=>String(node.value||'').trim());
-    return texts[index]||texts.filter(Boolean).join('\n\n');
+    const fromVisible=visible[index]||visible.filter(Boolean).join('\n\n');
+    if(fromVisible)return fromVisible;
+    const saved=(resolved?.node?.blocks?.contraparte||[])
+      .map(block=>String(block?.content||'').trim());
+    return saved[index]||saved.filter(Boolean).join('\n\n');
   }
   function flattenNodes(nodes,out){
     out=out||[];
@@ -189,7 +192,8 @@
       nodeTitle:node.title||questionTitle,
       blockId:block.id,
       blockIndex:actualIndex,
-      block
+      block,
+      node
     };
   }
 
@@ -344,7 +348,7 @@
         blockId:base.blockId,
         blockIndex:base.blockIndex,
         ownText:own,
-        counterText:counterpartText(article,base.blockIndex),
+        counterText:counterpartText(article,base.blockIndex,base),
         createdAt:new Date().toISOString()
       };
       saveContext(ctx);

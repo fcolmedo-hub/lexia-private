@@ -13,13 +13,13 @@
   const scripts = [
     ['lexiaWindowsResearchResilience', 'assets/windows_research_transport_resilience.js?v=research-resilience-1'],
     ['lexiaWindowsResearchManualSources', 'assets/windows_research_manual_sources.js?v=research-manual-sources-1'],
-    ['lexiaWindowsResearchManualSelectionFix', 'assets/windows_research_manual_selection_fix.js?v=manual-selection-4'],
+    ['lexiaWindowsResearchManualSelectionFix', 'assets/windows_research_manual_selection_fix.js?v=manual-selection-5'],
     ['lexiaWindowsResearchManualSourcesMerge', 'assets/windows_research_manual_sources_merge.js?v=manual-sources-merge-6'],
     ['lexiaWindowsMaintenanceStatusDetail', 'assets/windows_maintenance_status_detail.js?v=maintenance-status-1'],
     ['lexiaWindowsMaintenanceDuplicates', 'assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-2'],
     ['lexiaWindowsInvestigationLayout', 'assets/windows_investigation_layout_fix.js?v=investigation-layout-4'],
     ['lexiaWindowsResponsiveLayoutGuard', 'assets/windows_responsive_layout_guard.js?v=responsive-routes-1'],
-    ['lexiaWindowsCaseResearchBridge', 'assets/windows_case_research_bridge.js?v=case-research-8'],
+    ['lexiaWindowsCaseResearchBridge', 'assets/windows_case_research_bridge.js?v=case-research-9'],
     ['lexiaWindowsCaseNavState', 'assets/windows_case_nav_state_fix.js?v=case-nav-2'],
     ['lexiaWindowsCaseResearchReturn', 'assets/windows_case_research_return.js?v=case-return-4'],
   ];
@@ -68,6 +68,13 @@
       button.style.setProperty('background', colors[0], 'important');
       button.style.setProperty('border-color', colors[1], 'important');
       button.style.setProperty('color', colors[2], 'important');
+      const kind = actionKind(button);
+      const icon = button.firstElementChild;
+      if ((kind === 'case' || kind === 'ocr') && icon) {
+        icon.style.setProperty('background', kind === 'case' ? '#d5ceff' : '#dfd9ff', 'important');
+        icon.style.setProperty('color', kind === 'case' ? '#3428c7' : '#5146a8', 'important');
+        icon.style.setProperty('border-color', kind === 'case' ? '#c9c2ff' : '#d2ccf4', 'important');
+      }
     });
   };
 
