@@ -38,6 +38,11 @@ def test_shared_ui_hides_package_and_adds_history_and_popup():
     assert "Proceso de IA" in source
     assert "enterSourceReview()" in source
     assert "resetResearchLayout()" in source
+    assert '#contextpage:not(.lexia-source-review) #researchPanel>.context-side{display:none!important}' in source
+    assert '#contextpage.lexia-source-review #researchPanel>.context-side{order:1!important' in source
+    assert '#contextpage.lexia-source-review #researchPanel>#aiProcessCard{order:2!important' in source
+    assert "panel.appendChild(card)" in source
+    assert "window.lexiaEnterResearchSourceReview=enterSourceReview" in source
     assert "setInterval" not in source
     assert "MutationObserver" not in source
 

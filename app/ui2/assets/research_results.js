@@ -46,16 +46,21 @@
       #contextpage .ai-results-empty{padding:26px;text-align:center;color:#7b849d;border:1px dashed #d9dce7;border-radius:10px}
       #researchSourcesModal{display:none!important}
       #contextpage #aiProcessCard[hidden]{display:none!important}
-      #contextpage #aiProcessCard{position:sticky;top:0;z-index:4;margin:0;padding:13px 15px;border:1px solid #dddafe;background:#faf9ff}
+      #contextpage #aiProcessCard{position:relative;margin:0;padding:13px 15px;border:1px solid #dddafe;background:#faf9ff}
       #contextpage #aiProcessCard .job-top h3{margin:0;color:#252d48;font-size:12px!important}
       #contextpage #aiProcessCard .job-top p{margin:4px 0 0;color:#687294;font-size:10px}
-      #contextpage.lexia-source-review #researchPanel{display:flex!important;flex-direction:column;gap:10px;min-height:0}
-      #contextpage.lexia-source-review #researchPanel>.research-main-column{display:none!important}
-      #contextpage.lexia-source-review #researchPanel>.context-side{display:flex;flex-direction:column;width:100%;max-width:none;min-height:0;margin:0;padding:14px!important}
+      html[data-lexia-app="1"] #contextpage:not(.lexia-source-review) #researchPanel:not([hidden]){display:block!important;grid-template-columns:none!important;width:100%!important}
+      html[data-lexia-app="1"] #contextpage:not(.lexia-source-review) #researchPanel>.research-main-column{display:flex!important;width:100%!important;max-width:none!important}
+      html[data-lexia-app="1"] #contextpage:not(.lexia-source-review) #researchPanel>.context-side{display:none!important}
+      html[data-lexia-app="1"] #contextpage.lexia-source-review #researchPanel:not([hidden]){display:flex!important;flex-direction:column!important;gap:10px!important;height:calc(100dvh - 172px)!important;min-height:430px!important;max-height:none!important;overflow:hidden!important;width:100%!important}
+      html[data-lexia-app="1"] #contextpage.lexia-source-review #researchPanel>.research-main-column{display:none!important}
+      html[data-lexia-app="1"] #contextpage.lexia-source-review #researchPanel>.context-side{order:1!important;display:flex!important;flex:1 1 auto!important;flex-direction:column!important;width:100%!important;max-width:none!important;height:auto!important;min-height:0!important;margin:0!important;padding:14px!important;position:relative!important;top:auto!important;overflow:hidden!important}
+      html[data-lexia-app="1"] #contextpage.lexia-source-review #researchPanel>#aiProcessCard{order:2!important;display:block!important;flex:0 0 auto!important;width:100%!important;min-height:0!important;height:auto!important}
       #contextpage #researchSourcesModalList{display:none}
       #contextpage.lexia-source-review #researchSourceList{display:none!important}
-      #contextpage.lexia-source-review #researchSourcesModalList{display:grid;max-height:calc(100vh - 330px);min-height:280px;overflow-y:auto;padding:6px 3px 8px}
+      html[data-lexia-app="1"] #contextpage.lexia-source-review #researchSourcesModalList{display:grid!important;flex:1 1 auto!important;height:auto!important;max-height:none!important;min-height:0!important;overflow-y:auto!important;padding:6px 3px 8px!important}
       #contextpage.lexia-source-review #viewSources{display:none!important}
+      #contextpage.lexia-source-review #lexiaAddManualResearchSource{display:block!important;flex:0 0 auto!important}
       #contextpage .context-side>.lexia-sources-foot{display:none}
       #contextpage.lexia-source-review .context-side>.lexia-sources-foot{display:flex;flex:0 0 auto;margin-top:8px;padding:12px 2px 0;border-top:1px solid #e8e9f1;border-bottom:0}
       .lexia-ai-modal{display:none;position:fixed;inset:0;z-index:12000;background:rgba(20,25,43,.5);padding:30px;align-items:center;justify-content:center}
@@ -66,7 +71,7 @@
       .lexia-ai-dialog-head p{margin:0;color:#747e98;font-size:11px}
       .lexia-ai-dialog-close{width:34px;height:34px;border:0;border-radius:8px;background:#f1f0ff;color:#4036c4;font-size:21px;cursor:pointer}
       .lexia-ai-result{padding:20px;overflow:auto;white-space:pre-wrap;color:#28314e;font:13px/1.62 system-ui,-apple-system,"Segoe UI",sans-serif}
-      @media(max-width:700px){#contextpage .ai-results-head,#contextpage .ai-results-tools{flex-direction:column}#contextpage .ai-results-tools>*{width:100%}#contextpage .ai-result-card{grid-template-columns:1fr}#contextpage .ai-result-actions{flex-direction:row}.lexia-ai-modal{padding:10px}.lexia-ai-dialog{max-height:94vh}#contextpage.lexia-source-review #researchSourcesModalList{max-height:calc(100vh - 360px)}}
+      @media(max-width:700px){#contextpage .ai-results-head,#contextpage .ai-results-tools{flex-direction:column}#contextpage .ai-results-tools>*{width:100%}#contextpage .ai-result-card{grid-template-columns:1fr}#contextpage .ai-result-actions{flex-direction:row}.lexia-ai-modal{padding:10px}.lexia-ai-dialog{max-height:94vh}html[data-lexia-app="1"] #contextpage.lexia-source-review #researchPanel:not([hidden]){height:calc(100dvh - 155px)!important;min-height:360px!important}}
     `;
     document.head.appendChild(style);
   }
@@ -180,7 +185,7 @@
     const panel=$('researchPanel');if(!panel)return null;
     card=document.createElement('section');card.id='aiProcessCard';card.className='card job-card';card.hidden=true;
     card.innerHTML=`<div class="job-top"><div><h3>Proceso de IA</h3><p id="aiProcessDetail">Esperando la selección de fuentes.</p></div><span class="job-state" id="aiProcessStep">0%</span></div><div class="research-progress-track"><i id="aiProcessBar"></i></div><div class="research-progress-foot"><span id="aiProcessState">Fuentes listas para revisar</span><span id="aiProcessPercent">0%</span></div>`;
-    panel.prepend(card);return card;
+    panel.appendChild(card);return card;
   }
 
   function showAiProcess(state={}){
@@ -202,6 +207,7 @@
     if(allSources&&allSources.parentElement!==side)side.appendChild(allSources);
     if(footer&&footer.parentElement!==side)side.appendChild(footer);
     page.classList.add('lexia-source-review');
+    const panel=$('researchPanel');if(panel)panel.hidden=false;
     showAiProcess({percentage:0,status:'Fuentes listas. Revisá la selección y elegí cuáles analizará ChatGPT.'});
   }
 
@@ -300,6 +306,7 @@
       if(event.target.closest('#newContext'))resetResearchLayout();
     });
     ensureAiProcess();
+    window.lexiaEnterResearchSourceReview=enterSourceReview;
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});

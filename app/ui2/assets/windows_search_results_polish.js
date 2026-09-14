@@ -26,7 +26,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-research-manual-selection-fix]')) {
     const manualSelectionFix = document.createElement('script');
-    manualSelectionFix.src = 'assets/windows_research_manual_selection_fix.js?v=manual-selection-3';
+    manualSelectionFix.src = 'assets/windows_research_manual_selection_fix.js?v=manual-selection-4';
     manualSelectionFix.async = false;
     manualSelectionFix.dataset.lexiaWindowsResearchManualSelectionFix = '1';
     (document.body || document.documentElement).appendChild(manualSelectionFix);

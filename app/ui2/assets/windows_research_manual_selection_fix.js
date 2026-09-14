@@ -208,12 +208,9 @@
     restoreInvestigationAfterViewer();
     [0,80,220].forEach(delay=>window.setTimeout(()=>{
       restoreInvestigationAfterViewer();
+      try{window.lexiaEnterResearchSourceReview?.();}catch(_){}
       try{window.lexiaMergeManualResearchSources?.();}catch(_){}
     },delay));
-    window.setTimeout(()=>{
-      const review=document.getElementById('viewSources')||document.getElementById('reviewResearchSources');
-      review?.click();
-    },120);
   }
 
   async function addSelections(dialog,button){
