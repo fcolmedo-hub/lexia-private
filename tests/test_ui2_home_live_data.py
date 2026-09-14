@@ -172,6 +172,11 @@ def test_frontend_removes_demo_metrics_and_loads_research_history() -> None:
     assert ".hr-row>i.lexia-home-recent-icon::before" in javascript
     assert "display:none!important" in javascript
     assert "ensureRecentIconStyles();" in javascript
+    assert "progress.style.width='100%'" in javascript
+    assert "#home .hr-scroll-list .hr-row time" in javascript
+    assert "margin-right:12px!important" in javascript
+    assert "grid-template-columns:34px minmax(0,1fr) max-content!important" in javascript
+    assert "#home #homeQuickSearchButton" in javascript
     assert "Sin registro histórico" in javascript
     assert "installPersistentResearchHistory" in javascript
     assert "fetch('/api/research-history'" in javascript

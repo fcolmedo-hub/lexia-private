@@ -432,7 +432,7 @@
       setText(root,'.hr-line span',label);
       setText(root,'.hr-line em',value);
       const progress=root?.querySelector('.hr-progress i');
-      if(progress)progress.style.width='0%';
+      if(progress)progress.style.width='100%';
     };
 
     const neutralizeDemoValues=()=>{
@@ -471,6 +471,17 @@
           stroke-width:1.8!important;
           stroke-linecap:round;
           stroke-linejoin:round;
+        }
+        #home .hr-scroll-list .hr-row time {
+          margin-right:12px!important;
+        }
+        #home .hr-search {
+          grid-template-columns:34px minmax(0,1fr) max-content!important;
+        }
+        #home #homeQuickSearchButton {
+          justify-self:end!important;
+          min-width:98px!important;
+          margin-right:0!important;
         }
       `;
       document.head.appendChild(style);
