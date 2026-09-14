@@ -2038,6 +2038,17 @@ def _core_study_result():
     return response
 
 
+def _core_ai_results(path="/api/ai-results"):
+    clean_path = str(path or "/api/ai-results")
+    if clean_path != "/api/ai-results":
+        suffix = clean_path.removeprefix("/api/ai-results/")
+        if not suffix.isdigit():
+            raise ValueError("El resultado solicitado no es válido.")
+        clean_path = "/api/ai-results/" + suffix
+    response, _ = _delete_bridge_request("GET", clean_path)
+    return response
+
+
 def _direct_import_files(category, destination, sources):
     validated = Path(_validated_navigator_folder(category, destination)).resolve()
     imported, skipped, errors = [], [], []
@@ -4259,6 +4270,15 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/research-history":
             try:
                 return self._json({"ok": True, "items": _research_history_items(12)})
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+        if path == "/api/ai-results" or path.startswith("/api/ai-results/"):
+            try:
+                return self._json(_core_ai_results(path))
+            except _DeleteBridgeError as exc:
+                return self._json({"ok": False, "error": str(exc)}, exc.status)
+            except ValueError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
         if path == "/api/maintenance-live":
