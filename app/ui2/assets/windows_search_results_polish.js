@@ -74,7 +74,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-case-research-bridge]')) {
     const caseResearchBridge = document.createElement('script');
-    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-9';
+    caseResearchBridge.src = 'assets/windows_case_research_bridge.js?v=case-research-10';
     caseResearchBridge.async = false;
     caseResearchBridge.dataset.lexiaWindowsCaseResearchBridge = '1';
     (document.body || document.documentElement).appendChild(caseResearchBridge);

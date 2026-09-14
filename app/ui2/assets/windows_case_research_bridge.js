@@ -138,7 +138,14 @@
     if(fromVisible)return fromVisible;
     const saved=(resolved?.node?.blocks?.contraparte||[])
       .map(block=>String(block?.content||'').trim());
-    return saved[index]||saved.filter(Boolean).join('\n\n');
+    const fromBlocks=saved[index]||saved.filter(Boolean).join('\n\n');
+    if(fromBlocks)return fromBlocks;
+    return [
+      resolved?.node?.adversary_text,
+      resolved?.node?.counterpart_text,
+      resolved?.node?.contraparte,
+      resolved?.node?.adversary
+    ].map(value=>String(value||'').trim()).find(Boolean)||'';
   }
   function flattenNodes(nodes,out){
     out=out||[];
@@ -276,6 +283,26 @@
     node.dataset.lexiaCaseAutofill='1';
   }
 
+  function fillCaseInstructions(node,counter){
+    if(!node||!counter)return;
+    if(document.activeElement===node)return;
+    const current=String(node.value||'').trim();
+    const generatedPrefix='El siguiente planteo corresponde a la contraparte';
+    if(current&&node.dataset.lexiaCaseAutofill!=='1'&&!current.startsWith(generatedPrefix))return;
+    const value='PLANTEO DE LA CONTRAPARTE:\n'+counter
+      +'\n\nINSTRUCCIONES DE TRABAJO:\n'
+      +'Usá este planteo únicamente como contexto adversarial. Buscá refutaciones, '
+      +'distinciones, límites y respuestas; no orientes la investigación a sostener esta tesis.';
+    setNativeValue(node,value);
+    node.dataset.lexiaCaseAutofill='1';
+    window.requestAnimationFrame(()=>{
+      if(!(node instanceof HTMLTextAreaElement))return;
+      node.style.height='auto';
+      node.style.height=Math.min(Math.max(node.scrollHeight,110),360)+'px';
+      node.scrollTop=0;
+    });
+  }
+
   function ensureOriginBanner(ctx,panel){
     let banner=document.getElementById('lexiaCaseResearchOrigin');
     if(!banner){
@@ -307,13 +334,7 @@
     fillIfAvailable(objective,'Investigar y fundamentar jurídicamente la postura propia del caso.');
 
     const counter=String(ctx.counterText||'').trim();
-    if(counter){
-      fillIfAvailable(instructions,
-        'El siguiente planteo corresponde a la contraparte y debe utilizarse únicamente como contexto adversarial. '
-        +'Buscá refutaciones, distinciones, límites y respuestas; no orientes la investigación a sostener esta tesis:\n\n'
-        +counter
-      );
-    }
+    if(counter)fillCaseInstructions(instructions,counter);
     return true;
   }
 
