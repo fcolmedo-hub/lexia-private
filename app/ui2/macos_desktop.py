@@ -127,6 +127,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     standards_nav_fix = here / "assets" / "standards_nav_fix.js"
     maintenance = here / "assets" / "maintenance.js"
     study_layout_guard = here / "assets" / "study_layout_guard.js"
+    research_results = here / "assets" / "research_results.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     if not (
         index.exists()
@@ -184,6 +185,19 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if study_layout_guard.exists() and "assets/study_layout_guard.js" not in patched:
         body_tags.append('<script src="assets/study_layout_guard.js?v=study-layout-shared-1"></script>')
+
+    if research_results.exists():
+        version = hashlib.sha256(research_results.read_bytes()).hexdigest()[:12]
+        tag = f'<script src="assets/research_results.js?v=research-results-{version}"></script>'
+        if "assets/research_results.js" in patched:
+            patched = re.sub(
+                r'<script[^>]+src=["\'][^"\']*assets/research_results\.js[^"\']*["\'][^>]*>\s*</script>',
+                tag,
+                patched,
+                flags=re.IGNORECASE,
+            )
+        else:
+            body_tags.append(tag)
 
     if standards_ui.exists():
         if "LEXIA_STANDARDS_PORT" not in patched:
