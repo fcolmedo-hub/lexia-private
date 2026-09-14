@@ -29,6 +29,42 @@ class _RunningProcess:
 
 
 class WindowsDesktopStartupTests(unittest.TestCase):
+    def test_shell_readiness_does_not_wait_for_heavy_core_bridge(self) -> None:
+        launcher = _load_launcher()
+        requested = []
+
+        def fake_http_json(url, timeout=1.0):
+            requested.append(url)
+            return {"ok": True}
+
+        with (
+            patch.object(launcher, "_http_json", side_effect=fake_http_json),
+            patch.object(launcher, "log_startup") as log,
+        ):
+            launcher.wait_ui_shell_ready(_RunningProcess(), timeout=1.0)
+
+        self.assertEqual(requested, [launcher.BASE_URL + "/api/health"])
+        self.assertIn("UI2 visible", log.call_args.args[0])
+
+    def test_run_starts_services_in_parallel_without_bridge_gate(self) -> None:
+        source = LAUNCHER.read_text(encoding="utf-8")
+        run = source[source.index("def _run() -> int:"):source.index("\ndef main() -> int:")]
+        self.assertNotIn("wait_tcp(BRIDGE_PORT, 150)", run)
+        self.assertNotIn("wait_tcp(STANDARDS_PORT, 20)", run)
+        self.assertIn("wait_ui_shell_ready(server)", run)
+        self.assertLess(
+            run.index("services = subprocess.Popen("),
+            run.index("wait_ui_shell_ready(server)"),
+        )
+        self.assertLess(
+            run.index("standards_api = start_standards_api("),
+            run.index("wait_ui_shell_ready(server)"),
+        )
+        self.assertLess(
+            run.index("server = subprocess.Popen("),
+            run.index("wait_ui_shell_ready(server)"),
+        )
+
     def test_catalog_document_count_reads_existing_library(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

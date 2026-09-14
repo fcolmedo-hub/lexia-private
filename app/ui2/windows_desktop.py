@@ -900,6 +900,32 @@ def wait_ui_ready(
         + last_detail
     )
 
+
+def wait_ui_shell_ready(
+    server: subprocess.Popen,
+    timeout: float = 60.0,
+) -> None:
+    """Wait only for the UI server; heavy core services keep warming up."""
+    deadline = time.monotonic() + timeout
+    last_detail = "el servidor UI2 todavía no respondió"
+    while time.monotonic() < deadline:
+        if server.poll() is not None:
+            raise RuntimeError(
+                "El servidor UI2 finalizó durante el arranque."
+            )
+        health = _http_json(BASE_URL + "/api/health", timeout=1.2)
+        if isinstance(health, dict) and health.get("ok") is True:
+            log_startup(
+                "UI2 visible: servicios auxiliares continúan "
+                "inicializándose en segundo plano"
+            )
+            return
+        time.sleep(0.25)
+    raise RuntimeError(
+        "La interfaz UI2 no respondió dentro del tiempo esperado; "
+        + last_detail
+    )
+
 def stop_process(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
         return
@@ -977,16 +1003,10 @@ def _run() -> int:
     standards_log = None
     original_index: str | None = None
     try:
-        if not wait_tcp(BRIDGE_PORT, 150):
-            tail = _tail_text(services_log_path)
-            if services.poll() is not None:
-                detail = "Los servicios internos de LexIA finalizaron durante el arranque."
-            else:
-                detail = "LexIA no pudo iniciar su puente local de servicios (puerto 8513)."
-            if tail:
-                detail += "\n\nÚltimas líneas de services_ui2.log:\n" + tail
-            raise RuntimeError(detail)
-
+        log_startup(
+            "Servicios centrales lanzados en segundo plano; "
+            "el arranque visual no esperará al puente 8513"
+        )
         original_index = ensure_ui_assets(
             root,
             expected_documents=expected_documents,
@@ -998,13 +1018,10 @@ def _run() -> int:
         standards_log_path = logs / "standards_api.log"
         standards_log = open(standards_log_path, "ab", buffering=0)
         standards_api = start_standards_api(root, py, env, flags, standards_log)
-        if not wait_tcp(STANDARDS_PORT, 20):
-            detail = _tail_text(standards_log_path)
-            message = "LexIA no pudo iniciar la API local de Estándares (puerto 8515)."
-            if detail:
-                message += "\n\nÚltimas líneas de standards_api.log:\n" + detail
-            raise RuntimeError(message)
-        log_startup("API de Estándares disponible en puerto 8515")
+        log_startup(
+            "API de Estándares lanzada en paralelo; "
+            "no bloquea la apertura de la ventana"
+        )
         server_log_path = logs / "ui2_server.log"
         server_log = open(server_log_path, "ab", buffering=0)
         server = subprocess.Popen(
@@ -1015,7 +1032,8 @@ def _run() -> int:
             stderr=subprocess.STDOUT,
             creationflags=flags,
         )
-        wait_ui_ready(server, expected_documents)
+        log_startup("Servidor UI2 lanzado en paralelo")
+        wait_ui_shell_ready(server)
 
         import webview
 

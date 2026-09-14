@@ -736,13 +736,50 @@
     if(window.__lexiaJurisFetchBridge)return;
     window.__lexiaJurisFetchBridge=true;
     const original=window.fetch.bind(window);
+    const fastWindowsStartup=window.__lexiaWindowsFastStartupV1===true;
+    let liveCache=null;
+    let liveCacheUntil=0;
+    let liveInFlight=null;
+    const responseFromRecord=record=>new Response(record.body,{
+      status:record.status,
+      statusText:record.statusText,
+      headers:record.headers
+    });
+    const fetchLiveSnapshot=async(input,init)=>{
+      const now=Date.now();
+      if(liveCache&&now<liveCacheUntil)return responseFromRecord(liveCache);
+      if(!liveInFlight){
+        liveInFlight=(async()=>{
+          const response=await original(input,init);
+          const record={
+            body:await response.text(),
+            status:response.status,
+            statusText:response.statusText,
+            headers:new Headers(response.headers)
+          };
+          if(response.ok){
+            liveCache=record;
+            liveCacheUntil=Date.now()+30000;
+          }
+          return record;
+        })().finally(()=>{liveInFlight=null;});
+      }
+      return responseFromRecord(await liveInFlight);
+    };
     window.fetch=async function(input,init){
       let jurisprudenceSearch=false;
       let searchUrl='';
+      const requestedUrl=typeof input==='string'?input:String(input?.url||'');
+      const requestedMethod=String(init?.method||input?.method||'GET').toUpperCase();
+      if(
+        fastWindowsStartup
+        && requestedMethod==='GET'
+        && /\/api\/live(?:[?#]|$)/.test(requestedUrl)
+      )return fetchLiveSnapshot(input,init);
       try{
-        const url=typeof input==='string'?input:String(input?.url||'');
+        const url=requestedUrl;
         searchUrl=url;
-        const method=String(init?.method||input?.method||'GET').toUpperCase();
+        const method=requestedMethod;
 
         if(isRemoteClient()&&method==='POST'&&url.includes('/api/open-file')&&init?.body){
           const body=JSON.parse(String(init.body));
