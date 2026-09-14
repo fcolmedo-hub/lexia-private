@@ -104,21 +104,27 @@ def test_macos_visual_parity_colors_search_actions_and_standards_card():
     assert '[role="menu"] button' in source
     assert "[data-lexia-standards-home]:hover" in source
     assert "kind === 'case' || kind === 'ocr'" in source
-    assert "forcedActionIcons" in source
-    assert "ocr: ['#ece9ff', '#ddd6ff', '#4b3fbd']" in source
     assert "button.dataset.lexiaActionPalette = kind" in source
     assert 'data-lexia-action-palette="case"' in source
     assert 'data-lexia-action-palette="ocr"' in source
-    assert "forceLavenderActionIcon" in source
-    assert "button.replaceChildren(icon, text)" in source
-    assert "lexia-forced-action-icon" in source
-    assert "polishHomeRecents" in source
-    assert "Consultas recientes de Investigación" in source
-    assert "Documentos recientes" in source
-    assert "lexia-home-recent-scroll" in source
-    assert "recentIcons" in source
+    assert "#home .hr-lower>.hr-card:nth-child(-n+2)" in source
+    assert "#home .hr-lower>.hr-card:nth-child(1) .hr-row>i::before" in source
+    assert "#home .hr-lower>.hr-card:nth-child(2) .hr-row>i::before" in source
+    assert 'content:"⌕"' in source
+    assert 'content:"▣"' in source
+    assert "::-webkit-scrollbar-thumb" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source
+
+
+def test_case_workspace_uses_lavender_icons_without_yellow():
+    source = (
+        ROOT / "app" / "ui2" / "assets" / "case_workspace.js"
+    ).read_text(encoding="utf-8")
+    assert 'button.result-menu-case::before{content:"⇥"!important;background:#e5e0ff!important;color:#3428c7!important}' in source
+    assert 'button.result-menu-ocr::before{content:"↻"!important;background:#ece9ff!important;color:#4b3fbd!important}' in source
+    assert "background:#fff2c7!important" not in source
+    assert "background:#fff5d9!important" not in source
 
 
 def test_macos_openai_key_configurator_uses_keychain_without_echoing_key():

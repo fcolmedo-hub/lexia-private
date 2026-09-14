@@ -40,7 +40,7 @@
     investigate: ['#5146f6', '#5146f6', '#ffffff'],
     case: ['#e5e0ff', '#d5ceff', '#3428c7'],
     details: ['#f0edff', '#dfd9ff', '#4036b4'],
-    ocr: ['#ece9ff', '#ddd6ff', '#4b3fbd'],
+    ocr: ['#ececf6', '#ddddea', '#59627a'],
     delete: ['#9a3b8f', '#9a3b8f', '#ffffff']
   };
 
@@ -58,138 +58,30 @@
     return '';
   };
 
-  const forcedActionIcons = {
-    case: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h7l2 2H20v11H4z"/><path d="M8 13h8M13 9l4 4-4 4"/></svg>',
-    ocr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8V4l-2 2a7 7 0 1 0 1.7 7"/><path d="M19 4h-4"/></svg>'
-  };
-
-  const forceLavenderActionIcon = (button, kind) => {
-    if (kind !== 'case' && kind !== 'ocr') return;
-    const label = kind === 'case' ? 'Agregar al caso' : 'Reprocesar OCR';
-    let icon = button.querySelector(':scope > .lexia-forced-action-icon');
-    if (!icon) {
-      icon = document.createElement('span');
-      icon.className = 'lexia-forced-action-icon';
-      icon.setAttribute('aria-hidden', 'true');
-      icon.innerHTML = forcedActionIcons[kind];
-      const text = document.createElement('span');
-      text.className = 'lexia-forced-action-label';
-      text.textContent = label;
-      // Elimina el emoji original, cuyo amarillo forma parte del propio glifo
-      // y no puede cambiarse con background/color.
-      button.replaceChildren(icon, text);
-    }
-  };
-
   const paintActions = scope => {
     const root = scope?.querySelectorAll ? scope : document;
     root.querySelectorAll(
       '.result-actions button, .lexia-result-actions button, .lexia-result-menu button, [role="menu"] button, #lexiaNavigatorFiles .search-delete-file, .lexia-nav-preview-actions .search-delete-file'
     ).forEach(button => {
-      const kind = actionKind(button);
-      const colors = palette[kind];
+      const colors = palette[actionKind(button)];
       if (!colors) return;
-      forceLavenderActionIcon(button, kind);
       button.style.setProperty('background', colors[0], 'important');
-      button.style.setProperty('background-image', 'none', 'important');
       button.style.setProperty('border-color', colors[1], 'important');
       button.style.setProperty('color', colors[2], 'important');
+      const kind = actionKind(button);
       button.dataset.lexiaActionPalette = kind;
-    });
-  };
-
-  const normalizedText = value => String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLocaleLowerCase('es-AR');
-
-  const recentIcons = {
-    research: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5M17.5 3.5v3M16 5h3"/></svg>',
-    document: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20H6z"/><path d="M14 3.5V8h4M9 12h6M9 15.5h6"/></svg>'
-  };
-
-  const recentPanel = title => {
-    const wanted = normalizedText(title);
-    const headings = document.querySelectorAll(
-      '#home h1,#home h2,#home h3,#home h4,#home h5,#home h6,#home [class*="title"]'
-    );
-    const heading = [...headings].find(node => normalizedText(node.textContent) === wanted);
-    if (!heading) return null;
-    const exact = heading.closest(
-      '.hr-card,.home-card,.dashboard-card,.recent-card,.card'
-    );
-    if (exact) return exact;
-    let node = heading.parentElement;
-    const home = document.getElementById('home');
-    while (node && node !== home) {
-      const rows = node.querySelectorAll(
-        'li,a,[role="listitem"],[class*="recent-item"],[class*="recent-row"]'
-      );
-      if (rows.length >= 2) return node;
-      node = node.parentElement;
-    }
-    return heading.parentElement;
-  };
-
-  const replaceRecentIcon = (host, kind) => {
-    if (!host || host.dataset.lexiaRecentIcon === kind) return;
-    host.dataset.lexiaRecentIcon = kind;
-    host.classList.add('lexia-home-recent-icon');
-    host.setAttribute('aria-hidden', 'true');
-    host.replaceChildren();
-    host.insertAdjacentHTML('afterbegin', recentIcons[kind]);
-  };
-
-  const polishRecentPanel = (panel, kind) => {
-    if (!panel) return;
-    [...panel.querySelectorAll('*')].forEach(node => {
-      let overflow = '';
-      try { overflow = window.getComputedStyle(node).overflowY; } catch (_) {}
-      if (/auto|scroll/.test(overflow) || node.scrollHeight > node.clientHeight + 4) {
-        node.classList.add('lexia-home-recent-scroll');
+      if (kind === 'case' || kind === 'ocr') {
+        const shade = kind === 'case' ? '#d5ceff' : '#dfd9ff';
+        const ink = kind === 'case' ? '#3428c7' : '#5146a8';
+        const border = kind === 'case' ? '#c9c2ff' : '#d2ccf4';
+        [button, ...button.querySelectorAll('*')].forEach(part => {
+          part.style.setProperty('background', shade, 'important');
+          part.style.setProperty('background-image', 'none', 'important');
+          part.style.setProperty('border-color', border, 'important');
+          part.style.setProperty('color', ink, 'important');
+        });
       }
     });
-
-    const rows = panel.querySelectorAll(
-      'li,a,button,[role="listitem"],[class*="recent-item"],[class*="recent-row"],[class*="document-item"],[class*="query-item"]'
-    );
-    rows.forEach(row => {
-      const candidates = [...row.querySelectorAll('span,div,i')];
-      let host = candidates.find(node => {
-        const text = normalizedText(node.textContent);
-        const classes = normalizedText(node.className);
-        return (node.children.length === 0 && text === '?') ||
-          (/icon|glyph|avatar/.test(classes) && text.length <= 2);
-      });
-      if (!host) {
-        const first = row.firstElementChild;
-        if (first) {
-          const box = first.getBoundingClientRect();
-          if (box.width >= 20 && box.width <= 48 && box.height >= 20 && box.height <= 48) {
-            host = first;
-          }
-        }
-      }
-      replaceRecentIcon(host, kind);
-    });
-
-    // Fallback para filas del HTML local que no exponen una clase propia.
-    [...panel.querySelectorAll('*')]
-      .filter(node => node.children.length === 0 && normalizedText(node.textContent) === '?')
-      .forEach(node => replaceRecentIcon(node, kind));
-  };
-
-  const polishHomeRecents = () => {
-    polishRecentPanel(recentPanel('Consultas recientes de Investigación'), 'research');
-    polishRecentPanel(recentPanel('Documentos recientes'), 'document');
-  };
-
-  const scheduleHomeRecents = () => {
-    [0, 80, 220, 600, 1200].forEach(delay =>
-      window.setTimeout(polishHomeRecents, delay)
-    );
   };
 
   if (!document.getElementById('lexiaMacosVisualParityStyle')) {
@@ -218,71 +110,46 @@
         border-color:#d2ccf4!important;
         color:#5146a8!important;
       }
-      button[data-lexia-action-palette="case"]::before,
-      button[data-lexia-action-palette="case"]::after,
-      button[data-lexia-action-palette="ocr"]::before,
-      button[data-lexia-action-palette="ocr"]::after {
-        content:none!important;
-        display:none!important;
-      }
-      .lexia-forced-action-icon {
-        display:inline-flex!important;
-        align-items:center!important;
-        justify-content:center!important;
-        flex:0 0 20px!important;
-        width:20px!important;
-        height:20px!important;
-        padding:0!important;
-        border:0!important;
-        border-radius:6px!important;
-        background:#d8d2ff!important;
-        color:#4639bd!important;
-      }
-      .lexia-forced-action-icon svg {
-        width:14px!important;
-        height:14px!important;
-        fill:none!important;
-        stroke:currentColor!important;
-        stroke-width:2!important;
-        stroke-linecap:round!important;
-        stroke-linejoin:round!important;
-      }
-      .lexia-forced-action-label {
-        background:transparent!important;
-        color:inherit!important;
-      }
-      .lexia-home-recent-scroll {
+      #home .hr-lower>.hr-card:nth-child(-n+2),
+      #home .hr-lower>.hr-card:nth-child(-n+2) * {
         scrollbar-width:thin;
-        scrollbar-color:#a89bff transparent;
+        scrollbar-color:transparent transparent;
       }
-      .lexia-home-recent-scroll::-webkit-scrollbar {width:5px;height:5px}
-      .lexia-home-recent-scroll::-webkit-scrollbar-track {background:transparent}
-      .lexia-home-recent-scroll::-webkit-scrollbar-thumb {
-        min-height:34px;
+      #home .hr-lower>.hr-card:nth-child(-n+2)::-webkit-scrollbar,
+      #home .hr-lower>.hr-card:nth-child(-n+2) *::-webkit-scrollbar {
+        width:4px;
+        height:4px;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2)::-webkit-scrollbar-track,
+      #home .hr-lower>.hr-card:nth-child(-n+2) *::-webkit-scrollbar-track {
+        background:transparent;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2)::-webkit-scrollbar-thumb,
+      #home .hr-lower>.hr-card:nth-child(-n+2) *::-webkit-scrollbar-thumb {
         border-radius:999px;
-        background:#a89bff;
+        background:transparent;
       }
-      .lexia-home-recent-scroll::-webkit-scrollbar-thumb:hover {background:#7668ef}
-      .lexia-home-recent-icon {
-        display:inline-flex!important;
-        align-items:center!important;
-        justify-content:center!important;
-        flex:0 0 30px!important;
-        width:30px!important;
-        height:30px!important;
-        min-width:30px!important;
-        border-radius:8px!important;
-        background:#f0edff!important;
-        color:#5a4cff!important;
+      #home .hr-lower>.hr-card:nth-child(-n+2):hover,
+      #home .hr-lower>.hr-card:nth-child(-n+2):hover * {
+        scrollbar-color:#b5adff transparent;
       }
-      .lexia-home-recent-icon svg {
-        width:17px!important;
-        height:17px!important;
-        fill:none!important;
-        stroke:currentColor!important;
-        stroke-width:1.8!important;
-        stroke-linecap:round!important;
-        stroke-linejoin:round!important;
+      #home .hr-lower>.hr-card:nth-child(-n+2):hover::-webkit-scrollbar-thumb,
+      #home .hr-lower>.hr-card:nth-child(-n+2):hover *::-webkit-scrollbar-thumb {
+        background:#b5adff;
+      }
+      #home .hr-lower>.hr-card:nth-child(1) .hr-row>i,
+      #home .hr-lower>.hr-card:nth-child(2) .hr-row>i {
+        font-size:0!important;
+        background:#f0efff!important;
+        color:#5146f6!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(1) .hr-row>i::before {
+        content:"⌕";
+        font:800 17px/1 system-ui,-apple-system,"Segoe UI",sans-serif!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(2) .hr-row>i::before {
+        content:"▣";
+        font:800 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif!important;
       }
       [data-lexia-standards-home]:hover,
       [data-lexia-standards-home]:focus-visible,
@@ -296,7 +163,6 @@
   }
 
   paintActions(document);
-  scheduleHomeRecents();
   document.addEventListener('pointerover', event => {
     const card = event.target?.closest?.('#searchpage .result-card');
     if (card) paintActions(card);
@@ -305,10 +171,7 @@
     const trigger = event.target?.closest?.(
       '.lexia-result-menu-trigger, .result-actions button, .lexia-result-menu button, [role="menu"] button'
     );
-    if (trigger) {
-      [0, 30, 100, 250, 500].forEach(delay => window.setTimeout(() => paintActions(document), delay));
-    }
-    if (event.target?.closest?.('a,button,[data-page],[data-route]')) scheduleHomeRecents();
+    if (!trigger) return;
+    [0, 30, 100, 250, 500].forEach(delay => window.setTimeout(() => paintActions(document), delay));
   }, true);
-  window.addEventListener('lexia:home-updated', polishHomeRecents);
 })();
