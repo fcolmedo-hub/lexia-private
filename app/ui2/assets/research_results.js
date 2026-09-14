@@ -63,7 +63,7 @@
       #contextpage.lexia-source-review #lexiaAddManualResearchSource{display:inline-flex!important;align-items:center;justify-content:center;margin-left:auto!important;align-self:center!important;border:1px solid #17864f!important;border-radius:8px;background:#1b9c5a!important;color:#fff!important;font-weight:800;cursor:pointer}
       #contextpage.lexia-source-review #lexiaAddManualResearchSource,
       #contextpage.lexia-source-review #buildResearchPackage,
-      #contextpage.lexia-source-review #lexiaCaseReturnSelectedSources{box-sizing:border-box!important;text-align:center!important;flex:0 0 210px!important;width:210px!important;min-width:210px!important;max-width:210px!important;height:36px!important;min-height:36px!important;max-height:36px!important;margin-top:0!important;margin-bottom:0!important;padding:0 12px!important;line-height:1.1!important}
+      #contextpage.lexia-source-review #lexiaCaseReturnSelectedSources{box-sizing:border-box!important;text-align:center!important;flex:0 0 210px!important;width:210px!important;min-width:210px!important;max-width:210px!important;height:36px!important;min-height:36px!important;max-height:36px!important;margin-top:0!important;margin-bottom:0!important;padding:0 12px!important;font-family:system-ui,-apple-system,"Segoe UI",sans-serif!important;font-size:11px!important;font-weight:800!important;line-height:1.05!important;white-space:normal!important}
       #contextpage.lexia-source-review #lexiaAddManualResearchSource:hover{background:#17864f!important;border-color:#147543!important}
       #contextpage.lexia-source-review .lexia-sources-foot{align-items:center!important;gap:8px!important}
       #contextpage .context-side>.lexia-sources-foot{display:none}

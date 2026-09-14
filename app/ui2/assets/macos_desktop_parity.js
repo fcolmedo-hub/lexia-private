@@ -61,7 +61,7 @@
   const paintActions = scope => {
     const root = scope?.querySelectorAll ? scope : document;
     root.querySelectorAll(
-      '#searchpage .result-actions button, #lexiaNavigatorFiles .search-delete-file, .lexia-nav-preview-actions .search-delete-file'
+      '.result-actions button, .lexia-result-actions button, .lexia-result-menu button, [role="menu"] button, #lexiaNavigatorFiles .search-delete-file, .lexia-nav-preview-actions .search-delete-file'
     ).forEach(button => {
       const colors = palette[actionKind(button)];
       if (!colors) return;
@@ -70,11 +70,16 @@
       button.style.setProperty('color', colors[2], 'important');
       const kind = actionKind(button);
       button.dataset.lexiaActionPalette = kind;
-      const icon = button.firstElementChild;
-      if ((kind === 'case' || kind === 'ocr') && icon) {
-        icon.style.setProperty('background', kind === 'case' ? '#d5ceff' : '#dfd9ff', 'important');
-        icon.style.setProperty('color', kind === 'case' ? '#3428c7' : '#5146a8', 'important');
-        icon.style.setProperty('border-color', kind === 'case' ? '#c9c2ff' : '#d2ccf4', 'important');
+      if (kind === 'case' || kind === 'ocr') {
+        const shade = kind === 'case' ? '#d5ceff' : '#dfd9ff';
+        const ink = kind === 'case' ? '#3428c7' : '#5146a8';
+        const border = kind === 'case' ? '#c9c2ff' : '#d2ccf4';
+        [button, ...button.querySelectorAll('*')].forEach(part => {
+          part.style.setProperty('background', shade, 'important');
+          part.style.setProperty('background-image', 'none', 'important');
+          part.style.setProperty('border-color', border, 'important');
+          part.style.setProperty('color', ink, 'important');
+        });
       }
     });
   };
@@ -83,17 +88,23 @@
     const style = document.createElement('style');
     style.id = 'lexiaMacosVisualParityStyle';
     style.textContent = `
-      #searchpage button[data-lexia-action-palette="case"]::before,
-      #searchpage button[data-lexia-action-palette="case"] > :first-child,
-      #searchpage button[data-lexia-action-palette="case"] > :first-child::before {
+      button[data-lexia-action-palette="case"]::before,
+      button[data-lexia-action-palette="case"] > :first-child,
+      button[data-lexia-action-palette="case"]::after,
+      button[data-lexia-action-palette="case"] > *,
+      button[data-lexia-action-palette="case"] > *::before,
+      button[data-lexia-action-palette="case"] > *::after {
         background:#d5ceff!important;
         background-image:none!important;
         border-color:#c9c2ff!important;
         color:#3428c7!important;
       }
-      #searchpage button[data-lexia-action-palette="ocr"]::before,
-      #searchpage button[data-lexia-action-palette="ocr"] > :first-child,
-      #searchpage button[data-lexia-action-palette="ocr"] > :first-child::before {
+      button[data-lexia-action-palette="ocr"]::before,
+      button[data-lexia-action-palette="ocr"] > :first-child,
+      button[data-lexia-action-palette="ocr"]::after,
+      button[data-lexia-action-palette="ocr"] > *,
+      button[data-lexia-action-palette="ocr"] > *::before,
+      button[data-lexia-action-palette="ocr"] > *::after {
         background:#dfd9ff!important;
         background-image:none!important;
         border-color:#d2ccf4!important;
@@ -117,9 +128,9 @@
   }, true);
   document.addEventListener('click', event => {
     const trigger = event.target?.closest?.(
-      '#searchpage .lexia-result-menu-trigger, #searchpage .result-actions button'
+      '.lexia-result-menu-trigger, .result-actions button, .lexia-result-menu button, [role="menu"] button'
     );
     if (!trigger) return;
-    [0, 20, 80].forEach(delay => window.setTimeout(() => paintActions(document), delay));
+    [0, 30, 100, 250, 500].forEach(delay => window.setTimeout(() => paintActions(document), delay));
   }, true);
 })();

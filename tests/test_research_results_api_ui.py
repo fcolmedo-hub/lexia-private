@@ -49,6 +49,8 @@ def test_shared_ui_hides_package_and_adds_history_and_popup():
     assert "width:210px!important" in source
     assert "height:36px!important" in source
     assert "#lexiaCaseReturnSelectedSources" in source
+    assert "font-size:11px!important" in source
+    assert "font-weight:800!important" in source
     assert "setInterval" not in source
     assert "MutationObserver" not in source
 
@@ -86,6 +88,7 @@ def test_macos_launcher_loads_openai_key_from_keychain_before_services():
     services = '    services_log = open(logs / "services_ui2.log"'
     assert 'OPENAI_KEYCHAIN_SERVICE = "LexIA OpenAI API"' in source
     assert '"find-generic-password"' in source
+    assert '"-a", account, "-s", OPENAI_KEYCHAIN_SERVICE' in source
     assert 'os.environ["OPENAI_API_KEY"] = key' in source
     assert source.index(call) < source.index(services)
 
@@ -96,7 +99,9 @@ def test_macos_visual_parity_colors_search_actions_and_standards_card():
     ).read_text(encoding="utf-8")
     assert "const palette = {" in source
     assert "details: ['#f0edff', '#dfd9ff', '#4036b4']" in source
-    assert "#searchpage .lexia-result-menu-trigger" in source
+    assert ".lexia-result-menu-trigger" in source
+    assert ".lexia-result-menu button" in source
+    assert '[role="menu"] button' in source
     assert "[data-lexia-standards-home]:hover" in source
     assert "kind === 'case' || kind === 'ocr'" in source
     assert "'#d5ceff' : '#dfd9ff'" in source
@@ -115,4 +120,6 @@ def test_macos_openai_key_configurator_uses_keychain_without_echoing_key():
     assert "security add-generic-password" in source
     assert 'service_name="LexIA OpenAI API"' in source
     assert "find-generic-password" in source
-    assert "OPENAI_API_KEY guardada correctamente" in source
+    assert "https://api.openai.com/v1/models/" in source
+    assert "--config -" in source
+    assert "Conexión correcta. OPENAI_API_KEY actualizada" in source

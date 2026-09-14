@@ -24,27 +24,33 @@ def load_openai_key_from_keychain() -> bool:
     """Carga la clave del Llavero sólo si el proceso no la recibió por entorno."""
     if os.environ.get("OPENAI_API_KEY", "").strip():
         return True
-    try:
-        result = subprocess.run(
-            [
-                "/usr/bin/security",
-                "find-generic-password",
-                "-s",
-                OPENAI_KEYCHAIN_SERVICE,
-                "-w",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except Exception:
-        return False
-    key = result.stdout.strip() if result.returncode == 0 else ""
-    if not key:
-        return False
-    os.environ["OPENAI_API_KEY"] = key
-    return True
+    account = os.environ.get("USER", "").strip()
+    commands = []
+    if account:
+        commands.append([
+            "/usr/bin/security", "find-generic-password",
+            "-a", account, "-s", OPENAI_KEYCHAIN_SERVICE, "-w",
+        ])
+    commands.append([
+        "/usr/bin/security", "find-generic-password",
+        "-s", OPENAI_KEYCHAIN_SERVICE, "-w",
+    ])
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except Exception:
+            continue
+        key = result.stdout.strip() if result.returncode == 0 else ""
+        if key:
+            os.environ["OPENAI_API_KEY"] = key
+            return True
+    return False
 
 
 def project_root() -> Path:
