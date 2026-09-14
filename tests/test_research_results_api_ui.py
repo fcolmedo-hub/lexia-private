@@ -104,10 +104,19 @@ def test_macos_visual_parity_colors_search_actions_and_standards_card():
     assert '[role="menu"] button' in source
     assert "[data-lexia-standards-home]:hover" in source
     assert "kind === 'case' || kind === 'ocr'" in source
-    assert "'#d5ceff' : '#dfd9ff'" in source
+    assert "forcedActionIcons" in source
+    assert "ocr: ['#ece9ff', '#ddd6ff', '#4b3fbd']" in source
     assert "button.dataset.lexiaActionPalette = kind" in source
     assert 'data-lexia-action-palette="case"' in source
     assert 'data-lexia-action-palette="ocr"' in source
+    assert "forceLavenderActionIcon" in source
+    assert "button.replaceChildren(icon, text)" in source
+    assert "lexia-forced-action-icon" in source
+    assert "polishHomeRecents" in source
+    assert "Consultas recientes de Investigación" in source
+    assert "Documentos recientes" in source
+    assert "lexia-home-recent-scroll" in source
+    assert "recentIcons" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source
 
