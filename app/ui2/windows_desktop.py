@@ -622,7 +622,10 @@ def kill_stale(root: Path) -> None:
         )
 
 
-def ensure_ui_assets(root: Path) -> str | None:
+def ensure_ui_assets(
+    root: Path,
+    expected_documents: int | None = None,
+) -> str | None:
     here = root / "app" / "ui2"
     index = here / "index.html"
     jurisprudence_search = here / "assets" / "jurisprudence_search.js"
@@ -701,6 +704,36 @@ def ensure_ui_assets(root: Path) -> str | None:
     )
     changed = changed or asset_changed
 
+    # La portada puede mostrar inmediatamente el total ya validado por el
+    # launcher, sin esperar el resumen completo de /api/live. La marca sólo se
+    # inyecta en Windows y el index.html original se restaura al cerrar LexIA.
+    startup_documents = max(0, int(expected_documents or 0))
+    startup_tag = (
+        '<script id="lexiaWindowsFastHome">'
+        'window.__lexiaWindowsFastStartupV1=true;'
+        f'window.__lexiaWindowsStartupDocuments={startup_documents};'
+        '</script>'
+    )
+    startup_pattern = re.compile(
+        r'<script\b[^>]*\bid=["\']lexiaWindowsFastHome["\'][^>]*>.*?</script>',
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if startup_pattern.search(patched):
+        refreshed = startup_pattern.sub(startup_tag, patched, count=1)
+        changed = changed or refreshed != patched
+        patched = refreshed
+    else:
+        anchor = re.search(
+            r'<script\b[^>]*\bsrc=["\'][^"\']*assets/jurisprudence_search\.js[^"\']*["\'][^>]*>\s*</script>',
+            patched,
+            flags=re.IGNORECASE,
+        )
+        if anchor:
+            patched = patched[:anchor.start()] + startup_tag + "\n" + patched[anchor.start():]
+        else:
+            patched = patched.replace("</body>", startup_tag + "\n</body>", 1)
+        changed = True
+
     patched, asset_changed = _upsert_asset_script(
         patched,
         jurisprudence_search,
@@ -776,6 +809,23 @@ def catalog_document_count(root: Path, timeout: float = 15.0) -> int:
     catalog = runtime / "lexia_catalog.sqlite3"
     if not catalog.exists():
         return 0
+
+    # AutoSync conserva este total en un JSON pequeño. En un arranque en frío
+    # evita abrir y recorrer SQLite mientras Docker/Qdrant todavía estabilizan
+    # memoria y disco. /api/live confirmará luego el valor real sin bloquear la
+    # aparición de la ventana.
+    state_path = runtime / "autosync_state.json"
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        cached_documents = int(state.get("documents_total", 0) or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        cached_documents = 0
+    if cached_documents > 0:
+        log_startup(
+            "Catálogo de arranque: total en caché de AutoSync="
+            f"{cached_documents}"
+        )
+        return cached_documents
 
     deadline = time.monotonic() + max(timeout, 0.0)
     last_error: Exception | None = None
@@ -902,9 +952,13 @@ def _run() -> int:
     services_log_path = logs / "services_ui2.log"
     services_log = open(services_log_path, "ab", buffering=0)
     flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+    services_env = os.environ.copy()
+    services_env["LEXIA_WINDOWS_FAST_STARTUP"] = "1"
+    services_env["LEXIA_WINDOWS_STARTUP_DOCUMENTS"] = str(expected_documents)
     services = subprocess.Popen(
         [str(py), str(root / "run_lexia_services.py")],
         cwd=str(root),
+        env=services_env,
         stdout=services_log,
         stderr=subprocess.STDOUT,
         creationflags=flags,
@@ -926,10 +980,14 @@ def _run() -> int:
                 detail += "\n\nÚltimas líneas de services_ui2.log:\n" + tail
             raise RuntimeError(detail)
 
-        original_index = ensure_ui_assets(root)
+        original_index = ensure_ui_assets(
+            root,
+            expected_documents=expected_documents,
+        )
         env = os.environ.copy()
         env["LEXIA_UI2_PORT"] = PORT
         env["LEXIA_STANDARDS_PORT"] = str(STANDARDS_PORT)
+        env["LEXIA_UI2_LIVE_CACHE_SECONDS"] = "30"
         standards_log_path = logs / "standards_api.log"
         standards_log = open(standards_log_path, "ab", buffering=0)
         standards_api = start_standards_api(root, py, env, flags, standards_log)

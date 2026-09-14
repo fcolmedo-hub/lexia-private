@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -123,6 +124,13 @@ class AutoSyncService:
         self._moved_files: list[tuple[str, str]] = []
         self._full_scan_requested = False
 
+        try:
+            windows_startup_documents = int(
+                os.environ.get("LEXIA_WINDOWS_STARTUP_DOCUMENTS", "0") or 0
+            )
+        except (TypeError, ValueError):
+            windows_startup_documents = 0
+
         self._state: dict[str, Any] = {
             "status": "Listo",
             "phase": "idle",
@@ -131,7 +139,9 @@ class AutoSyncService:
             "total": 0,
             "percentage": 0,
             "documents_total": (
-                self.catalog.stats()["documents"]
+                windows_startup_documents
+                if windows_startup_documents > 0
+                else self.catalog.stats()["documents"]
             ),
             "documents_indexed": 0,
             "documents_moved": 0,
@@ -321,6 +331,10 @@ class AutoSyncService:
             "autosync_startup_mode",
             "watch_only",
         )
+        windows_fast_startup = (
+            os.environ.get("LEXIA_WINDOWS_FAST_STARTUP") == "1"
+            and self.library_snapshot.initialized()
+        )
 
         if self._config.get("mode") == "automatic" and (
             SETTINGS.autosync_on_startup
@@ -329,9 +343,17 @@ class AutoSyncService:
             self.request_full_scan(
                 "startup_manual_override"
             )
-        elif self._config.get("mode") == "automatic":
+        elif (
+            self._config.get("mode") == "automatic"
+            and not windows_fast_startup
+        ):
             self.request_full_scan(
                 "startup_smart_reconcile"
+            )
+        elif windows_fast_startup:
+            self.logger.info(
+                "AutoSync inicio rapido Windows | snapshot existente; "
+                "reconciliacion completa omitida"
             )
 
     def stop(self) -> None:

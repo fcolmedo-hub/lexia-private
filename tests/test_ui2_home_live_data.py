@@ -166,6 +166,45 @@ def test_frontend_removes_demo_metrics_and_loads_research_history() -> None:
     assert "fetch('/api/research-history'" in javascript
 
 
+def test_windows_home_refresh_is_single_flight_and_bounded() -> None:
+    javascript = (UI2 / "assets" / "jurisprudence_search.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const fastWindowsStartup=window.__lexiaWindowsFastStartupV1===true" in javascript
+    assert "if(updateInFlight)return false" in javascript
+    assert "const retryDelays=[0,4000,12000]" in javascript
+    assert "window.addEventListener('lexia:catalog-changed'" in javascript
+    assert "if(fastWindowsStartup)" in javascript
+    assert "window.addEventListener('lexia:catalog-changed',()=>update());\n      return;" in javascript
+    legacy_refresh = (
+        "return;\n    }\n    update();\n    window."
+        + "set"
+        + "Interval(update,3200);"
+    )
+    assert legacy_refresh in javascript
+
+
+def test_live_adapter_cache_reuses_one_snapshot(monkeypatch) -> None:
+    adapter = LiveReadOnlyAdapter.__new__(LiveReadOnlyAdapter)
+    adapter.live_cache_seconds = 30.0
+    adapter._snapshot_cache = None
+    adapter._snapshot_cached_at = 0.0
+    import threading
+    adapter._snapshot_lock = threading.Lock()
+    calls = []
+
+    def build():
+        calls.append(1)
+        return {"ok": True, "catalog": {"documents": 86790}}
+
+    monkeypatch.setattr(adapter, "_build_snapshot", build)
+
+    assert adapter.snapshot()["catalog"]["documents"] == 86790
+    assert adapter.snapshot()["catalog"]["documents"] == 86790
+    assert len(calls) == 1
+
+
 def test_visible_search_numbers_are_always_incremental() -> None:
     index = (UI2 / "index.html").read_text(encoding="utf-8")
 

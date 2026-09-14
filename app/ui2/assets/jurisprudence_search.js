@@ -415,6 +415,8 @@
   function installHomeLiveDataFix(){
     if(window.__lexiaHomeLiveDataInstalled)return;
     window.__lexiaHomeLiveDataInstalled=true;
+    const fastWindowsStartup=window.__lexiaWindowsFastStartupV1===true;
+    let updateInFlight=false;
     const format=value=>new Intl.NumberFormat('es-AR').format(Number(value||0));
     const card=target=>document.querySelector('#home .hr-metrics article[data-home-target="'+target+'"]');
     const setText=(root,selector,value)=>{const node=root?.querySelector(selector);if(node)node.textContent=value;};
@@ -469,10 +471,12 @@
     };
 
     const update=async()=>{
+      if(updateInFlight)return false;
+      updateInFlight=true;
       try{
         const response=await fetch('/api/live',{cache:'no-store'});
         const data=await response.json();
-        if(!response.ok||!data.ok)return;
+        if(!response.ok||!data.ok)return false;
         const catalog=data.catalog||{}, searches=data.searches||{}, contexts=data.contexts||{};
         setText(card('search-file'),'strong',format(catalog.documents));
         setText(card('search-professional'),'strong',format(searches.count));
@@ -487,10 +491,34 @@
         setText(card('contextpage'),'p',contexts.recent?.[0]?.created_at||'Sin consultas registradas');
         renderRecent('#home .hr-lower .hr-card:nth-child(1)',contexts.recent,'context');
         renderRecent('#home .hr-lower .hr-card:nth-child(2)',catalog.recent_documents,'document');
-      }catch(_){/* Inicio conserva guiones cuando el backend no está disponible. */}
+        return true;
+      }catch(_){
+        return false;
+      }finally{
+        updateInFlight=false;
+      }
     };
 
     neutralizeDemoValues();
+    if(fastWindowsStartup){
+      const startupDocuments=Number(window.__lexiaWindowsStartupDocuments||0);
+      if(startupDocuments>0){
+        setText(card('search-file'),'strong',format(startupDocuments));
+        setText(card('search-file'),'p','Catálogo validado al iniciar');
+      }
+      const retryDelays=[0,4000,12000];
+      const retry=attempt=>window.setTimeout(async()=>{
+        const completed=await update();
+        if(!completed&&attempt+1<retryDelays.length)retry(attempt+1);
+      },retryDelays[attempt]);
+      retry(0);
+      window.addEventListener('focus',()=>update());
+      document.addEventListener('visibilitychange',()=>{
+        if(document.visibilityState==='visible')update();
+      });
+      window.addEventListener('lexia:catalog-changed',()=>update());
+      return;
+    }
     update();
     window.setInterval(update,3200);
   }

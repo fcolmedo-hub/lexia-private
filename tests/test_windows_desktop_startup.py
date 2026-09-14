@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import importlib.util
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -51,6 +52,57 @@ class WindowsDesktopStartupTests(unittest.TestCase):
 
             launcher = _load_launcher()
             self.assertEqual(launcher.catalog_document_count(root, timeout=0.1), 2)
+
+    def test_catalog_document_count_prefers_small_autosync_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            runtime = root / "runtime"
+            runtime.mkdir()
+            (runtime / "lexia_catalog.sqlite3").write_bytes(b"not-opened")
+            (runtime / "autosync_state.json").write_text(
+                json.dumps({"documents_total": 86790}),
+                encoding="utf-8",
+            )
+
+            launcher = _load_launcher()
+            with patch.object(launcher, "log_startup") as log:
+                total = launcher.catalog_document_count(root, timeout=0)
+
+            self.assertEqual(total, 86790)
+            self.assertIn("total en caché", log.call_args.args[0])
+
+    def test_windows_runtime_injects_immediate_catalog_total_before_home_loader(self) -> None:
+        launcher = _load_launcher()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            ui = root / "app" / "ui2"
+            assets = ui / "assets"
+            assets.mkdir(parents=True)
+            (ui / "index.html").write_text(
+                '<html><body><script src="assets/jurisprudence_search.js"></script>'
+                '<script src="assets/app_runtime.js"></script></body></html>',
+                encoding="utf-8",
+            )
+            for name in (
+                "jurisprudence_search.js",
+                "search_investigation_bridge.js",
+                "windows_live_badge_cleanup.js",
+                "windows_search_results_polish.js",
+                "app_runtime.js",
+            ):
+                (assets / name).write_text("// " + name, encoding="utf-8")
+            (ui / "navigator_3_3_4a.js").write_text("// navigator", encoding="utf-8")
+
+            original = launcher.ensure_ui_assets(root, expected_documents=86790)
+            rendered = (ui / "index.html").read_text(encoding="utf-8")
+
+            self.assertIsNotNone(original)
+            self.assertIn("window.__lexiaWindowsFastStartupV1=true", rendered)
+            self.assertIn("window.__lexiaWindowsStartupDocuments=86790", rendered)
+            self.assertLess(
+                rendered.index("lexiaWindowsFastHome"),
+                rendered.index("assets/jurisprudence_search.js"),
+            )
 
     def test_wait_qdrant_requires_healthy_http_payload(self) -> None:
         launcher = _load_launcher()

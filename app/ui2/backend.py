@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -74,6 +77,16 @@ class LiveReadOnlyAdapter:
         self.context_history_path = self.runtime_path / "context_query_history.sqlite3"
         self.search_history_path = self.runtime_path / "search_history.sqlite3"
         self.ocr_path = _setting("ocr_queue_path", "runtime/ocr_queue.sqlite3")
+        try:
+            self.live_cache_seconds = max(
+                0.0,
+                float(os.environ.get("LEXIA_UI2_LIVE_CACHE_SECONDS", "0") or 0),
+            )
+        except (TypeError, ValueError):
+            self.live_cache_seconds = 0.0
+        self._snapshot_cache: dict | None = None
+        self._snapshot_cached_at = 0.0
+        self._snapshot_lock = threading.Lock()
 
     def _catalog(self) -> dict:
         result = {
@@ -276,7 +289,7 @@ class LiveReadOnlyAdapter:
             pass
         return out
 
-    def snapshot(self) -> dict:
+    def _build_snapshot(self) -> dict:
         catalog = self._catalog()
         autosync = _safe_json(self.autosync_state_path)
         context = self._generic_history(self.context_history_path, 5)
@@ -313,3 +326,22 @@ class LiveReadOnlyAdapter:
             "contexts": context,
             "searches": search,
         }
+
+    def snapshot(self) -> dict:
+        if self.live_cache_seconds <= 0:
+            return self._build_snapshot()
+
+        # Single-flight: si dos consumidores solicitan Inicio al mismo tiempo,
+        # uno calcula y el resto reutiliza el mismo resultado. Así Windows no
+        # vuelve a apilar consultas de catálogo de varios segundos.
+        with self._snapshot_lock:
+            now = time.monotonic()
+            if (
+                self._snapshot_cache is not None
+                and now - self._snapshot_cached_at < self.live_cache_seconds
+            ):
+                return self._snapshot_cache
+            snapshot = self._build_snapshot()
+            self._snapshot_cache = snapshot
+            self._snapshot_cached_at = time.monotonic()
+            return snapshot
