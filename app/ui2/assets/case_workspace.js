@@ -12,6 +12,19 @@
   const autosaveTimers = new Map();
 
   function windowsCaseUiEnabled() { return window.__lexiaWindowsCaseEvidenceSelectionV2 === true; }
+  function orderedBlockHighlights(values) {
+    const highlights = (values || []).slice();
+    if (!windowsCaseUiEnabled() || highlights.length < 2) return highlights;
+    const documentOrder = new Map();
+    return highlights.map((highlight, index) => {
+      const documentKey = Number(highlight.case_document_id || 0)
+        ? 'id:' + Number(highlight.case_document_id)
+        : 'ref:' + String(highlight.document_path || highlight.document_name || index).trim().toLocaleLowerCase('es');
+      if (!documentOrder.has(documentKey)) documentOrder.set(documentKey, documentOrder.size);
+      return {highlight, index, documentOrder: documentOrder.get(documentKey)};
+    }).sort((left, right) => left.documentOrder - right.documentOrder || left.index - right.index)
+      .map(item => item.highlight);
+  }
   function caseUiStates() {
     try { return JSON.parse(sessionStorage.getItem(WINDOWS_CASE_UI_STATE_KEY) || '{}') || {}; }
     catch (_) { return {}; }
@@ -684,7 +697,7 @@
     evidence.addEventListener('click', () => { selectBlock(); openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node)); });
     remove.addEventListener('click', async () => { if (!confirm('¿Eliminar este bloque y sus resaltados?\n\nLos archivos importados que no se usen en ninguna otra parte del caso también se eliminarán.')) return; try { const response = await api('/api/cases/block/delete', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, block_id: block.id, confirmed: true})}); currentCase = response.case; await loadCases(false); if ((response.pending_cleanup || []).length) alert('El bloque fue eliminado, pero uno o más archivos quedaron pendientes de limpieza porque LexIA estaba ocupada. Podés reintentar cuando AutoSync finalice.'); } catch (error) { alert(error.message); } });
     const body = el('div', {className: 'argument-block-body'}, text);
-    (block.highlights || []).forEach(highlight => {
+    orderedBlockHighlights(block.highlights).forEach(highlight => {
       const excerpt = el('blockquote', {
         className: 'argument-evidence',
         textContent: highlight.selected_text,
@@ -974,7 +987,7 @@
   }
   function questionAiMaterial(node) {
     const side = name => ((node.blocks && node.blocks[name]) || []).map((block, index) => {
-      const evidence = (block.highlights || []).map((item, itemIndex) => '[Fuente ' + (index + 1) + '.' + (itemIndex + 1) + ' · ' + item.document_name + (item.page_start ? ' · pág. ' + item.page_start : '') + ']\n' + item.selected_text).join('\n\n');
+      const evidence = orderedBlockHighlights(block.highlights).map((item, itemIndex) => '[Fuente ' + (index + 1) + '.' + (itemIndex + 1) + ' · ' + item.document_name + (item.page_start ? ' · pág. ' + item.page_start : '') + ']\n' + item.selected_text).join('\n\n');
       return 'BLOQUE ' + (index + 1) + '\n' + (block.content || '(sin desarrollo)') + (evidence ? '\n\n' + evidence : '');
     }).join('\n\n') || '(sin bloques)';
     return 'CUESTIÓN\n' + node.title + '\n\nPLANTEO DE LA CONTRAPARTE\n' + side('contraparte') + '\n\nNUESTRA POSTURA Y FUNDAMENTOS\n' + side('propia');

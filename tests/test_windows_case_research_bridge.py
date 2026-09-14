@@ -108,10 +108,20 @@ def test_case_tree_state_survives_navigation_and_research_return_reopens_origin(
 def test_case_block_renders_every_saved_highlight_with_a_stable_identity():
     workspace = (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
 
-    assert "(block.highlights || []).forEach(highlight =>" in workspace
+    assert "orderedBlockHighlights(block.highlights).forEach(highlight =>" in workspace
     assert "'data-highlight-id': String(highlight.id || '')" in workspace
     assert "for (let index = 0; index < selectedRanges.length; index += 1)" in workspace
     assert "/api/cases/block/highlight'" in workspace
+
+
+def test_case_highlights_are_grouped_by_file_then_selection_order():
+    workspace = (ASSETS / "case_workspace.js").read_text(encoding="utf-8")
+
+    assert "function orderedBlockHighlights(values)" in workspace
+    assert "const documentOrder = new Map()" in workspace
+    assert "highlight.case_document_id" in workspace
+    assert "left.documentOrder - right.documentOrder || left.index - right.index" in workspace
+    assert "orderedBlockHighlights(block.highlights).map" in workspace
 
 
 def test_case_to_research_keeps_only_investigation_nav_selected():
