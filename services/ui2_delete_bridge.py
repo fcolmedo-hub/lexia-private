@@ -11,8 +11,11 @@ import threading
 import time
 import uuid
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
+from ai.research_answer_service import ResearchAnswerService
 from config.settings import SETTINGS
+from services.research_result_archive import ResearchResultArchive
 
 
 _BRIDGE_LOCK = threading.RLock()
@@ -601,6 +604,54 @@ def _handler_class(application, token):
         "job_id": None, "phase": "idle", "status": "Sin operaciones pendientes",
         "operation": "", "processed": 0, "total": 0, "error": None,
     }
+    result_archive = ResearchResultArchive(
+        Path(SETTINGS.runtime_path) / "research_results.sqlite3"
+    )
+
+    def answer_and_archive(package, *, kind, query, title, saved_paths, started):
+        answer = ResearchAnswerService().answer(
+            str(getattr(package, "content", "") or "")
+        )
+        source_count = int(
+            getattr(package, "selected_count", 0)
+            or len(getattr(package, "sources", []) or [])
+        )
+        document_count = int(getattr(package, "document_count", 0) or 0)
+        archived = result_archive.add(
+            kind=kind,
+            query=query,
+            title=title,
+            result=answer.text,
+            model=answer.model,
+            response_id=answer.response_id,
+            input_tokens=answer.input_tokens,
+            output_tokens=answer.output_tokens,
+            total_tokens=answer.total_tokens,
+            source_count=source_count,
+            document_count=document_count,
+        )
+        return {
+            "id": archived["id"],
+            "created_at": archived["created_at"],
+            "kind": kind,
+            "type_label": archived["type_label"],
+            "title": title,
+            "query": query,
+            # Compatibilidad con la UI existente: content ahora es la respuesta,
+            # nunca el paquete técnico que se envió a la API.
+            "content": answer.text,
+            "saved_paths": [str(path) for path in (saved_paths or [])],
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "source_count": source_count,
+            "document_count": document_count,
+            "model": answer.model,
+            "response_id": answer.response_id,
+            "usage": {
+                "input_tokens": answer.input_tokens,
+                "output_tokens": answer.output_tokens,
+                "total_tokens": answer.total_tokens,
+            },
+        }
 
     def public_package(package, saved_paths=(), elapsed_seconds=0.0):
         return {
@@ -1185,7 +1236,7 @@ def _handler_class(application, token):
                     seen.add(index)
             if not selected:
                 raise ValueError("Seleccioná al menos una fuente para preparar el paquete.")
-            if package_state["phase"] in {"queued", "building", "saving"}:
+            if package_state["phase"] in {"queued", "building", "saving", "answering"}:
                 raise RuntimeError("Ya se está preparando un paquete de investigación.")
             job_id = uuid.uuid4().hex
             package_result = None
@@ -1204,12 +1255,26 @@ def _handler_class(application, token):
                 with candidates_lock:
                     package_state.update({"phase": "saving", "status": "Guardando el paquete de investigación...", "percentage": 85})
                 saved_paths = application.context_builder.save(curated)
-                elapsed = time.monotonic() - started
                 with candidates_lock:
-                    package_result = public_package(curated, saved_paths, elapsed)
                     package_state.update({
-                        "phase": "completed", "status": "Paquete listo para usar en ChatGPT",
-                        "percentage": 100, "error": None, "elapsed_seconds": round(elapsed, 3),
+                        "phase": "answering",
+                        "status": "Consultando ChatGPT con las fuentes seleccionadas...",
+                        "percentage": 92,
+                    })
+                final_result = answer_and_archive(
+                    curated,
+                    kind="research",
+                    query=str(getattr(curated, "query", "") or ""),
+                    title=str(getattr(curated, "title", "") or "Investigación jurídica"),
+                    saved_paths=saved_paths,
+                    started=started,
+                )
+                with candidates_lock:
+                    package_result = final_result
+                    package_state.update({
+                        "phase": "completed", "status": "Investigación finalizada por ChatGPT",
+                        "percentage": 100, "error": None,
+                        "elapsed_seconds": final_result["elapsed_seconds"],
                     })
             except Exception as exc:
                 elapsed = time.monotonic() - started
@@ -1231,7 +1296,7 @@ def _handler_class(application, token):
         source.relative_to(library_root)
 
         with study_lock:
-            if study_state["phase"] in {"queued", "building", "saving"}:
+            if study_state["phase"] in {"queued", "building", "saving", "answering"}:
                 raise RuntimeError("Ya hay un estudio de archivo en curso.")
             job_id = uuid.uuid4().hex
             study_result = None
@@ -1268,15 +1333,34 @@ def _handler_class(application, token):
                         "percentage": 85,
                     })
                 saved_paths = application.context_builder.save(package)
-                elapsed = time.monotonic() - started
                 with study_lock:
-                    study_result = public_package(package, saved_paths, elapsed)
+                    study_state.update({
+                        "phase": "answering",
+                        "status": "Consultando ChatGPT para analizar el archivo...",
+                        "percentage": 92,
+                    })
+                instruction = str(body.get("instruction", "") or "").strip()
+                objective = str(
+                    body.get("objective", "Análisis de jurisprudencia")
+                    or "Análisis de jurisprudencia"
+                ).strip()
+                query = instruction or f"{objective}: {source.name}"
+                final_result = answer_and_archive(
+                    package,
+                    kind="file",
+                    query=query,
+                    title=f"Estudio de {source.name}",
+                    saved_paths=saved_paths,
+                    started=started,
+                )
+                with study_lock:
+                    study_result = final_result
                     study_state.update({
                         "phase": "completed",
-                        "status": "Estudio listo para continuar la investigación",
+                        "status": "Estudio finalizado por ChatGPT",
                         "percentage": 100,
                         "error": None,
-                        "elapsed_seconds": round(elapsed, 3),
+                        "elapsed_seconds": final_result["elapsed_seconds"],
                     })
             except Exception as exc:
                 elapsed = time.monotonic() - started
@@ -1376,6 +1460,19 @@ def _handler_class(application, token):
         def do_GET(self):
             if not self._authorized():
                 return self._json({"ok": False, "error": "Acceso denegado."}, 403)
+
+            parsed = urlsplit(self.path)
+            request_path = parsed.path
+
+            if request_path == "/api/ai-results":
+                return self._json({"ok": True, "results": result_archive.list()})
+
+            if request_path.startswith("/api/ai-results/"):
+                try:
+                    record_id = int(request_path.rsplit("/", 1)[-1])
+                    return self._json({"ok": True, "result": result_archive.get(record_id)})
+                except (TypeError, ValueError, KeyError) as exc:
+                    return self._json({"ok": False, "error": str(exc)}, 404)
 
             if self.path == "/api/delete-file-status":
                 try:
