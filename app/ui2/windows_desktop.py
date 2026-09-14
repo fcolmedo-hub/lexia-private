@@ -67,8 +67,15 @@ def _upsert_asset_script(
         rf'<script\b[^>]*\bsrc=["\']{re.escape(src)}(?:\?[^"\']*)?["\'][^>]*>\s*</script>',
         flags=re.IGNORECASE,
     )
-    if pattern.search(html):
-        updated = pattern.sub(tag, html, count=1)
+    matches = list(pattern.finditer(html))
+    if matches:
+        parts = [html[: matches[0].start()], tag]
+        cursor = matches[0].end()
+        for match in matches[1:]:
+            parts.append(html[cursor : match.start()])
+            cursor = match.end()
+        parts.append(html[cursor:])
+        updated = "".join(parts)
         return updated, updated != html
     if before_source:
         anchor = re.compile(
@@ -709,7 +716,46 @@ def ensure_ui_assets(
     # launcher, sin esperar el resumen completo de /api/live. La marca sólo se
     # inyecta en Windows y el index.html original se restaura al cerrar LexIA.
     startup_documents = max(0, int(expected_documents or 0))
-    startup_tag = (
+    startup_icon_pattern = re.compile(
+        r'<style\b[^>]*\bid=["\']lexiaWindowsHomeRecentIcons["\'][^>]*>.*?</style>',
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    cleaned = startup_icon_pattern.sub("", patched)
+    changed = changed or cleaned != patched
+    patched = cleaned
+    startup_icon_style = (
+        '<style id="lexiaWindowsHomeRecentIcons">'
+        'html body #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i{'
+        'position:relative!important;font-size:0!important;display:grid!important;'
+        'place-items:center!important}'
+        'html body #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i::before{'
+        'content:""!important;display:block!important;box-sizing:border-box!important;'
+        'background:transparent!important;color:#5146f6!important}'
+        'html body #home .hr-lower>.hr-card:nth-child(1) .hr-row>i::before{'
+        'width:16px!important;height:13px!important;border:1.6px solid #5146f6!important;'
+        'border-radius:3px!important}'
+        'html body #home .hr-lower>.hr-card:nth-child(1) .hr-row>i::after{'
+        'content:""!important;display:block!important;position:absolute!important;'
+        'width:1.6px!important;height:11px!important;background:#5146f6!important;'
+        'left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important}'
+        'html body #home .hr-lower>.hr-card:nth-child(2) .hr-row>i::before{'
+        'width:13px!important;height:16px!important;border:1.6px solid #5146f6!important;'
+        'border-radius:2px!important}'
+        'html body #home .hr-lower>.hr-card:nth-child(2) .hr-row>i::after{'
+        'content:""!important;display:block!important;position:absolute!important;'
+        'width:7px!important;height:5px!important;border-top:1.5px solid #5146f6!important;'
+        'border-bottom:1.5px solid #5146f6!important;left:50%!important;top:50%!important;'
+        'transform:translate(-50%,-25%)!important}'
+        'html body #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>'
+        'i.lexia-home-recent-icon::before,'
+        'html body #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>'
+        'i.lexia-home-recent-icon::after{display:none!important;content:none!important}'
+        'html body #home .lexia-home-recent-icon svg{display:block!important;'
+        'width:17px!important;height:17px!important;fill:none!important;'
+        'stroke:#5146f6!important}'
+        '</style>'
+    )
+    startup_tag = startup_icon_style + (
         '<script id="lexiaWindowsFastHome">'
         'window.__lexiaWindowsFastStartupV1=true;'
         f'window.__lexiaWindowsStartupDocuments={startup_documents};'

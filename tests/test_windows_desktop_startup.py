@@ -135,10 +135,32 @@ class WindowsDesktopStartupTests(unittest.TestCase):
             self.assertIsNotNone(original)
             self.assertIn("window.__lexiaWindowsFastStartupV1=true", rendered)
             self.assertIn("window.__lexiaWindowsStartupDocuments=86790", rendered)
+            self.assertIn('id="lexiaWindowsHomeRecentIcons"', rendered)
+            self.assertIn('content:""!important', rendered)
+            self.assertIn("html body #home .hr-lower", rendered)
             self.assertLess(
                 rendered.index("lexiaWindowsFastHome"),
                 rendered.index("assets/jurisprudence_search.js"),
             )
+
+    def test_asset_upsert_removes_duplicate_cached_scripts(self) -> None:
+        launcher = _load_launcher()
+        with tempfile.TemporaryDirectory() as raw:
+            asset = Path(raw) / "jurisprudence_search.js"
+            asset.write_text("// current", encoding="utf-8")
+            html = (
+                '<script src="assets/jurisprudence_search.js?v=old-1"></script>'
+                '<div>contenido</div>'
+                '<script src="assets/jurisprudence_search.js?v=old-2"></script>'
+            )
+            rendered, changed = launcher._upsert_asset_script(
+                html, asset, "jurisprudence-search"
+            )
+
+        self.assertTrue(changed)
+        self.assertEqual(rendered.count("assets/jurisprudence_search.js"), 1)
+        self.assertIn("jurisprudence-search-", rendered)
+        self.assertIn("<div>contenido</div>", rendered)
 
     def test_wait_qdrant_requires_healthy_http_payload(self) -> None:
         launcher = _load_launcher()
