@@ -416,6 +416,7 @@
     if(window.__lexiaHomeLiveDataInstalled)return;
     window.__lexiaHomeLiveDataInstalled=true;
     const fastWindowsStartup=window.__lexiaWindowsFastStartupV1===true;
+    const startupDocuments=Number(window.__lexiaWindowsStartupDocuments||0);
     let updateInFlight=false;
     const format=value=>new Intl.NumberFormat('es-AR').format(Number(value||0));
     const formatShortDateTime=value=>{
@@ -483,6 +484,7 @@
         const data=await response.json();
         if(!response.ok||!data.ok)return false;
         const catalog=data.catalog||{}, searches=data.searches||{}, contexts=data.contexts||{};
+        if(fastWindowsStartup&&startupDocuments>0&&Number(catalog.documents||0)<=0)return false;
         setText(card('search-file'),'strong',format(catalog.documents));
         setText(card('search-professional'),'strong',format(searches.count));
         setText(card('contextpage'),'strong',format(contexts.count));
@@ -506,12 +508,11 @@
 
     neutralizeDemoValues();
     if(fastWindowsStartup){
-      const startupDocuments=Number(window.__lexiaWindowsStartupDocuments||0);
       if(startupDocuments>0){
         setText(card('search-file'),'strong',format(startupDocuments));
         setText(card('search-file'),'p','Catálogo validado al iniciar');
       }
-      const retryDelays=[0,4000,12000];
+      const retryDelays=[0,1000,2500,5000,10000,20000];
       const retry=attempt=>window.setTimeout(async()=>{
         const completed=await update();
         if(!completed&&attempt+1<retryDelays.length)retry(attempt+1);
@@ -737,6 +738,7 @@
     window.__lexiaJurisFetchBridge=true;
     const original=window.fetch.bind(window);
     const fastWindowsStartup=window.__lexiaWindowsFastStartupV1===true;
+    const expectedDocuments=Number(window.__lexiaWindowsStartupDocuments||0);
     let liveCache=null;
     let liveCacheUntil=0;
     let liveInFlight=null;
@@ -745,6 +747,16 @@
       statusText:record.statusText,
       headers:record.headers
     });
+    const isUsableLiveRecord=record=>{
+      if(!record||record.status<200||record.status>=300)return false;
+      if(!fastWindowsStartup||expectedDocuments<=0)return true;
+      try{
+        const payload=JSON.parse(record.body);
+        return payload?.ok===true&&Number(payload?.catalog?.documents||0)>0;
+      }catch(_){
+        return false;
+      }
+    };
     const fetchLiveSnapshot=async(input,init)=>{
       const now=Date.now();
       if(liveCache&&now<liveCacheUntil)return responseFromRecord(liveCache);
@@ -757,7 +769,7 @@
             statusText:response.statusText,
             headers:new Headers(response.headers)
           };
-          if(response.ok){
+          if(isUsableLiveRecord(record)){
             liveCache=record;
             liveCacheUntil=Date.now()+30000;
           }

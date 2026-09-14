@@ -178,8 +178,11 @@ def test_windows_home_refresh_is_single_flight_and_bounded() -> None:
     assert "if(updateInFlight)return false" in javascript
     assert "const fetchLiveSnapshot=async(input,init)=>" in javascript
     assert "liveCacheUntil=Date.now()+30000" in javascript
+    assert "const isUsableLiveRecord=record=>" in javascript
+    assert "Number(payload?.catalog?.documents||0)>0" in javascript
+    assert "if(fastWindowsStartup&&startupDocuments>0&&Number(catalog.documents||0)<=0)return false" in javascript
     assert "&& /\\/api\\/live(?:[?#]|$)/.test(requestedUrl)" in javascript
-    assert "const retryDelays=[0,4000,12000]" in javascript
+    assert "const retryDelays=[0,1000,2500,5000,10000,20000]" in javascript
     assert "window.addEventListener('lexia:catalog-changed'" in javascript
     assert "if(fastWindowsStartup)" in javascript
     assert "window.addEventListener('lexia:catalog-changed',()=>update());\n      return;" in javascript
