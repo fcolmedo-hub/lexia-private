@@ -139,3 +139,11 @@ def test_macos_openai_key_configurator_uses_keychain_without_echoing_key():
     assert "https://api.openai.com/v1/models/" in source
     assert "--config -" in source
     assert "Conexión correcta. OPENAI_API_KEY actualizada" in source
+
+
+def test_history_search_button_cannot_be_routed_to_file_search():
+    source = (ROOT / "app/ui2/assets/research_results.js").read_text(encoding="utf-8")
+
+    assert 'id="searchAiResults" type="button">Buscar investigaciones</button>' in source
+    assert "$('searchAiResults')?.addEventListener('click',runHistorySearch)" in source
+    assert "event?.stopImmediatePropagation()" in source
