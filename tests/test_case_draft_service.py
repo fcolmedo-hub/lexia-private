@@ -1,8 +1,12 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from ai.case_draft_service import CaseDraftService, CaseDraftServiceError
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeClient:
@@ -79,3 +83,16 @@ def test_case_draft_service_rejects_invalid_payload():
             branch_title="Rama",
             branch_material="Material suficiente",
         )
+
+
+def test_case_branch_ui_sends_material_to_case_draft_endpoint():
+    ui = (ROOT / "app/ui2/assets/case_workspace.js").read_text(encoding="utf-8")
+    server = (ROOT / "app/ui2/server.py").read_text(encoding="utf-8")
+
+    assert "Enviar rama a la IA" in ui
+    assert "buildBranchAiMaterial(root, chosen)" in ui
+    assert "api('/api/cases/ai/draft'" in ui
+    assert "details.open = true" in ui
+    assert 'if path == "/api/cases/ai/draft":' in server
+    assert "CaseDraftService().draft(" in server
+    assert 'status="borrador"' in server
