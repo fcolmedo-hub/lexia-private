@@ -1030,12 +1030,15 @@
     }
     return selected;
   }
+  function buildBranchAiMaterial(root, questions) {
+    return 'RAMA PRINCIPAL\n' + root.title + '\n\n' + questions.map((question, index) => '=== CUESTIÓN ' + (index + 1) + ' ===\n' + questionAiMaterial(question)).join('\n\n');
+  }
   function buildBranchAiPackage(root, questions) {
     return 'LEXIA — CONTESTACIÓN DEFINITIVA DE LA RAMA\n\nTAREA\nRedactá una única contestación definitiva de nuestra parte para la rama indicada. Integrá todas las cuestiones seleccionadas en un escrito coherente: exponé sintéticamente cada planteo de la contraparte, contestalo con nuestra postura y desarrollá exclusivamente los fundamentos y evidencias incorporados en LexIA. No entregues un análisis preliminar, un esquema ni recomendaciones: devolvé el texto final de la contestación.\n\nREGLAS ESTRICTAS\n1. No uses conocimiento externo ni inventes hechos, normas, antecedentes o citas.\n2. No omitas cuestiones seleccionadas ni mezcles fundamentos pertenecientes a cuestiones diferentes.\n3. Diferenciá con claridad lo afirmado por la contraparte de nuestra respuesta.\n4. Conservá literalmente las citas documentales cuando las utilices.\n5. Si un fundamento necesario no surge del material, indicá: “No surge de las fuentes aportadas”.\n6. Usá títulos con “# ”, subtítulos con “## ” y párrafos completos, para que LexIA pueda convertir la respuesta a Word.\n7. Devolvé solamente la contestación definitiva, sin explicar el procedimiento seguido.\n\nRAMA PRINCIPAL\n' + root.title + '\n\n' + questions.map((question, index) => '=== CUESTIÓN ' + (index + 1) + ' ===\n' + questionAiMaterial(question)).join('\n\n');
   }
   function branchAiSection(snapshot, root) {
     const questions = descendantQuestions(root), selected = branchSelection(root, questions), output = root.ai_output;
-    const details = el('details', {className: 'branch-ai'}); details.open = !!output;
+    const details = el('details', {className: 'branch-ai'}); details.open = true;
     enableDoubleClickToggle(details, () => { details.open = !details.open; });
     const body = el('div', {}), options = el('div', {className: 'branch-ai-options'});
     questions.forEach(question => {
@@ -1057,7 +1060,39 @@
       currentCase = response.case;
       outputId = findNode(response.case.nodes || [], root.id)?.ai_output?.id || outputId;
     }));
-    const prepare = el('button', {type: 'button', className: 'cases-button', textContent: 'Preparar contestación para IA'}), exportDocx = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Exportar contestación a Word'}), exportStatus = el('span', {className: 'case-ai-status'});
+    const send = el('button', {type: 'button', className: 'cases-button branch-ai-send', textContent: 'Enviar rama a la IA'}), prepare = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Ver paquete manual'}), exportDocx = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Exportar contestación a Word'}), exportStatus = el('span', {className: 'case-ai-status'});
+    send.addEventListener('click', async () => {
+      const chosen = questions.filter(question => selected.has(question.id));
+      if (!chosen.length) return alert('Seleccioná al menos una cuestión.');
+      const unsupported = chosen.some(question => ((question.blocks && question.blocks.contraparte) || []).some(block => !(block.highlights || []).length));
+      if (unsupported) return alert('Cada bloque del planteo de la contraparte debe contener al menos un pasaje resaltado antes de consultar a la IA.');
+      send.disabled = true; prepare.disabled = true; exportDocx.disabled = true;
+      exportStatus.textContent = 'Enviando la rama a la IA y preparando la contestación…';
+      try {
+        const response = await api('/api/cases/ai/draft', {method: 'POST', body: JSON.stringify({
+          case_id: snapshot.case.id,
+          node_id: root.id,
+          branch_material: buildBranchAiMaterial(root, chosen)
+        })});
+        const result = response.result || {};
+        if (result.status === 'needs_confirmation') {
+          const missing = (result.missing_information || []).join('\n• ');
+          exportStatus.textContent = 'La IA necesita una aclaración antes de redactar.';
+          alert('Antes de preparar la contestación, la IA necesita que confirmes:\n\n• ' + (missing || 'el tipo de escrito o la parte representada.'));
+          return;
+        }
+        if (!String(result.draft_markdown || '').trim()) throw new Error('La IA no devolvió una contestación utilizable.');
+        text.value = result.draft_markdown;
+        currentCase = response.case || currentCase;
+        outputId = Number(result.output_id || 0) || findNode(response.case?.nodes || [], root.id)?.ai_output?.id || outputId;
+        const tokens = Number(result.usage?.total_tokens || 0);
+        exportStatus.textContent = 'Contestación recibida y guardada' + (tokens ? ' · ' + tokens.toLocaleString('es-AR') + ' tokens' : '') + '.';
+      } catch (error) {
+        exportStatus.textContent = error.message || String(error);
+      } finally {
+        send.disabled = false; prepare.disabled = false; exportDocx.disabled = false;
+      }
+    });
     prepare.addEventListener('click', () => {
       const chosen = questions.filter(question => selected.has(question.id));
       if (!chosen.length) return alert('Seleccioná al menos una cuestión.');
@@ -1076,7 +1111,7 @@
       } catch (error) { exportStatus.textContent = error.message; }
       finally { exportDocx.disabled = false; }
     });
-    body.append(el('div', {className: 'argument-block-actions'}, prepare, exportDocx), exportStatus, text);
+    body.append(el('div', {className: 'argument-block-actions'}, send, prepare, exportDocx), exportStatus, text);
     details.append(el('summary', {textContent: output ? 'Contestación definitiva con IA · borrador guardado' : 'Contestación definitiva con IA'}), body);
     return details;
   }
