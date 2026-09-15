@@ -3682,6 +3682,69 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 500)
 
+        if path == "/api/cases/ai/draft":
+            try:
+                from ai.case_draft_service import CaseDraftService, CaseDraftServiceError
+
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                body = json.loads(raw.decode("utf-8"))
+                case_id = int(body.get("case_id"))
+                node_id = int(body.get("node_id"))
+                branch_material = str(body.get("branch_material", "") or "").strip()
+                if not branch_material:
+                    raise ValueError("La rama no contiene material seleccionado para enviar a la IA.")
+
+                snapshot = CASES.case_snapshot(case_id)
+                root = _case_find_node(snapshot.get("nodes") or [], node_id)
+                if not root or str(root.get("node_kind", "")) != "hito":
+                    raise ValueError("La rama principal elegida no pertenece al caso.")
+                case_details = snapshot.get("case") or {}
+                result = CaseDraftService().draft(
+                    case_name=str(case_details.get("name", "") or ""),
+                    branch_title=str(root.get("title", "") or ""),
+                    branch_material=branch_material,
+                    case_metadata={
+                        "authority": str(case_details.get("authority", "") or ""),
+                        "file_number": str(case_details.get("file_number", "") or ""),
+                        "description": str(case_details.get("description", "") or ""),
+                    },
+                    requested_document_type=str(body.get("requested_document_type", "") or ""),
+                    drafting_instruction=str(body.get("drafting_instruction", "") or ""),
+                )
+
+                if result.get("status") == "ready":
+                    content = str(result.get("draft_markdown", "") or "").strip()
+                    existing_output = root.get("ai_output")
+                    if existing_output:
+                        output_id = int(existing_output["id"])
+                        CASES.update_ai_output(
+                            case_id, output_id, content=content, status="borrador"
+                        )
+                    else:
+                        output_id = CASES.save_ai_output(
+                            case_id, node_id,
+                            prompt=branch_material,
+                            source_package=branch_material,
+                            content=content,
+                            status="borrador",
+                        )
+                    result["output_id"] = output_id
+
+                return self._json({
+                    "ok": True,
+                    "result": result,
+                    "case": CASES.case_snapshot(case_id),
+                })
+            except KeyError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 404)
+            except (TypeError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 400)
+            except CaseDraftServiceError as exc:
+                return self._json({"ok": False, "error": str(exc)}, 409)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
         if path == "/api/cases/node/ai-output/export":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
