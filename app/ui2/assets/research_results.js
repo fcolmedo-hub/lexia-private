@@ -130,7 +130,7 @@
     if(!$('aiResultsPanel')){
       const panel=document.createElement('section');
       panel.id='aiResultsPanel';panel.className='card investigation-panel';panel.hidden=true;
-      panel.innerHTML=`<div class="ai-results-head"><div><h3>Últimos resultados de ChatGPT</h3><p>Investigaciones y estudios guardados para volver a consultarlos sin consumir créditos.</p></div><button class="secondary" id="refreshAiResults" type="button">Actualizar</button></div><form class="ai-results-tools" id="aiResultsSearchForm"><input class="ai-results-search" id="aiResultsSearch" type="search" autocomplete="off" placeholder="Buscar por nombre, consulta o contenido"><button class="secondary" type="submit">Buscar</button><button class="secondary" id="clearAiResultsSearch" type="button">Limpiar</button></form><div class="ai-results-list" id="aiResultsList"><div class="ai-results-empty">Todavía no hay resultados guardados.</div></div>`;
+      panel.innerHTML=`<div class="ai-results-head"><div><h3>Últimos resultados de ChatGPT</h3><p>Investigaciones y estudios guardados para volver a consultarlos sin consumir créditos.</p></div><button class="secondary" id="refreshAiResults" type="button">Actualizar</button></div><form class="ai-results-tools" id="aiResultsSearchForm"><input class="ai-results-search" id="aiResultsSearch" type="search" autocomplete="off" placeholder="Buscar por nombre, consulta o contenido"><button class="secondary" id="searchAiResults" type="button">Buscar investigaciones</button><button class="secondary" id="clearAiResultsSearch" type="button">Limpiar</button></form><div class="ai-results-list" id="aiResultsList"><div class="ai-results-empty">Todavía no hay resultados guardados.</div></div>`;
       studyPanel.insertAdjacentElement('afterend',panel);
     }
     return true;
@@ -299,8 +299,10 @@
     $('aiResultsTab')?.addEventListener('click',event=>{event.preventDefault();activateHistory(true);});
     ['researchTab','studyTab'].forEach(id=>$(id)?.addEventListener('click',()=>activateHistory(false)));
     $('refreshAiResults')?.addEventListener('click',loadHistory);
-    $('aiResultsSearchForm')?.addEventListener('submit',event=>{event.preventDefault();loadHistory();});
-    $('clearAiResultsSearch')?.addEventListener('click',()=>{if($('aiResultsSearch'))$('aiResultsSearch').value='';loadHistory();});
+    const runHistorySearch=event=>{event?.preventDefault();event?.stopPropagation();event?.stopImmediatePropagation();loadHistory();};
+    $('aiResultsSearchForm')?.addEventListener('submit',runHistorySearch);
+    $('searchAiResults')?.addEventListener('click',runHistorySearch);
+    $('clearAiResultsSearch')?.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if($('aiResultsSearch'))$('aiResultsSearch').value='';loadHistory();});
     $('aiResultsList')?.addEventListener('click',event=>{
       const card=event.target.closest('[data-result-id]');if(!card)return;
       if(event.target.closest('[data-delete-result]')){deleteArchived(card);return;}
