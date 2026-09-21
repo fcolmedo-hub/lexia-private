@@ -49,12 +49,27 @@ def test_export_uses_times_new_roman_12_and_one_point_five_spacing(tmp_path):
     assert body.paragraph_format.line_spacing == 1.5
     assert body.paragraph_format.space_before == Pt(0)
     assert body.paragraph_format.space_after == Pt(0)
+    assert abs(body.paragraph_format.first_line_indent - Cm(1.5)) < 1000
     assert body.runs[0].font.name == "Times New Roman"
     assert body.runs[0].font.size == Pt(12)
     fonts = body.runs[0]._r.rPr.rFonts
     assert fonts.get(qn("w:ascii")) == "Times New Roman"
     assert fonts.get(qn("w:hAnsi")) == "Times New Roman"
     assert document.styles["Title"].element.pPr.find(qn("w:pBdr")) is None
+
+
+def test_export_indents_only_body_paragraphs(tmp_path):
+    _path, document = _export(
+        tmp_path,
+        "# CONTESTA TRASLADO\n\nTexto del cuerpo.\n- Elemento enumerado.",
+    )
+    title, heading, blank, body, bullet = document.paragraphs
+
+    assert title.paragraph_format.first_line_indent == 0
+    assert heading.paragraph_format.first_line_indent == 0
+    assert blank.paragraph_format.first_line_indent == 0
+    assert abs(body.paragraph_format.first_line_indent - Cm(1.5)) < 1000
+    assert bullet.paragraph_format.first_line_indent == 0
 
 
 def test_export_sets_26_line_grid_and_footer_page_number(tmp_path):

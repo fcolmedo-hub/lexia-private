@@ -20,6 +20,7 @@ class DocxExporter:
     INNER_MARGIN_CM = 4
     OUTER_MARGIN_CM = 2
     LINE_SPACING = 1.5
+    FIRST_LINE_INDENT_CM = 1.5
     MAX_LINES_PER_PAGE = 26
     FOOTER_GAP_FROM_TEXT_CM = 0.8
 
@@ -51,7 +52,12 @@ class DocxExporter:
             elif kind == "number":
                 self._add_paragraph(document, f"{level}. {text}", "Normal")
             else:
-                self._add_paragraph(document, text, "Normal")
+                self._add_paragraph(
+                    document,
+                    text,
+                    "Normal",
+                    first_line_indent=True,
+                )
 
         document.save(path)
         return path
@@ -144,12 +150,23 @@ class DocxExporter:
             color.set(qn("w:val"), "000000")
             color.attrib.pop(qn("w:themeColor"), None)
 
-    def _add_paragraph(self, document, text, style, *, bold=False):
+    def _add_paragraph(
+        self,
+        document,
+        text,
+        style,
+        *,
+        bold=False,
+        first_line_indent=False,
+    ):
         paragraph = document.add_paragraph(style=style)
         paragraph.paragraph_format.line_spacing = self.LINE_SPACING
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.paragraph_format.keep_with_next = False
+        paragraph.paragraph_format.first_line_indent = Cm(
+            self.FIRST_LINE_INDENT_CM if first_line_indent else 0
+        )
         if style == "Normal":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         self._snap_to_grid(paragraph._p.get_or_add_pPr())
