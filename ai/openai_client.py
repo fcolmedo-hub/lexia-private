@@ -29,12 +29,27 @@ class OpenAIAnswer:
 
 
 class OpenAIClient:
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        reasoning_effort: str | None = None,
+    ):
         self.base_url = SETTINGS.openai_base_url.rstrip("/")
-        self.model = os.getenv(
-            "LEXIA_OPENAI_MODEL",
-            SETTINGS.openai_model,
-        )
+        self.model = str(
+            model
+            or os.getenv(
+                "LEXIA_OPENAI_MODEL",
+                SETTINGS.openai_model,
+            )
+        ).strip()
+        self.reasoning_effort = str(
+            reasoning_effort
+            or os.getenv(
+                "LEXIA_OPENAI_REASONING_EFFORT",
+                SETTINGS.openai_reasoning_effort,
+            )
+        ).strip()
         self.timeout = SETTINGS.openai_timeout_seconds
 
     @property
@@ -71,7 +86,7 @@ class OpenAIClient:
 
     def respond(
         self,
-        instructions: str,
+        instructions: str | None,
         user_input: str,
         max_output_tokens: int | None = None,
         response_format: dict | None = None,
@@ -83,7 +98,6 @@ class OpenAIClient:
 
         payload = {
             "model": self.model,
-            "instructions": instructions,
             "input": user_input,
             "max_output_tokens": (
                 max_output_tokens
@@ -92,9 +106,12 @@ class OpenAIClient:
             "store": SETTINGS.openai_store_responses,
         }
 
+        if instructions:
+            payload["instructions"] = instructions
+
         if self.model.startswith(("gpt-5", "o")):
             payload["reasoning"] = {
-                "effort": SETTINGS.openai_reasoning_effort
+                "effort": self.reasoning_effort
             }
 
         if response_format:

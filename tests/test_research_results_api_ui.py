@@ -8,7 +8,8 @@ def test_bridge_sends_packages_to_openai_and_archives_only_the_answer():
     source = (ROOT / "services" / "ui2_delete_bridge.py").read_text(
         encoding="utf-8"
     )
-    assert "ResearchAnswerService().answer" in source
+    assert 'direct_package_experiment = kind == "research"' in source
+    assert "direct_package_experiment=direct_package_experiment" in source
     assert 'kind="research"' in source
     assert 'kind="file"' in source
     assert 'Path(SETTINGS.runtime_path) / "research_results.sqlite3"' in source
@@ -18,6 +19,8 @@ def test_bridge_sends_packages_to_openai_and_archives_only_the_answer():
     assert 'self.path == "/api/ai-results-delete"' in source
     assert 'result_archive.delete(int(body.get("id")))' in source
     assert '"content": answer.text' in source
+    assert '"reasoning_effort": answer.reasoning_effort' in source
+    assert '"prompt_mode": answer.prompt_mode' in source
 
 
 def test_shared_ui_hides_package_and_adds_history_and_popup():

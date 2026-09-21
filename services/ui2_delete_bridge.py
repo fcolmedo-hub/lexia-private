@@ -609,7 +609,10 @@ def _handler_class(application, token):
     )
 
     def answer_and_archive(package, *, kind, query, title, saved_paths, started):
-        answer = ResearchAnswerService().answer(
+        direct_package_experiment = kind == "research"
+        answer = ResearchAnswerService(
+            direct_package_experiment=direct_package_experiment
+        ).answer(
             str(getattr(package, "content", "") or "")
         )
         source_count = int(
@@ -645,6 +648,8 @@ def _handler_class(application, token):
             "source_count": source_count,
             "document_count": document_count,
             "model": answer.model,
+            "reasoning_effort": answer.reasoning_effort,
+            "prompt_mode": answer.prompt_mode,
             "response_id": answer.response_id,
             "usage": {
                 "input_tokens": answer.input_tokens,
