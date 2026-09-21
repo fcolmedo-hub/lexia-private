@@ -2255,8 +2255,60 @@ def _case_write_manual_prompt(document_name, prompt):
     return target
 
 
-def _case_write_final_response(case_name, branch_title, title, content):
-    """Export the final branch response to an editable Word document."""
+def _case_word_template_root():
+    """Resolve the physical Escritos root used as the model trust boundary."""
+    _tree, roots = _navigator_category_roots("Escritos")
+    return Path(roots[0]["folder"]).expanduser().resolve()
+
+
+def _case_word_templates():
+    """List DOCX models without changing or relocating the originals."""
+    root = _case_word_template_root()
+    models = []
+    try:
+        candidates = root.rglob("*")
+        for candidate in candidates:
+            if len(models) >= 2000:
+                break
+            if not candidate.is_file() or candidate.suffix.lower() != ".docx":
+                continue
+            relative = candidate.relative_to(root)
+            if candidate.name.startswith((".", "~$")) or any(
+                part.startswith(".") for part in relative.parts
+            ):
+                continue
+            models.append({
+                "name": candidate.name,
+                "relative_path": str(relative),
+                "path": str(candidate.resolve()),
+            })
+    except OSError as exc:
+        raise ValueError("No se pudieron leer los modelos Word de Escritos.") from exc
+    models.sort(key=lambda item: item["relative_path"].casefold())
+    return models
+
+
+def _case_word_template(path_value):
+    root = _case_word_template_root()
+    raw = str(path_value or "").strip()
+    if not raw:
+        raise ValueError("Elegí un modelo Word de la carpeta Escritos.")
+    candidate = Path(raw).expanduser().resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("El modelo Word debe pertenecer a la carpeta Escritos.") from exc
+    if not candidate.is_file():
+        raise FileNotFoundError("El modelo Word elegido ya no existe.")
+    if candidate.suffix.lower() != ".docx":
+        raise ValueError("El modelo Word debe estar guardado en formato .docx.")
+    return candidate
+
+
+def _case_write_final_response(
+    case_name, branch_title, title, content, *, template_path
+):
+    """Export the final branch response on a copy of a selected Word model."""
     downloads = Path.home() / "Downloads"
     downloads.mkdir(parents=True, exist_ok=True)
     raw_name = f"Contestacion_{case_name}_{branch_title}"
@@ -2265,8 +2317,12 @@ def _case_write_final_response(case_name, branch_title, title, content):
         for char in raw_name
     ).strip(" ._") or "Contestacion_LexIA"
     target = downloads / f"{safe_name[:140]}.docx"
+    template = _case_word_template(template_path)
     return DocxExporter().export_markdown_like(
-        str(title or f"Contestación · {branch_title}"), str(content or ""), target
+        str(title or f"Contestación · {branch_title}"),
+        str(content or ""),
+        target,
+        template=template,
     )
 
 
@@ -3777,6 +3833,7 @@ class Handler(SimpleHTTPRequestHandler):
                     str(root.get("title", "Rama")),
                     str(body.get("title", "") or ""),
                     content,
+                    template_path=str(body.get("template_path", "") or ""),
                 )
                 export_opened = _case_open_manual_prompt(export_path)
                 return self._json({
@@ -3784,6 +3841,9 @@ class Handler(SimpleHTTPRequestHandler):
                     "export_name": export_path.name,
                     "export_path": str(export_path),
                     "export_opened": export_opened,
+                    "template_name": _case_word_template(
+                        str(body.get("template_path", "") or "")
+                    ).name,
                     "case": CASES.case_snapshot(case_id),
                 })
             except KeyError as exc:
@@ -4324,6 +4384,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+
+        if path == "/api/cases/word-templates":
+            try:
+                return self._json({"ok": True, "templates": _case_word_templates()})
+            except (ValueError, FileNotFoundError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 409)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
 
         if path == "/api/cases":
             try:
