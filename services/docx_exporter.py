@@ -1,225 +1,171 @@
-from copy import deepcopy
 from pathlib import Path
 import re
 
 from docx import Document as DocxDocument
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt
-from docx.text.paragraph import Paragraph
+from docx.shared import Cm, Mm, Pt, RGBColor
 
 
 class DocxExporter:
-    """Export LexIA text either to a new DOCX or onto a Word model.
+    """Create editable legal Word files with LexIA's fixed court format."""
 
-    A model is always opened read-only and the result is saved elsewhere. Its
-    package remains the authority for sections, margins, styles, headers,
-    footers, numbering, theme and compatibility settings.
-    """
-
-    CONTENT_MARKERS = ("[[CONTENIDO_LEXIA]]", "{{CONTENIDO_LEXIA}}")
+    FONT_NAME = "Times New Roman"
+    FONT_SIZE_PT = 12
+    PAGE_WIDTH_MM = 210
+    PAGE_HEIGHT_MM = 297
+    TOP_MARGIN_CM = 4
+    BOTTOM_MARGIN_CM = 2
+    INNER_MARGIN_CM = 4
+    OUTER_MARGIN_CM = 2
+    LINE_SPACING = 1.5
+    MAX_LINES_PER_PAGE = 26
+    FOOTER_GAP_FROM_TEXT_CM = 0.8
 
     def export_markdown_like(
         self,
         title: str,
         content: str,
         destination: str | Path,
-        *,
-        template: str | Path | None = None,
     ) -> Path:
         path = Path(destination)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        if template:
-            return self._export_from_template(
-                title=title,
-                content=content,
-                destination=path,
-                template=Path(template),
-            )
-
         document = DocxDocument()
-        document.add_heading(title, level=0)
+        self._configure_document(document)
+        self._add_paragraph(document, str(title or "").strip(), "Title", bold=True)
 
         for kind, text, level in self._content_blocks(content):
             if kind == "blank":
-                document.add_paragraph()
+                self._add_paragraph(document, "", "Normal")
             elif kind == "heading":
-                document.add_heading(text, level=level)
+                self._add_paragraph(
+                    document,
+                    text,
+                    f"Heading {min(max(level, 1), 3)}",
+                    bold=True,
+                )
             elif kind == "bullet":
-                document.add_paragraph(text, style="List Bullet")
+                self._add_paragraph(document, "• " + text, "Normal")
             elif kind == "number":
-                document.add_paragraph(text, style="List Number")
+                self._add_paragraph(document, f"{level}. {text}", "Normal")
             else:
-                paragraph = document.add_paragraph(text)
-                paragraph.style.font.size = Pt(11)
+                self._add_paragraph(document, text, "Normal")
 
         document.save(path)
         return path
 
-    def _export_from_template(self, *, title, content, destination, template):
-        if not template.is_file():
-            raise FileNotFoundError(f"No se encontró el modelo Word: {template}")
-        if template.suffix.lower() != ".docx":
-            raise ValueError("El modelo Word debe estar guardado en formato .docx.")
-        if template.resolve() == destination.resolve():
-            raise ValueError("El archivo exportado no puede reemplazar el modelo original.")
-
-        document = DocxDocument(str(template))
-        paragraphs = list(document.paragraphs)
-        marker = self._find_marker(paragraphs)
-        profiles = self._format_profiles(paragraphs, marker)
-
-        if marker is None:
-            self._clear_document_body(document)
-            reference = document._body._element.sectPr
-            include_title = True
-        else:
-            reference = marker._p
-            marker_index = paragraphs.index(marker)
-            include_title = not any(
-                paragraph.text.strip() for paragraph in paragraphs[:marker_index]
-            )
-
-        blocks = []
-        if include_title and str(title or "").strip():
-            blocks.append(("title", str(title).strip(), 0))
-        blocks.extend(self._content_blocks(content))
-
-        for kind, text, level in blocks:
-            profile_name = "body"
-            force_bold = False
-            if kind == "title":
-                profile_name = "title"
-                force_bold = True
-            elif kind == "heading":
-                profile_name = f"heading{min(max(level, 1), 3)}"
-                force_bold = True
-
-            prefix = ""
-            if kind == "bullet":
-                prefix = "• "
-            elif kind == "number":
-                prefix = f"{level}. "
-
-            profile = profiles.get(profile_name) or profiles["body"]
-            paragraph = self._insert_paragraph_before(document, reference, profile)
-            if kind != "blank":
-                self._write_rich_text(
-                    paragraph,
-                    prefix + text,
-                    profile,
-                    force_bold=force_bold,
-                )
-
-        if marker is not None:
-            marker._p.getparent().remove(marker._p)
-
-        document.save(destination)
-        return destination
-
-    def _find_marker(self, paragraphs):
-        found = None
-        for paragraph in paragraphs:
-            text = paragraph.text.strip()
-            matching = [marker for marker in self.CONTENT_MARKERS if marker in text]
-            if not matching:
-                continue
-            if text not in self.CONTENT_MARKERS:
-                raise ValueError(
-                    "El marcador [[CONTENIDO_LEXIA]] debe ocupar un párrafo completo."
-                )
-            if found is not None:
-                raise ValueError("El modelo Word contiene más de un marcador de contenido.")
-            found = paragraph
-        return found
-
-    @staticmethod
-    def _clear_document_body(document):
-        body = document._body._element
-        for child in list(body):
-            if child.tag != qn("w:sectPr"):
-                body.remove(child)
-
-    def _format_profiles(self, paragraphs, marker):
-        candidates = [
-            paragraph for paragraph in paragraphs
-            if paragraph is not marker and paragraph.text.strip()
-        ]
-        body_candidates = [
-            paragraph for paragraph in candidates
-            if not self._looks_like_heading(paragraph) and len(paragraph.text.strip()) >= 35
-        ]
-        body = marker or (
-            max(body_candidates, key=lambda paragraph: len(paragraph.text.strip()))
-            if body_candidates else (candidates[0] if candidates else None)
+    def _configure_document(self, document):
+        section = document.sections[0]
+        section.page_width = Mm(self.PAGE_WIDTH_MM)
+        section.page_height = Mm(self.PAGE_HEIGHT_MM)
+        section.top_margin = Cm(self.TOP_MARGIN_CM)
+        section.bottom_margin = Cm(self.BOTTOM_MARGIN_CM)
+        section.left_margin = Cm(self.INNER_MARGIN_CM)
+        section.right_margin = Cm(self.OUTER_MARGIN_CM)
+        section.gutter = Cm(0)
+        section.footer_distance = Cm(
+            self.BOTTOM_MARGIN_CM - self.FOOTER_GAP_FROM_TEXT_CM
         )
 
-        headings = [paragraph for paragraph in candidates if self._looks_like_heading(paragraph)]
-        title = self._first_style_match(candidates, ("title", "titulo", "título"))
-        heading1 = self._first_style_match(candidates, ("heading 1", "titulo 1", "título 1"))
-        heading2 = self._first_style_match(candidates, ("heading 2", "titulo 2", "título 2"))
-        heading3 = self._first_style_match(candidates, ("heading 3", "titulo 3", "título 3"))
-        fallback_heading = headings[0] if headings else body
-
-        return {
-            "body": self._profile(body),
-            "title": self._profile(title or fallback_heading or body),
-            "heading1": self._profile(heading1 or fallback_heading or body),
-            "heading2": self._profile(heading2 or fallback_heading or body),
-            "heading3": self._profile(heading3 or fallback_heading or body),
-        }
+        self._enable_mirrored_margins(document)
+        self._set_page_grid(section)
+        self._configure_styles(document)
+        self._add_page_number(section)
+        self._request_field_updates(document)
 
     @staticmethod
-    def _first_style_match(paragraphs, names):
-        wanted = tuple(value.casefold() for value in names)
-        for paragraph in paragraphs:
-            style_name = str(getattr(paragraph.style, "name", "") or "").casefold()
-            if any(value in style_name for value in wanted):
-                return paragraph
-        return None
+    def _enable_mirrored_margins(document):
+        settings = document.settings.element
+        if settings.find(qn("w:mirrorMargins")) is None:
+            settings.append(OxmlElement("w:mirrorMargins"))
 
-    @staticmethod
-    def _looks_like_heading(paragraph):
-        text = paragraph.text.strip()
-        style_name = str(getattr(paragraph.style, "name", "") or "").casefold()
-        if any(value in style_name for value in ("heading", "title", "titulo", "título")):
-            return True
-        if not text or len(text) > 160:
-            return False
-        letters = [character for character in text if character.isalpha()]
-        all_caps = bool(letters) and all(character.isupper() for character in letters)
-        bold = any(run.bold is True for run in paragraph.runs if run.text.strip())
-        return all_caps or bold
-
-    @staticmethod
-    def _profile(paragraph):
-        if paragraph is None:
-            return {"pPr": None, "rPr": None}
-
-        p_pr = deepcopy(paragraph._p.pPr) if paragraph._p.pPr is not None else None
-        if p_pr is not None:
-            section = p_pr.find(qn("w:sectPr"))
-            if section is not None:
-                p_pr.remove(section)
-
-        sample_run = next((run for run in paragraph.runs if run.text.strip()), None)
-        r_pr = (
-            deepcopy(sample_run._r.rPr)
-            if sample_run is not None and sample_run._r.rPr is not None
-            else None
+    def _set_page_grid(self, section):
+        usable_height = Cm(
+            self.PAGE_HEIGHT_MM / 10
+            - self.TOP_MARGIN_CM
+            - self.BOTTOM_MARGIN_CM
         )
-        return {"pPr": p_pr, "rPr": r_pr}
+        line_pitch_twips = round(
+            int(usable_height) / 635 / self.MAX_LINES_PER_PAGE
+        )
+        section_properties = section._sectPr
+        grid = section_properties.find(qn("w:docGrid"))
+        if grid is None:
+            grid = OxmlElement("w:docGrid")
+            section_properties.append(grid)
+        grid.set(qn("w:type"), "lines")
+        grid.set(qn("w:linePitch"), str(line_pitch_twips))
+
+    def _configure_styles(self, document):
+        for style_name in (
+            "Normal",
+            "Title",
+            "Heading 1",
+            "Heading 2",
+            "Heading 3",
+            "List Bullet",
+            "List Number",
+        ):
+            style = document.styles[style_name]
+            self._set_style_font(style)
+            paragraph_format = style.paragraph_format
+            paragraph_format.line_spacing = self.LINE_SPACING
+            paragraph_format.space_before = Pt(0)
+            paragraph_format.space_after = Pt(0)
+            paragraph_format.keep_with_next = False
+            self._snap_to_grid(style.element.get_or_add_pPr())
+
+        document.styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        document.styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        document.styles["Title"].font.bold = True
+        title_properties = document.styles["Title"].element.get_or_add_pPr()
+        title_border = title_properties.find(qn("w:pBdr"))
+        if title_border is not None:
+            title_properties.remove(title_border)
+        for style_name in ("Heading 1", "Heading 2", "Heading 3"):
+            document.styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            document.styles[style_name].font.bold = True
+
+    def _set_style_font(self, style):
+        style.font.name = self.FONT_NAME
+        style.font.size = Pt(self.FONT_SIZE_PT)
+        style.font.color.rgb = RGBColor(0, 0, 0)
+        run_properties = style.element.get_or_add_rPr()
+        fonts = run_properties.rFonts
+        if fonts is None:
+            fonts = OxmlElement("w:rFonts")
+            run_properties.insert(0, fonts)
+        for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+            fonts.set(qn(f"w:{attribute}"), self.FONT_NAME)
+        color = run_properties.find(qn("w:color"))
+        if color is not None:
+            color.set(qn("w:val"), "000000")
+            color.attrib.pop(qn("w:themeColor"), None)
+
+    def _add_paragraph(self, document, text, style, *, bold=False):
+        paragraph = document.add_paragraph(style=style)
+        paragraph.paragraph_format.line_spacing = self.LINE_SPACING
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.keep_with_next = False
+        if style == "Normal":
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        self._snap_to_grid(paragraph._p.get_or_add_pPr())
+        if text:
+            self._write_rich_text(paragraph, text, force_bold=bold)
+        return paragraph
 
     @staticmethod
-    def _insert_paragraph_before(document, reference, profile):
-        paragraph_xml = OxmlElement("w:p")
-        if profile.get("pPr") is not None:
-            paragraph_xml.append(deepcopy(profile["pPr"]))
-        reference.addprevious(paragraph_xml)
-        return Paragraph(paragraph_xml, document._body)
+    def _snap_to_grid(paragraph_properties):
+        snap = paragraph_properties.find(qn("w:snapToGrid"))
+        if snap is None:
+            snap = OxmlElement("w:snapToGrid")
+            paragraph_properties.append(snap)
+        snap.set(qn("w:val"), "1")
 
-    def _write_rich_text(self, paragraph, text, profile, *, force_bold=False):
+    def _write_rich_text(self, paragraph, text, *, force_bold=False):
         parts = re.split(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*(?!\*))", str(text or ""))
         for part in parts:
             if not part:
@@ -234,14 +180,54 @@ class DocxExporter:
                 value = part[1:-1]
                 italic = True
             run = paragraph.add_run(value)
-            if profile.get("rPr") is not None:
-                if run._r.rPr is not None:
-                    run._r.remove(run._r.rPr)
-                run._r.insert(0, deepcopy(profile["rPr"]))
+            self._set_run_font(run)
             if bold:
                 run.bold = True
             if italic:
                 run.italic = True
+
+    def _set_run_font(self, run):
+        run.font.name = self.FONT_NAME
+        run.font.size = Pt(self.FONT_SIZE_PT)
+        run.font.color.rgb = RGBColor(0, 0, 0)
+        properties = run._element.get_or_add_rPr()
+        fonts = properties.rFonts
+        if fonts is None:
+            fonts = OxmlElement("w:rFonts")
+            properties.insert(0, fonts)
+        for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+            fonts.set(qn(f"w:{attribute}"), self.FONT_NAME)
+
+    def _add_page_number(self, section):
+        paragraph = section.footer.paragraphs[0]
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = 1
+
+        run = paragraph.add_run()
+        self._set_run_font(run)
+        begin = OxmlElement("w:fldChar")
+        begin.set(qn("w:fldCharType"), "begin")
+        instruction = OxmlElement("w:instrText")
+        instruction.set(qn("xml:space"), "preserve")
+        instruction.text = " PAGE "
+        separate = OxmlElement("w:fldChar")
+        separate.set(qn("w:fldCharType"), "separate")
+        display = OxmlElement("w:t")
+        display.text = "1"
+        end = OxmlElement("w:fldChar")
+        end.set(qn("w:fldCharType"), "end")
+        run._r.extend((begin, instruction, separate, display, end))
+
+    @staticmethod
+    def _request_field_updates(document):
+        settings = document.settings.element
+        update = settings.find(qn("w:updateFields"))
+        if update is None:
+            update = OxmlElement("w:updateFields")
+            settings.append(update)
+        update.set(qn("w:val"), "true")
 
     @staticmethod
     def _content_blocks(content):

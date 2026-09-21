@@ -3,7 +3,6 @@
   'use strict';
   const PAGE_ID = 'casespage';
   const WINDOWS_CASE_UI_STATE_KEY = 'lexia.windows.case.ui-state.v1';
-  const WORD_TEMPLATE_KEY = 'lexia.case.word-template.v1';
   let currentCase = null, caseList = [], expandedNodeId = null;
   const openPrimaryIds = new Set();
   let activeEvidenceBlockId = null;
@@ -142,7 +141,6 @@
       '.cases-create-dialog{width:min(680px,92vw);max-width:680px}.cases-create-dialog .branch-form{margin:0;padding:2px;border:0;background:transparent}.cases-create-dialog .cases-form-actions{margin-bottom:0}.cases-new-case-dialog[open]{width:min(720px,92vw);max-width:720px;background:#fff}.cases-new-case-dialog::backdrop{background:#f6f7fb}.cases-new-case-dialog .cases-create{margin:0;padding:2px;border:0;box-shadow:none}',
       '.evidence-selection-dialog[open]{width:min(940px,92vw);height:min(84vh,720px);max-height:84vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);display:flex;flex-direction:column;overflow:hidden}.evidence-selection-dialog[open]::backdrop{background:rgba(24,31,56,.34)}.evidence-selection-dialog .evidence-dialog-head{flex:0 0 auto;padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.evidence-selection-dialog .evidence-dialog-body{box-sizing:border-box;display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden;padding:11px 13px}.evidence-selection-dialog .evidence-reader{box-sizing:border-box;display:block;flex:1 1 auto;width:100%;min-height:130px;height:auto!important;margin-top:8px;overflow:auto!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.evidence-selection-dialog .evidence-selection-status{flex:0 0 auto;margin:7px 0}.evidence-selection-dialog .evidence-dialog-actions{flex:0 0 auto;display:flex;justify-content:flex-end;gap:6px;margin-top:0;padding-top:8px;background:#fff;border-top:1px solid #edf0f5}',
       '.case-ai-dialog[open]{box-sizing:border-box;width:min(900px,94vw);max-height:88vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);overflow:hidden}.case-ai-dialog::backdrop{background:rgba(24,31,56,.38)}.case-ai-dialog .evidence-dialog-head{padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.case-ai-dialog .evidence-dialog-body{box-sizing:border-box;max-height:calc(88vh - 48px);padding:13px;overflow:auto}.case-ai-dialog .cases-button,.case-ai-dialog .cases-button-secondary{box-sizing:border-box;font:inherit;font-size:10px;line-height:1.1;font-weight:800;cursor:pointer;border-radius:6px;padding:7px 9px}.case-ai-dialog .cases-button{background:#5146f6;color:#fff;border:1px solid #5146f6}.case-ai-dialog .cases-button-secondary{background:#fff;color:#465176;border:1px solid #d8deed}.case-ai-intro{color:#596583;font-size:11px;line-height:1.45;margin:0 0 12px}.case-ai-option{display:flex;align-items:flex-start;gap:7px;padding:10px;border:1px solid #e1e5ef;border-radius:8px;background:#fafaff;color:#374162;font-size:11px}.case-ai-option input{margin-top:2px}.case-ai-status{min-height:18px;margin:9px 0;color:#6659e8;font-size:10px}.case-ai-preview-meta{margin:0 0 10px;color:#697493;font-size:10px}.case-ai-issue{margin:7px 0;padding:9px;border:1px solid #dfe4ef;border-radius:9px;background:#fff}.case-ai-issue-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:center}.case-ai-issue-head input[type=text]{box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid #dce1ed;border-radius:6px;font:inherit;font-size:11px;font-weight:800;color:#293357}.case-ai-side{margin:7px 0 0;padding-top:6px;border-top:1px solid #edf0f5}.case-ai-side h4{margin:0 0 4px;color:#687492;font-size:9px;text-transform:uppercase}.case-ai-block{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;margin:3px 0;padding:5px;background:#fafaff;border-radius:6px}.case-ai-block textarea{box-sizing:border-box;width:100%;min-height:45px;resize:vertical;padding:5px 6px;border:1px solid #e0e4ee;border-radius:5px;font:10px/1.35 inherit;color:#303a5e}.case-ai-quote{margin:4px 0 0;padding:5px 7px;border-left:2px solid #7c70f7;background:#f5f3ff;color:#56607d;font-size:9px;line-height:1.35;white-space:pre-wrap}.case-ai-dialog .cases-form-actions{position:sticky;bottom:-13px;margin:10px -13px -13px;padding:10px 13px;background:#fff;border-top:1px solid #e7eaf2}',
-      '.word-template-dialog[open]{width:min(720px,94vw)}.word-template-dialog .cases-field{display:grid;gap:5px;margin-top:9px;color:#65708d;font-size:10px;font-weight:800}.word-template-dialog input,.word-template-dialog select{box-sizing:border-box;width:100%;border:1px solid #dce1ed;border-radius:7px;padding:8px 9px;background:#fff;color:#263154;font:11px/1.35 system-ui,sans-serif}.word-template-dialog select{min-height:260px;padding:3px}.word-template-dialog option{padding:5px 7px}.word-template-dialog .evidence-dialog-actions{display:flex;justify-content:flex-end;gap:6px}',
       '.case-ai-review{margin:7px 0 1px;padding:7px;border:1px solid #efc988;border-radius:6px;background:#fffaf0}.case-ai-review strong{display:block;color:#8a5b05;font-size:9px}.case-ai-review label{display:block;margin-top:5px;color:#6a7490;font-size:8px;font-weight:800;text-transform:uppercase}.case-ai-review pre{max-height:92px;margin:2px 0;padding:5px 6px;overflow:auto;white-space:pre-wrap;background:#fff;border-left:2px solid #e1ad45;color:#48526e;font:9px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace}.case-ai-review select{box-sizing:border-box;width:100%;margin-top:6px;padding:5px 6px;border:1px solid #d9c08c;border-radius:5px;background:#fff;color:#36405f;font:9px inherit}',
       '.case-ai-manual-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.case-ai-manual-response{box-sizing:border-box;width:100%;min-height:145px;margin-top:8px;padding:8px 9px;border:1px solid #dce2ee;border-radius:7px;resize:vertical;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#293357}.case-ai-api-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:13px;padding-top:10px;border-top:1px solid #e8ebf3;color:#7a84a0;font-size:9px}',
       '#' + PAGE_ID + ' .evidence-reader{cursor:text!important;-webkit-user-select:text!important;user-select:text!important;caret-color:#5146f6;outline:none}#' + PAGE_ID + ' .evidence-reader.evidence-reader-editing{border-color:#d0ad16!important;box-shadow:inset 0 0 0 1px #f1d64f}#' + PAGE_ID + ' .evidence-reader::selection,#' + PAGE_ID + ' .evidence-reader *::selection{background:#f1d64f!important;color:#202944!important}#' + PAGE_ID + ' .evidence-existing-mark{background:#fff19c!important;color:#202944!important;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #e1c542;-webkit-user-select:text!important;user-select:text!important}#' + PAGE_ID + ' .evidence-new-mark{background:#f1d64f!important;color:#202944!important;padding:1px 0;border-radius:2px;box-shadow:0 0 0 1px #d0ad16;-webkit-user-select:text!important;user-select:text!important}',
@@ -1038,81 +1036,6 @@
   function buildBranchAiPackage(root, questions) {
     return 'LEXIA — CONTESTACIÓN DEFINITIVA DE LA RAMA\n\nTAREA\nRedactá una única contestación definitiva de nuestra parte para la rama indicada. Integrá todas las cuestiones seleccionadas en un escrito coherente: exponé sintéticamente cada planteo de la contraparte, contestalo con nuestra postura y desarrollá exclusivamente los fundamentos y evidencias incorporados en LexIA. No entregues un análisis preliminar, un esquema ni recomendaciones: devolvé el texto final de la contestación.\n\nREGLAS ESTRICTAS\n1. No uses conocimiento externo ni inventes hechos, normas, antecedentes o citas.\n2. No omitas cuestiones seleccionadas ni mezcles fundamentos pertenecientes a cuestiones diferentes.\n3. Diferenciá con claridad lo afirmado por la contraparte de nuestra respuesta.\n4. Conservá literalmente las citas documentales cuando las utilices.\n5. Si un fundamento necesario no surge del material, indicá: “No surge de las fuentes aportadas”.\n6. Usá títulos con “# ”, subtítulos con “## ” y párrafos completos, para que LexIA pueda convertir la respuesta a Word.\n7. Devolvé solamente la contestación definitiva, sin explicar el procedimiento seguido.\n\nRAMA PRINCIPAL\n' + root.title + '\n\n' + questions.map((question, index) => '=== CUESTIÓN ' + (index + 1) + ' ===\n' + questionAiMaterial(question)).join('\n\n');
   }
-  function rememberedWordTemplate() {
-    try {
-      const value = JSON.parse(localStorage.getItem(WORD_TEMPLATE_KEY) || 'null');
-      return value && value.path && value.name ? value : null;
-    } catch (_) { return null; }
-  }
-  function rememberWordTemplate(template) {
-    if (!template) return;
-    try { localStorage.setItem(WORD_TEMPLATE_KEY, JSON.stringify({path: template.path, name: template.name, relative_path: template.relative_path || template.name})); }
-    catch (_) {}
-  }
-  async function chooseWordTemplate(current) {
-    let templates;
-    try {
-      templates = (await api('/api/cases/word-templates')).templates || [];
-    } catch (error) {
-      alert('No se pudieron leer los modelos Word de Escritos.\n\n' + error.message);
-      return null;
-    }
-    if (!templates.length) {
-      alert('No hay modelos .docx en la carpeta Escritos. Guardá allí al menos un modelo Word para exportar la contestación.');
-      return null;
-    }
-    return new Promise(resolve => {
-      let finished = false;
-      const dialog = el('dialog', {className: 'case-ai-dialog word-template-dialog'});
-      const search = el('input', {type: 'search', placeholder: 'Buscar modelo por nombre o carpeta…'});
-      const select = el('select', {size: '14'});
-      const status = el('p', {className: 'case-ai-status'});
-      const close = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Cancelar'});
-      const use = el('button', {type: 'button', className: 'cases-button', textContent: 'Usar este modelo'});
-      function finish(value) {
-        if (finished) return;
-        finished = true;
-        if (dialog.open && dialog.close) dialog.close();
-        dialog.remove();
-        resolve(value);
-      }
-      function renderOptions() {
-        const query = search.value.trim().toLocaleLowerCase('es');
-        const filtered = templates.filter(item => String(item.relative_path || item.name).toLocaleLowerCase('es').includes(query));
-        select.replaceChildren();
-        filtered.forEach(item => {
-          const option = el('option', {value: item.path, textContent: item.relative_path || item.name, title: item.path});
-          if (current && current.path === item.path) option.selected = true;
-          select.append(option);
-        });
-        if (!select.value && filtered.length) select.selectedIndex = 0;
-        status.textContent = filtered.length + ' modelo(s) .docx en Escritos.';
-        use.disabled = !filtered.length;
-      }
-      search.addEventListener('input', renderOptions);
-      select.addEventListener('dblclick', () => use.click());
-      close.addEventListener('click', () => finish(null));
-      use.addEventListener('click', () => {
-        const selected = templates.find(item => item.path === select.value);
-        if (selected) finish(selected);
-      });
-      dialog.addEventListener('cancel', event => { event.preventDefault(); finish(null); });
-      dialog.append(
-        el('header', {className: 'evidence-dialog-head'}, el('b', {textContent: 'Elegir modelo Word de Escritos'}), close),
-        el('div', {className: 'evidence-dialog-body'},
-          el('p', {className: 'case-ai-intro', textContent: 'LexIA creará una copia y conservará sus fuentes, tamaños, párrafos, márgenes, encabezados y pies. Para mantener texto fijo del modelo, colocá [[CONTENIDO_LEXIA]] en un párrafo independiente.'}),
-          el('label', {className: 'cases-field'}, el('span', {textContent: 'Buscar'}), search),
-          el('label', {className: 'cases-field'}, el('span', {textContent: 'Modelo .docx'}), select),
-          status,
-          el('div', {className: 'evidence-dialog-actions'}, use)
-        )
-      );
-      document.body.append(dialog);
-      renderOptions();
-      if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', 'open');
-      search.focus();
-    });
-  }
   function branchAiSection(snapshot, root) {
     const questions = descendantQuestions(root), selected = branchSelection(root, questions), output = root.ai_output;
     const details = el('details', {className: 'branch-ai'}); details.open = true;
@@ -1137,25 +1060,13 @@
       currentCase = response.case;
       outputId = findNode(response.case.nodes || [], root.id)?.ai_output?.id || outputId;
     }));
-    let wordTemplate = rememberedWordTemplate();
-    const send = el('button', {type: 'button', className: 'cases-button branch-ai-send', textContent: 'Enviar rama a la IA'}), prepare = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Ver paquete manual'}), chooseTemplate = el('button', {type: 'button', className: 'cases-button-secondary'}), exportDocx = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Exportar contestación a Word'}), exportStatus = el('span', {className: 'case-ai-status'});
-    function updateTemplateButton() {
-      chooseTemplate.textContent = wordTemplate ? 'Modelo: ' + wordTemplate.name : 'Elegir modelo Word';
-      chooseTemplate.title = wordTemplate ? (wordTemplate.relative_path || wordTemplate.path) : 'Elegir un archivo .docx de Escritos';
-    }
-    updateTemplateButton();
-    chooseTemplate.addEventListener('click', async () => {
-      const selected = await chooseWordTemplate(wordTemplate);
-      if (!selected) return;
-      wordTemplate = selected; rememberWordTemplate(selected); updateTemplateButton();
-      exportStatus.textContent = 'Modelo Word seleccionado: ' + (selected.relative_path || selected.name) + '.';
-    });
+    const send = el('button', {type: 'button', className: 'cases-button branch-ai-send', textContent: 'Enviar rama a la IA'}), prepare = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Ver paquete manual'}), exportDocx = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Exportar contestación a Word'}), exportStatus = el('span', {className: 'case-ai-status'});
     send.addEventListener('click', async () => {
       const chosen = questions.filter(question => selected.has(question.id));
       if (!chosen.length) return alert('Seleccioná al menos una cuestión.');
       const unsupported = chosen.some(question => ((question.blocks && question.blocks.contraparte) || []).some(block => !(block.highlights || []).length));
       if (unsupported) return alert('Cada bloque del planteo de la contraparte debe contener al menos un pasaje resaltado antes de consultar a la IA.');
-      send.disabled = true; prepare.disabled = true; chooseTemplate.disabled = true; exportDocx.disabled = true;
+      send.disabled = true; prepare.disabled = true; exportDocx.disabled = true;
       exportStatus.textContent = 'Enviando la rama a la IA y preparando la contestación…';
       try {
         const response = await api('/api/cases/ai/draft', {method: 'POST', body: JSON.stringify({
@@ -1179,7 +1090,7 @@
       } catch (error) {
         exportStatus.textContent = error.message || String(error);
       } finally {
-        send.disabled = false; prepare.disabled = false; chooseTemplate.disabled = false; exportDocx.disabled = false;
+        send.disabled = false; prepare.disabled = false; exportDocx.disabled = false;
       }
     });
     prepare.addEventListener('click', () => {
@@ -1191,21 +1102,16 @@
     });
     exportDocx.addEventListener('click', async () => {
       if (!text.value.trim()) return alert('Pegá primero la contestación definitiva generada por la IA.');
-      if (!wordTemplate) {
-        const selected = await chooseWordTemplate(null);
-        if (!selected) return;
-        wordTemplate = selected; rememberWordTemplate(selected); updateTemplateButton();
-      }
       clearTimeout(autosaveTimers.get('branch-ai:' + root.id)); autosaveTimers.delete('branch-ai:' + root.id);
-      chooseTemplate.disabled = true; exportDocx.disabled = true; exportStatus.textContent = 'Generando Word con el modelo ' + wordTemplate.name + '…';
+      exportDocx.disabled = true; exportStatus.textContent = 'Generando Word con el formato jurídico de LexIA…';
       try {
-        const result = await api('/api/cases/node/ai-output/export', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: root.id, title: 'Contestación · ' + root.title, content: text.value, template_path: wordTemplate.path})});
+        const result = await api('/api/cases/node/ai-output/export', {method: 'POST', body: JSON.stringify({case_id: snapshot.case.id, node_id: root.id, title: 'Contestación · ' + root.title, content: text.value})});
         currentCase = result.case; outputId = findNode(result.case.nodes || [], root.id)?.ai_output?.id || outputId;
-        exportStatus.textContent = 'Word creado con “' + result.template_name + '” en ' + result.export_path;
+        exportStatus.textContent = 'Word creado en ' + result.export_path;
       } catch (error) { exportStatus.textContent = error.message; }
-      finally { chooseTemplate.disabled = false; exportDocx.disabled = false; }
+      finally { exportDocx.disabled = false; }
     });
-    body.append(el('div', {className: 'argument-block-actions'}, send, prepare, chooseTemplate, exportDocx), exportStatus, text);
+    body.append(el('div', {className: 'argument-block-actions'}, send, prepare, exportDocx), exportStatus, text);
     details.append(el('summary', {textContent: output ? 'Contestación definitiva con IA · borrador guardado' : 'Contestación definitiva con IA'}), body);
     return details;
   }
