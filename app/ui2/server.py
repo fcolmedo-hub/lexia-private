@@ -2255,7 +2255,15 @@ def _case_write_manual_prompt(document_name, prompt):
     return target
 
 
-def _case_write_final_response(case_name, branch_title, title, content):
+def _case_write_final_response(
+    case_name,
+    branch_title,
+    title,
+    content,
+    *,
+    authority=None,
+    appearance=None,
+):
     """Export the final branch response with LexIA's fixed legal format."""
     downloads = Path.home() / "Downloads"
     downloads.mkdir(parents=True, exist_ok=True)
@@ -2269,6 +2277,8 @@ def _case_write_final_response(case_name, branch_title, title, content):
         str(title or f"Contestación · {branch_title}"),
         str(content or ""),
         target,
+        authority=authority,
+        appearance=appearance,
     )
 
 
@@ -3779,6 +3789,8 @@ class Handler(SimpleHTTPRequestHandler):
                     str(root.get("title", "Rama")),
                     str(body.get("title", "") or ""),
                     content,
+                    authority=str(body.get("authority", "") or ""),
+                    appearance=str(body.get("appearance", "") or ""),
                 )
                 export_opened = _case_open_manual_prompt(export_path)
                 return self._json({

@@ -65,9 +65,10 @@ def test_export_indents_only_body_paragraphs(tmp_path):
         tmp_path,
         "# CONTESTA TRASLADO\n\nTexto del cuerpo.\n- Elemento enumerado.",
     )
-    title, heading, body, bullet = document.paragraphs
+    title, blank_after_title, heading, body, bullet = document.paragraphs
 
     assert title.paragraph_format.first_line_indent == 0
+    assert blank_after_title.text == ""
     assert heading.paragraph_format.first_line_indent == 0
     assert abs(body.paragraph_format.first_line_indent - Cm(1.5)) < 1000
     assert bullet.paragraph_format.first_line_indent == 0
@@ -83,15 +84,43 @@ def test_export_inserts_one_blank_line_before_each_later_chapter(tmp_path):
     texts = [paragraph.text for paragraph in document.paragraphs]
     assert texts == [
         "CONTESTACIÓN · AUDIENCIA",
+        "",
         "I - PRIMER CAPÍTULO",
         "Última oración del primer capítulo.",
         "",
         "II - SEGUNDO CAPÍTULO",
         "Texto del segundo capítulo.",
     ]
-    blank_line = document.paragraphs[3]
+    blank_line = document.paragraphs[4]
     assert blank_line.style.name == "Normal"
     assert blank_line.paragraph_format.line_spacing == Pt(25.8)
+
+
+def test_export_reserves_front_matter_and_formats_optional_fields(tmp_path):
+    path = tmp_path / "encabezado.docx"
+    DocxExporter().export_markdown_like(
+        "Contestación de demanda",
+        "I - OBJETO\nContenido del escrito.",
+        path,
+        authority="Sr. Juez:",
+        appearance=(
+            "Franco Olmedo, abogado, en representación de la demandada, "
+            "a V.S. respetuosamente digo:"
+        ),
+    )
+    document = DocxDocument(path)
+    title, blank_line, authority, appearance, chapter, body = document.paragraphs
+
+    assert title.text == "CONTESTACIÓN DE DEMANDA"
+    assert blank_line.text == ""
+    assert authority.text == "Sr. Juez:"
+    assert authority.alignment == WD_ALIGN_PARAGRAPH.LEFT
+    assert authority.paragraph_format.first_line_indent == 0
+    assert authority.paragraph_format.left_indent == 0
+    assert appearance.alignment == WD_ALIGN_PARAGRAPH.JUSTIFY
+    assert abs(appearance.paragraph_format.first_line_indent - Cm(1.5)) < 1000
+    assert chapter.text == "I - OBJETO"
+    assert body.text == "Contenido del escrito."
 
 
 def test_export_sets_spanish_spain_language_for_styles_and_runs(tmp_path):
@@ -117,12 +146,15 @@ def test_export_formats_legal_title_chapters_and_subchapters(tmp_path):
         "# agravios\n## Errónea fecha de ingreso\n"
         "5.2) Incorrecta valoración de la prueba\nTexto del cuerpo.",
     )
-    title, chapter, generated_subchapter, explicit_subchapter, body = document.paragraphs
+    title, blank_after_title, chapter, generated_subchapter, explicit_subchapter, body = (
+        document.paragraphs
+    )
 
     assert title.text == "CONTESTACIÓN · AUDIENCIA"
     assert title.alignment == WD_ALIGN_PARAGRAPH.RIGHT
     assert title.runs[0].bold is True
     assert title.runs[0].underline is True
+    assert blank_after_title.text == ""
 
     assert chapter.text == "I - AGRAVIOS"
     assert chapter.alignment == WD_ALIGN_PARAGRAPH.CENTER

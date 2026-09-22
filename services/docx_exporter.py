@@ -32,6 +32,9 @@ class DocxExporter:
         title: str,
         content: str,
         destination: str | Path,
+        *,
+        authority: str | None = None,
+        appearance: str | None = None,
     ) -> Path:
         path = Path(destination)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,6 +48,25 @@ class DocxExporter:
             bold=True,
             underline=True,
         )
+        self._add_paragraph(document, "", "Normal")
+
+        authority_text = str(authority or "").strip()
+        if authority_text:
+            self._add_paragraph(
+                document,
+                authority_text,
+                "Normal",
+                left_aligned=True,
+            )
+
+        appearance_text = str(appearance or "").strip()
+        if appearance_text:
+            self._add_paragraph(
+                document,
+                appearance_text,
+                "Normal",
+                first_line_indent=True,
+            )
 
         has_content = False
         for kind, text, level in self._content_blocks(content):
@@ -189,6 +211,7 @@ class DocxExporter:
         underline=False,
         first_line_indent=False,
         left_indent=False,
+        left_aligned=False,
     ):
         paragraph = document.add_paragraph(style=style)
         paragraph.paragraph_format.line_spacing = Pt(self.LINE_PITCH_PT)
@@ -202,7 +225,9 @@ class DocxExporter:
         paragraph.paragraph_format.left_indent = Cm(
             self.FIRST_LINE_INDENT_CM if left_indent else 0
         )
-        if style == "Normal":
+        if left_aligned:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        elif style == "Normal":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         elif style == "Title":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
