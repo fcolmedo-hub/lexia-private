@@ -1,0 +1,503 @@
+/*
+ * LexIA UI2 — rediseño visual de escritorio, fase 3.
+ * Capa perceptible y reversible, cargada sólo por el launcher de macOS.
+ */
+html[data-lexia-app="1"] {
+  --global-side: clamp(188px, 13vw, 208px) !important;
+  --lexia-surface-page: #f6f7fc;
+  --lexia-surface-card: #ffffff;
+  --lexia-surface-soft: #f1efff;
+  --lexia-ink: #17203b;
+  --lexia-muted: #687291;
+  --lexia-line: #e0e3ef;
+  --lexia-brand: #574bfa;
+  --lexia-brand-deep: #4437df;
+  --lexia-shadow-card: 0 8px 24px rgba(33, 40, 79, .075);
+  --lexia-shadow-raised: 0 14px 34px rgba(39, 34, 105, .12);
+  --lexia-radius-card: 15px;
+  --lexia-page-gutter: clamp(20px, 2vw, 30px);
+}
+
+html[data-lexia-app="1"] body {
+  background: var(--lexia-surface-page) !important;
+  color: var(--lexia-ink) !important;
+}
+
+/* Navegación: menor huella, mayor claridad y estado activo inequívoco. */
+html[data-lexia-app="1"] #globalSidebar.global-sidebar {
+  width: var(--global-side) !important;
+  padding: 20px 13px 16px !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fbfaff 62%, #f5f2ff 100%) !important;
+  border-right: 1px solid #dddff0 !important;
+  box-shadow: 8px 0 28px rgba(40, 42, 86, .045) !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .logo {
+  gap: 10px !important;
+  padding: 0 7px 20px !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .logo .mark {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 18px rgba(81, 70, 246, .22) !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .logo .mark svg {
+  width: 23px !important;
+  height: 23px !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .logo strong {
+  font-size: 23px !important;
+  letter-spacing: -.45px !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .logo small {
+  margin-top: 1px !important;
+  font-size: 11px !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .nav {
+  gap: 6px !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .nav button {
+  min-height: 43px !important;
+  padding: 0 12px !important;
+  border: 1px solid transparent !important;
+  border-radius: 11px !important;
+  background: transparent !important;
+  color: #505a78 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  gap: 10px !important;
+  transition:
+    background-color .15s ease,
+    color .15s ease,
+    transform .15s ease !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .nav button:hover {
+  background: #eeecff !important;
+  color: #4035d3 !important;
+  transform: translateX(2px) !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .nav button.active {
+  background: linear-gradient(135deg, #5b4ffa, #4b3fe8) !important;
+  color: #fff !important;
+  border-color: #4d40ed !important;
+  box-shadow: 0 8px 18px rgba(81, 70, 246, .21) !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .nav-glyph {
+  width: 22px !important;
+  min-width: 22px !important;
+  height: 22px !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border-radius: 7px !important;
+  background: rgba(83, 72, 240, .1) !important;
+  font-size: 13px !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .nav button.active .nav-glyph {
+  background: rgba(255, 255, 255, .18) !important;
+  color: #fff !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .profile {
+  padding: 10px !important;
+  border: 1px solid #e1dfff !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, .86) !important;
+}
+
+html[data-lexia-app="1"] #globalSidebar .health {
+  padding: 11px !important;
+  border: 1px solid #dfdcff !important;
+  border-radius: 12px !important;
+  background: #f0eeff !important;
+  box-shadow: none !important;
+}
+
+/* Lienzo general: páginas distinguibles del sidebar y encabezados consistentes. */
+html[data-lexia-app="1"] #lexiaStandardsShell {
+  left: var(--global-side) !important;
+}
+
+html[data-lexia-app="1"] #maintenance {
+  padding: 0 !important;
+}
+
+html[data-lexia-app="1"] #home,
+html[data-lexia-app="1"] #searchpage,
+html[data-lexia-app="1"] #contextpage,
+html[data-lexia-app="1"] #casespage,
+html[data-lexia-app="1"] #lexiaStandardsShell,
+html[data-lexia-app="1"] #maintenance {
+  background: var(--lexia-surface-page) !important;
+}
+
+html[data-lexia-app="1"] #home .hr-content,
+html[data-lexia-app="1"] #searchpage .page,
+html[data-lexia-app="1"] #contextpage .page,
+html[data-lexia-app="1"] #casespage .cases-main {
+  padding-left: var(--lexia-page-gutter) !important;
+  padding-right: var(--lexia-page-gutter) !important;
+}
+
+html[data-lexia-app="1"] #home .hr-content > h1,
+html[data-lexia-app="1"] #searchpage .head h1,
+html[data-lexia-app="1"] #contextpage .head h1,
+html[data-lexia-app="1"] #casespage .cases-title,
+html[data-lexia-app="1"] #lexiaStandardsShell .std-title,
+html[data-lexia-app="1"] #maintenance .maint-head h1 {
+  color: #111936 !important;
+  font-size: 28px !important;
+  font-weight: 820 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -.035em !important;
+}
+
+html[data-lexia-app="1"] #home .hr-sub,
+html[data-lexia-app="1"] #searchpage .head p,
+html[data-lexia-app="1"] #contextpage .head p,
+html[data-lexia-app="1"] #lexiaStandardsShell .std-sub,
+html[data-lexia-app="1"] #maintenance .maint-head p {
+  color: var(--lexia-muted) !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+/* Inicio: buscador central fuerte y tarjetas con jerarquía real. */
+html[data-lexia-app="1"] #home .hr-search {
+  min-height: 58px !important;
+  margin-top: 18px !important;
+  padding: 7px 8px 7px 18px !important;
+  border: 1px solid #d9dbea !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #home .hr-search input {
+  min-height: 42px !important;
+  font-size: 14px !important;
+}
+
+html[data-lexia-app="1"] #home .hr-search button {
+  min-width: 118px !important;
+  min-height: 42px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  box-shadow: 0 7px 16px rgba(81, 70, 246, .2) !important;
+}
+
+html[data-lexia-app="1"] #home .hr-search kbd {
+  display: none !important;
+}
+
+html[data-lexia-app="1"] #home .hr-metrics {
+  margin-top: 16px !important;
+  gap: 12px !important;
+}
+
+html[data-lexia-app="1"] #home .hr-metrics article,
+html[data-lexia-app="1"] #home .hr-card {
+  border: 1px solid var(--lexia-line) !important;
+  border-radius: var(--lexia-radius-card) !important;
+  background: var(--lexia-surface-card) !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #home .hr-metrics article {
+  position: relative !important;
+  min-height: 176px !important;
+  height: 176px !important;
+  padding: 15px !important;
+  overflow: hidden !important;
+}
+
+html[data-lexia-app="1"] #home .hr-metrics article::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  height: 4px !important;
+  background: linear-gradient(90deg, #574bfa, #9a91ff) !important;
+}
+
+html[data-lexia-app="1"] #home .hr-mhead {
+  font-size: 13px !important;
+  font-weight: 750 !important;
+}
+
+html[data-lexia-app="1"] #home .hr-mhead i {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+}
+
+html[data-lexia-app="1"] #home .hr-metrics strong {
+  margin-top: 12px !important;
+  font-size: 29px !important;
+  letter-spacing: -.03em !important;
+}
+
+html[data-lexia-app="1"] #home .hr-lower {
+  margin-top: 12px !important;
+  gap: 12px !important;
+}
+
+html[data-lexia-app="1"] #home .hr-lower .hr-card {
+  height: clamp(300px, 37vh, 360px) !important;
+  min-height: 300px !important;
+  max-height: 360px !important;
+  padding: 16px !important;
+}
+
+html[data-lexia-app="1"] #home .hr-card-title {
+  min-height: 36px !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid #eceef5 !important;
+}
+
+html[data-lexia-app="1"] #home .hr-card-title b {
+  font-size: 15px !important;
+}
+
+html[data-lexia-app="1"] #home .hr-row {
+  min-height: 57px !important;
+  border-radius: 9px !important;
+  padding: 4px 6px !important;
+}
+
+/* Buscar: el formulario y los tres paneles se leen como un espacio de trabajo. */
+html[data-lexia-app="1"] #searchpage .search-hero,
+html[data-lexia-app="1"] #searchpage .lexia-nav-panel {
+  border: 1px solid var(--lexia-line) !important;
+  border-radius: var(--lexia-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #searchpage .search-hero {
+  padding: 16px !important;
+  margin-top: 14px !important;
+}
+
+html[data-lexia-app="1"] #searchpage .lexia-navigator-view {
+  gap: 14px !important;
+  margin-top: 14px !important;
+}
+
+html[data-lexia-app="1"] #searchpage .lexia-nav-panel-head {
+  min-height: 62px !important;
+  padding: 14px 16px !important;
+  background: linear-gradient(180deg, #fbfaff, #f6f5ff) !important;
+}
+
+html[data-lexia-app="1"] #searchpage .lexia-nav-panel-head h3 {
+  font-size: 15px !important;
+}
+
+html[data-lexia-app="1"] #searchpage .result-card,
+html[data-lexia-app="1"] #searchpage .lexia-nav-file-row {
+  border: 1px solid #e5e7f0 !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  box-shadow: 0 3px 12px rgba(33, 40, 79, .045) !important;
+}
+
+/* Investigación: encabezado, pestañas y paneles con jerarquía más marcada. */
+html[data-lexia-app="1"] #contextpage .investigation-tabs {
+  min-height: 40px !important;
+  margin-top: 12px !important;
+  padding: 4px !important;
+  gap: 4px !important;
+  border: 1px solid #dfdff0 !important;
+  border-radius: 11px !important;
+  background: #eeedf8 !important;
+}
+
+html[data-lexia-app="1"] #contextpage .investigation-tab {
+  min-height: 32px !important;
+  padding: 7px 13px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+}
+
+html[data-lexia-app="1"] #contextpage .investigation-tab.active {
+  background: #fff !important;
+  color: #4337dc !important;
+  box-shadow: 0 3px 10px rgba(50, 47, 103, .11) !important;
+}
+
+html[data-lexia-app="1"] #contextpage .context-grid {
+  gap: 14px !important;
+  margin-top: 14px !important;
+}
+
+html[data-lexia-app="1"] #contextpage .context-form,
+html[data-lexia-app="1"] #contextpage .context-side,
+html[data-lexia-app="1"] #contextpage .output-card,
+html[data-lexia-app="1"] #contextpage #aiProcessCard {
+  border: 1px solid var(--lexia-line) !important;
+  border-radius: var(--lexia-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #contextpage .context-form,
+html[data-lexia-app="1"] #contextpage .context-side {
+  padding: 18px !important;
+}
+
+html[data-lexia-app="1"] #contextpage .context-form h3,
+html[data-lexia-app="1"] #contextpage .context-side h3 {
+  font-size: 16px !important;
+  margin-bottom: 13px !important;
+}
+
+html[data-lexia-app="1"] #contextpage .source-item {
+  border: 1px solid #e2e4ee !important;
+  border-radius: 11px !important;
+  background: #fdfdff !important;
+  box-shadow: 0 3px 10px rgba(38, 43, 84, .04) !important;
+}
+
+/* Casos: árbol legible, editor dominante y fuentes claramente separadas. */
+html[data-lexia-app="1"] #casespage .cases-main {
+  padding-top: 22px !important;
+  padding-bottom: 30px !important;
+}
+
+html[data-lexia-app="1"] #casespage .cases-toolbar {
+  padding: 12px !important;
+  border: 1px solid var(--lexia-line) !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #casespage .case-tree,
+html[data-lexia-app="1"] #casespage .case-workspace {
+  border: 1px solid var(--lexia-line) !important;
+  border-radius: var(--lexia-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #casespage .case-tree {
+  padding: 16px !important;
+}
+
+html[data-lexia-app="1"] #casespage .case-tree-head h2 {
+  font-size: 16px !important;
+}
+
+html[data-lexia-app="1"] #casespage .primary-branch {
+  margin-bottom: 8px !important;
+  border-radius: 10px !important;
+}
+
+html[data-lexia-app="1"] #casespage .primary-head {
+  min-height: 42px !important;
+  padding: 9px 11px !important;
+}
+
+html[data-lexia-app="1"] #casespage .branch-title b,
+html[data-lexia-app="1"] #casespage .question-row b {
+  font-size: 12px !important;
+}
+
+html[data-lexia-app="1"] #casespage .workspace-head {
+  padding: 17px 19px !important;
+  background: linear-gradient(180deg, #fbfaff, #f6f5ff) !important;
+}
+
+html[data-lexia-app="1"] #casespage .workspace-head h2 {
+  font-size: 18px !important;
+}
+
+html[data-lexia-app="1"] #casespage .workspace-editor {
+  padding: 20px !important;
+}
+
+html[data-lexia-app="1"] #casespage .workspace-sources {
+  padding: 18px !important;
+  background: #f7f7fc !important;
+}
+
+/* Estándares y Mantenimiento: misma familia visual que el resto. */
+html[data-lexia-app="1"] #lexiaStandardsShell .std-wrap,
+html[data-lexia-app="1"] #maintenance .maint-wrap {
+  padding: 22px var(--lexia-page-gutter) 34px !important;
+}
+
+html[data-lexia-app="1"] #lexiaStandardsShell .std-search,
+html[data-lexia-app="1"] #lexiaStandardsShell .std-list,
+html[data-lexia-app="1"] #lexiaStandardsShell .std-detail,
+html[data-lexia-app="1"] #maintenance .maint-card {
+  border: 1px solid var(--lexia-line) !important;
+  border-radius: var(--lexia-radius-card) !important;
+  background: #fff !important;
+  box-shadow: var(--lexia-shadow-card) !important;
+}
+
+html[data-lexia-app="1"] #lexiaStandardsShell .std-search {
+  padding: 18px !important;
+}
+
+html[data-lexia-app="1"] #maintenance .maint-tabs {
+  padding: 4px !important;
+  border: 1px solid #dfdff0 !important;
+  border-radius: 11px !important;
+  background: #eeedf8 !important;
+}
+
+html[data-lexia-app="1"] #maintenance .maint-tab {
+  border-radius: 8px !important;
+  border-bottom: 0 !important;
+}
+
+html[data-lexia-app="1"] #maintenance .maint-tab.active {
+  background: #fff !important;
+  color: #4337dc !important;
+  box-shadow: 0 3px 10px rgba(50, 47, 103, .11) !important;
+}
+
+@media (min-width: 1200px) {
+  html[data-lexia-app="1"] #searchpage .lexia-navigator-view {
+    grid-template-columns:
+      minmax(190px, .23fr)
+      minmax(0, 1fr)
+      minmax(350px, .44fr) !important;
+  }
+
+  html[data-lexia-app="1"] #contextpage:not(.lexia-source-review) .context-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(370px, .65fr) !important;
+  }
+
+  html[data-lexia-app="1"] #casespage .workspace-layout {
+    grid-template-columns: minmax(0, 1.65fr) minmax(330px, .75fr) !important;
+  }
+
+  html[data-lexia-app="1"] #maintenance .maint-grid {
+    grid-template-columns: minmax(0, 1.7fr) minmax(310px, .75fr) !important;
+  }
+}
+
+@media (max-width: 1199px) {
+  html[data-lexia-app="1"] {
+    --lexia-page-gutter: 16px;
+  }
+
+  html[data-lexia-app="1"] #home .hr-metrics article {
+    height: auto !important;
+    min-height: 164px !important;
+  }
+}
