@@ -67,4 +67,4 @@ def test_phase2_is_an_independent_reversible_layer() -> None:
     assert LAYOUT.exists()
     assert FOUNDATION != LAYOUT
     launcher = LAUNCHER.read_text(encoding="utf-8")
-    assert launcher.count("desktop_ui_layout_phase2.css") == 2
+    assert launcher.count("desktop_ui_layout_phase2.css") == 3
