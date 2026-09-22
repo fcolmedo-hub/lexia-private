@@ -1,7 +1,7 @@
 from zipfile import ZipFile
 
 from docx import Document as DocxDocument
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.shared import Cm, Mm, Pt
 
@@ -34,19 +34,21 @@ def test_export_uses_fixed_a4_mirrored_margins(tmp_path):
     assert "<w:mirrorMargins" in settings
 
 
-def test_export_uses_times_new_roman_12_and_one_point_five_spacing(tmp_path):
+def test_export_uses_times_new_roman_12_and_26_line_pitch(tmp_path):
     _path, document = _export(tmp_path)
     normal = document.styles["Normal"]
     assert normal.font.name == "Times New Roman"
     assert normal.font.size == Pt(12)
-    assert normal.paragraph_format.line_spacing == 1.5
+    assert normal.paragraph_format.line_spacing == Pt(25.8)
+    assert normal.paragraph_format.line_spacing_rule == WD_LINE_SPACING.EXACTLY
 
     body = next(
         paragraph for paragraph in document.paragraphs
         if paragraph.text == "Texto de la contestación."
     )
     assert body.alignment == WD_ALIGN_PARAGRAPH.JUSTIFY
-    assert body.paragraph_format.line_spacing == 1.5
+    assert body.paragraph_format.line_spacing == Pt(25.8)
+    assert body.paragraph_format.line_spacing_rule == WD_LINE_SPACING.EXACTLY
     assert body.paragraph_format.space_before == Pt(0)
     assert body.paragraph_format.space_after == Pt(0)
     assert abs(body.paragraph_format.first_line_indent - Cm(1.5)) < 1000
@@ -63,13 +65,38 @@ def test_export_indents_only_body_paragraphs(tmp_path):
         tmp_path,
         "# CONTESTA TRASLADO\n\nTexto del cuerpo.\n- Elemento enumerado.",
     )
-    title, heading, blank, body, bullet = document.paragraphs
+    title, heading, body, bullet = document.paragraphs
 
     assert title.paragraph_format.first_line_indent == 0
     assert heading.paragraph_format.first_line_indent == 0
-    assert blank.paragraph_format.first_line_indent == 0
     assert abs(body.paragraph_format.first_line_indent - Cm(1.5)) < 1000
     assert bullet.paragraph_format.first_line_indent == 0
+
+
+def test_export_formats_legal_title_chapters_and_subchapters(tmp_path):
+    _path, document = _export(
+        tmp_path,
+        "# agravios\n## Errónea fecha de ingreso\n"
+        "5.2) Incorrecta valoración de la prueba\nTexto del cuerpo.",
+    )
+    title, chapter, generated_subchapter, explicit_subchapter, body = document.paragraphs
+
+    assert title.text == "CONTESTACIÓN · AUDIENCIA"
+    assert title.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+    assert title.runs[0].underline is True
+
+    assert chapter.text == "I - AGRAVIOS"
+    assert chapter.alignment == WD_ALIGN_PARAGRAPH.CENTER
+    assert chapter.style.name == "Heading 1"
+
+    assert generated_subchapter.text == "1.1) Errónea fecha de ingreso."
+    assert generated_subchapter.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+    assert generated_subchapter.style.name == "Heading 2"
+    assert abs(generated_subchapter.paragraph_format.first_line_indent - Cm(1.5)) < 1000
+
+    assert explicit_subchapter.text == "5.2) Incorrecta valoración de la prueba."
+    assert explicit_subchapter.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+    assert body.text == "Texto del cuerpo."
 
 
 def test_export_sets_26_line_grid_and_footer_page_number(tmp_path):

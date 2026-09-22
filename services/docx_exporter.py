@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 
 from docx import Document as DocxDocument
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Mm, Pt, RGBColor
@@ -19,7 +19,9 @@ class DocxExporter:
     BOTTOM_MARGIN_CM = 2
     INNER_MARGIN_CM = 4
     OUTER_MARGIN_CM = 2
-    LINE_SPACING = 1.5
+    # 516 twips: allows 26 effective text lines with the court margins below.
+    # 517 twips makes Word/LibreOffice drop an additional line on many pages.
+    LINE_PITCH_PT = 25.8
     FIRST_LINE_INDENT_CM = 1.5
     MAX_LINES_PER_PAGE = 26
     FOOTER_GAP_FROM_TEXT_CM = 0.8
@@ -35,22 +37,32 @@ class DocxExporter:
 
         document = DocxDocument()
         self._configure_document(document)
-        self._add_paragraph(document, str(title or "").strip(), "Title", bold=True)
+        self._add_paragraph(
+            document,
+            str(title or "").strip().upper(),
+            "Title",
+            underline=True,
+        )
 
         for kind, text, level in self._content_blocks(content):
-            if kind == "blank":
-                self._add_paragraph(document, "", "Normal")
-            elif kind == "heading":
+            if kind == "chapter":
                 self._add_paragraph(
                     document,
                     text,
-                    f"Heading {min(max(level, 1), 3)}",
+                    "Heading 1",
                     bold=True,
+                )
+            elif kind == "subchapter":
+                self._add_paragraph(
+                    document,
+                    text,
+                    f"Heading {min(max(level, 2), 3)}",
+                    first_line_indent=True,
                 )
             elif kind == "bullet":
                 self._add_paragraph(document, "• " + text, "Normal")
             elif kind == "number":
-                self._add_paragraph(document, f"{level}. {text}", "Normal")
+                self._add_paragraph(document, text, "Normal")
             else:
                 self._add_paragraph(
                     document,
@@ -117,22 +129,25 @@ class DocxExporter:
             style = document.styles[style_name]
             self._set_style_font(style)
             paragraph_format = style.paragraph_format
-            paragraph_format.line_spacing = self.LINE_SPACING
+            paragraph_format.line_spacing = Pt(self.LINE_PITCH_PT)
+            paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
             paragraph_format.space_before = Pt(0)
             paragraph_format.space_after = Pt(0)
             paragraph_format.keep_with_next = False
-            self._snap_to_grid(style.element.get_or_add_pPr())
+            self._disable_grid_snapping(style.element.get_or_add_pPr())
 
         document.styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        document.styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        document.styles["Title"].font.bold = True
+        document.styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        document.styles["Title"].font.bold = False
         title_properties = document.styles["Title"].element.get_or_add_pPr()
         title_border = title_properties.find(qn("w:pBdr"))
         if title_border is not None:
             title_properties.remove(title_border)
-        for style_name in ("Heading 1", "Heading 2", "Heading 3"):
-            document.styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            document.styles[style_name].font.bold = True
+        document.styles["Heading 1"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        document.styles["Heading 1"].font.bold = True
+        for style_name in ("Heading 2", "Heading 3"):
+            document.styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            document.styles[style_name].font.bold = False
 
     def _set_style_font(self, style):
         style.font.name = self.FONT_NAME
@@ -157,10 +172,12 @@ class DocxExporter:
         style,
         *,
         bold=False,
+        underline=False,
         first_line_indent=False,
     ):
         paragraph = document.add_paragraph(style=style)
-        paragraph.paragraph_format.line_spacing = self.LINE_SPACING
+        paragraph.paragraph_format.line_spacing = Pt(self.LINE_PITCH_PT)
+        paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.paragraph_format.keep_with_next = False
@@ -169,20 +186,38 @@ class DocxExporter:
         )
         if style == "Normal":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        self._snap_to_grid(paragraph._p.get_or_add_pPr())
+        elif style == "Title":
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        elif style == "Heading 1":
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif style in ("Heading 2", "Heading 3"):
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        self._disable_grid_snapping(paragraph._p.get_or_add_pPr())
         if text:
-            self._write_rich_text(paragraph, text, force_bold=bold)
+            self._write_rich_text(
+                paragraph,
+                text,
+                force_bold=bold,
+                force_underline=underline,
+            )
         return paragraph
 
     @staticmethod
-    def _snap_to_grid(paragraph_properties):
+    def _disable_grid_snapping(paragraph_properties):
         snap = paragraph_properties.find(qn("w:snapToGrid"))
         if snap is None:
             snap = OxmlElement("w:snapToGrid")
             paragraph_properties.append(snap)
-        snap.set(qn("w:val"), "1")
+        snap.set(qn("w:val"), "0")
 
-    def _write_rich_text(self, paragraph, text, *, force_bold=False):
+    def _write_rich_text(
+        self,
+        paragraph,
+        text,
+        *,
+        force_bold=False,
+        force_underline=False,
+    ):
         parts = re.split(r"(\*\*.+?\*\*|(?<!\*)\*[^*]+?\*(?!\*))", str(text or ""))
         for part in parts:
             if not part:
@@ -200,6 +235,8 @@ class DocxExporter:
             self._set_run_font(run)
             if bold:
                 run.bold = True
+            if force_underline:
+                run.underline = True
             if italic:
                 run.italic = True
 
@@ -246,26 +283,97 @@ class DocxExporter:
             settings.append(update)
         update.set(qn("w:val"), "true")
 
-    @staticmethod
-    def _content_blocks(content):
-        number_pattern = re.compile(r"^(\d+)[.)]\s+(.*)$")
+    @classmethod
+    def _content_blocks(cls, content):
+        number_pattern = re.compile(r"^(\d+[.)])\s+(.*)$")
+        subchapter_pattern = re.compile(r"^(\d+(?:\.\d+)*)\)\s*(.*)$")
+        chapter_pattern = re.compile(
+            r"^([IVXLCDM]+)\s*[-–—]\s*(.*)$",
+            re.IGNORECASE,
+        )
         blocks = []
+        chapter_number = 0
+        subchapter_number = 0
         for raw_line in str(content or "").splitlines():
-            line = raw_line.rstrip()
+            line = raw_line.strip()
             if not line:
-                blocks.append(("blank", "", 0))
-            elif line.startswith("### "):
-                blocks.append(("heading", line[4:].strip(), 3))
+                continue
+
+            heading_level = 0
+            heading_text = line
+            if line.startswith("### "):
+                heading_level, heading_text = 3, line[4:].strip()
             elif line.startswith("## "):
-                blocks.append(("heading", line[3:].strip(), 2))
+                heading_level, heading_text = 2, line[3:].strip()
             elif line.startswith("# "):
-                blocks.append(("heading", line[2:].strip(), 1))
+                heading_level, heading_text = 1, line[2:].strip()
+
+            explicit_chapter = chapter_pattern.match(heading_text)
+            explicit_subchapter = subchapter_pattern.match(heading_text)
+            if heading_level == 1 or (not heading_level and explicit_chapter):
+                if explicit_chapter:
+                    roman = explicit_chapter.group(1).upper()
+                    chapter_number = cls._roman_to_int(roman) or chapter_number + 1
+                    chapter_title = explicit_chapter.group(2).strip()
+                else:
+                    chapter_number += 1
+                    roman = cls._int_to_roman(chapter_number)
+                    chapter_title = heading_text
+                subchapter_number = 0
+                blocks.append(
+                    ("chapter", f"{roman} - {chapter_title.upper()}", 1)
+                )
+            elif heading_level in (2, 3) or (not heading_level and explicit_subchapter):
+                if explicit_subchapter:
+                    prefix = explicit_subchapter.group(1)
+                    subchapter_title = explicit_subchapter.group(2).strip()
+                else:
+                    if chapter_number < 1:
+                        chapter_number = 1
+                    subchapter_number += 1
+                    prefix = f"{chapter_number}.{subchapter_number}"
+                    subchapter_title = heading_text
+                if subchapter_title and subchapter_title[-1] not in ".?!":
+                    subchapter_title += "."
+                blocks.append(
+                    ("subchapter", f"{prefix}) {subchapter_title}".rstrip(), heading_level or 2)
+                )
             elif line.startswith("- "):
                 blocks.append(("bullet", line[2:].strip(), 0))
             else:
                 numbered = number_pattern.match(line)
                 if numbered:
-                    blocks.append(("number", numbered.group(2).strip(), int(numbered.group(1))))
+                    blocks.append(
+                        ("number", f"{numbered.group(1)} {numbered.group(2).strip()}", 0)
+                    )
                 else:
                     blocks.append(("body", line, 0))
         return blocks
+
+    @staticmethod
+    def _int_to_roman(number):
+        values = (
+            (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+            (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+            (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+        )
+        remaining = max(1, int(number or 1))
+        result = []
+        for value, symbol in values:
+            while remaining >= value:
+                result.append(symbol)
+                remaining -= value
+        return "".join(result)
+
+    @staticmethod
+    def _roman_to_int(value):
+        digits = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+        total = previous = 0
+        for char in reversed(str(value or "").upper()):
+            current = digits.get(char, 0)
+            if current < previous:
+                total -= current
+            else:
+                total += current
+                previous = current
+        return total
