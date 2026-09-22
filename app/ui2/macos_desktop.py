@@ -164,6 +164,7 @@ def ensure_ui_assets(root: Path) -> str | None:
     research_results = here / "assets" / "research_results.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
     desktop_ui_foundation = here / "assets" / "desktop_ui_foundation.css"
+    desktop_ui_layout = here / "assets" / "desktop_ui_layout_phase2.css"
     if not (
         index.exists()
         and jurisprudence.exists()
@@ -184,6 +185,12 @@ def ensure_ui_assets(root: Path) -> str | None:
         version = hashlib.sha256(desktop_ui_foundation.read_bytes()).hexdigest()[:12]
         head_tags.append(
             f'<link rel="stylesheet" href="assets/desktop_ui_foundation.css?v=desktop-ui-{version}">'
+        )
+
+    if desktop_ui_layout.exists() and "assets/desktop_ui_layout_phase2.css" not in patched:
+        version = hashlib.sha256(desktop_ui_layout.read_bytes()).hexdigest()[:12]
+        head_tags.append(
+            f'<link rel="stylesheet" href="assets/desktop_ui_layout_phase2.css?v=desktop-ui-layout-{version}">'
         )
 
     if "assets/jurisprudence_search.js" not in patched:
