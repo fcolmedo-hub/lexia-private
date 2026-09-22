@@ -83,6 +83,7 @@ def test_export_formats_legal_title_chapters_and_subchapters(tmp_path):
 
     assert title.text == "CONTESTACIÓN · AUDIENCIA"
     assert title.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+    assert title.runs[0].bold is True
     assert title.runs[0].underline is True
 
     assert chapter.text == "I - AGRAVIOS"

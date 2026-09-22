@@ -41,6 +41,7 @@ class DocxExporter:
             document,
             str(title or "").strip().upper(),
             "Title",
+            bold=True,
             underline=True,
         )
 
@@ -138,7 +139,7 @@ class DocxExporter:
 
         document.styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         document.styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        document.styles["Title"].font.bold = False
+        document.styles["Title"].font.bold = True
         title_properties = document.styles["Title"].element.get_or_add_pPr()
         title_border = title_properties.find(qn("w:pBdr"))
         if title_border is not None:
