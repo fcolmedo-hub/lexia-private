@@ -52,12 +52,14 @@ class DocxExporter:
                     text,
                     "Heading 1",
                     bold=True,
+                    underline=True,
                 )
             elif kind == "subchapter":
                 self._add_paragraph(
                     document,
                     text,
                     f"Heading {min(max(level, 2), 3)}",
+                    bold=True,
                     left_indent=True,
                 )
             elif kind == "bullet":
@@ -146,12 +148,14 @@ class DocxExporter:
             title_properties.remove(title_border)
         document.styles["Heading 1"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         document.styles["Heading 1"].font.bold = True
+        document.styles["Heading 1"].font.underline = True
         for style_name in ("Heading 2", "Heading 3"):
             document.styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
             document.styles[style_name].paragraph_format.left_indent = Cm(
                 self.FIRST_LINE_INDENT_CM
             )
-            document.styles[style_name].font.bold = False
+            document.styles[style_name].font.bold = True
+            document.styles[style_name].font.underline = False
 
     def _set_style_font(self, style):
         style.font.name = self.FONT_NAME

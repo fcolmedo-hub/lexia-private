@@ -89,15 +89,21 @@ def test_export_formats_legal_title_chapters_and_subchapters(tmp_path):
     assert chapter.text == "I - AGRAVIOS"
     assert chapter.alignment == WD_ALIGN_PARAGRAPH.CENTER
     assert chapter.style.name == "Heading 1"
+    assert chapter.runs[0].bold is True
+    assert chapter.runs[0].underline is True
 
     assert generated_subchapter.text == "1.1) Errónea fecha de ingreso."
     assert generated_subchapter.alignment == WD_ALIGN_PARAGRAPH.LEFT
     assert generated_subchapter.style.name == "Heading 2"
+    assert generated_subchapter.runs[0].bold is True
+    assert generated_subchapter.runs[0].underline is not True
     assert generated_subchapter.paragraph_format.first_line_indent == 0
     assert abs(generated_subchapter.paragraph_format.left_indent - Cm(1.5)) < 1000
 
     assert explicit_subchapter.text == "5.2) Incorrecta valoración de la prueba."
     assert explicit_subchapter.alignment == WD_ALIGN_PARAGRAPH.LEFT
+    assert explicit_subchapter.runs[0].bold is True
+    assert explicit_subchapter.runs[0].underline is not True
     assert explicit_subchapter.paragraph_format.first_line_indent == 0
     assert abs(explicit_subchapter.paragraph_format.left_indent - Cm(1.5)) < 1000
     assert body.text == "Texto del cuerpo."
