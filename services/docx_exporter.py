@@ -13,6 +13,7 @@ class DocxExporter:
 
     FONT_NAME = "Times New Roman"
     FONT_SIZE_PT = 12
+    LANGUAGE_TAG = "es-ES"
     PAGE_WIDTH_MM = 210
     PAGE_HEIGHT_MM = 297
     TOP_MARGIN_CM = 4
@@ -45,8 +46,11 @@ class DocxExporter:
             underline=True,
         )
 
+        has_content = False
         for kind, text, level in self._content_blocks(content):
             if kind == "chapter":
+                if has_content:
+                    self._add_paragraph(document, "", "Normal")
                 self._add_paragraph(
                     document,
                     text,
@@ -73,6 +77,7 @@ class DocxExporter:
                     "Normal",
                     first_line_indent=True,
                 )
+            has_content = True
 
         document.save(path)
         return path
@@ -172,6 +177,7 @@ class DocxExporter:
         if color is not None:
             color.set(qn("w:val"), "000000")
             color.attrib.pop(qn("w:themeColor"), None)
+        self._set_language(run_properties)
 
     def _add_paragraph(
         self,
@@ -263,6 +269,16 @@ class DocxExporter:
             properties.insert(0, fonts)
         for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
             fonts.set(qn(f"w:{attribute}"), self.FONT_NAME)
+        self._set_language(properties)
+
+    def _set_language(self, run_properties):
+        language = run_properties.find(qn("w:lang"))
+        if language is None:
+            language = OxmlElement("w:lang")
+            run_properties.append(language)
+        language.set(qn("w:val"), self.LANGUAGE_TAG)
+        language.set(qn("w:eastAsia"), self.LANGUAGE_TAG)
+        language.set(qn("w:bidi"), self.LANGUAGE_TAG)
 
     def _add_page_number(self, section):
         paragraph = section.footer.paragraphs[0]

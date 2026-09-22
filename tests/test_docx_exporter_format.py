@@ -73,6 +73,44 @@ def test_export_indents_only_body_paragraphs(tmp_path):
     assert bullet.paragraph_format.first_line_indent == 0
 
 
+def test_export_inserts_one_blank_line_before_each_later_chapter(tmp_path):
+    _path, document = _export(
+        tmp_path,
+        "I - PRIMER CAPÍTULO\nÚltima oración del primer capítulo.\n"
+        "II - SEGUNDO CAPÍTULO\nTexto del segundo capítulo.",
+    )
+
+    texts = [paragraph.text for paragraph in document.paragraphs]
+    assert texts == [
+        "CONTESTACIÓN · AUDIENCIA",
+        "I - PRIMER CAPÍTULO",
+        "Última oración del primer capítulo.",
+        "",
+        "II - SEGUNDO CAPÍTULO",
+        "Texto del segundo capítulo.",
+    ]
+    blank_line = document.paragraphs[3]
+    assert blank_line.style.name == "Normal"
+    assert blank_line.paragraph_format.line_spacing == Pt(25.8)
+
+
+def test_export_sets_spanish_spain_language_for_styles_and_runs(tmp_path):
+    _path, document = _export(tmp_path)
+
+    for style_name in ("Normal", "Title", "Heading 1", "Heading 2", "Heading 3"):
+        language = document.styles[style_name].element.rPr.find(qn("w:lang"))
+        assert language is not None
+        assert language.get(qn("w:val")) == "es-ES"
+        assert language.get(qn("w:eastAsia")) == "es-ES"
+        assert language.get(qn("w:bidi")) == "es-ES"
+
+    for paragraph in document.paragraphs:
+        for run in paragraph.runs:
+            language = run._r.rPr.find(qn("w:lang"))
+            assert language is not None
+            assert language.get(qn("w:val")) == "es-ES"
+
+
 def test_export_formats_legal_title_chapters_and_subchapters(tmp_path):
     _path, document = _export(
         tmp_path,
