@@ -163,9 +163,6 @@ def ensure_ui_assets(root: Path) -> str | None:
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     research_results = here / "assets" / "research_results.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
-    desktop_ui_foundation = here / "assets" / "desktop_ui_foundation.css"
-    desktop_ui_layout = here / "assets" / "desktop_ui_layout_phase2.css"
-    desktop_ui_redesign = here / "assets" / "desktop_ui_redesign_phase3.css"
     if not (
         index.exists()
         and jurisprudence.exists()
@@ -181,24 +178,6 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if startup_frame_guard.exists() and "assets/startup_frame_guard.css" not in patched:
         head_tags.append('<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">')
-
-    if desktop_ui_foundation.exists() and "assets/desktop_ui_foundation.css" not in patched:
-        version = hashlib.sha256(desktop_ui_foundation.read_bytes()).hexdigest()[:12]
-        head_tags.append(
-            f'<link rel="stylesheet" href="assets/desktop_ui_foundation.css?v=desktop-ui-{version}">'
-        )
-
-    if desktop_ui_layout.exists() and "assets/desktop_ui_layout_phase2.css" not in patched:
-        version = hashlib.sha256(desktop_ui_layout.read_bytes()).hexdigest()[:12]
-        head_tags.append(
-            f'<link rel="stylesheet" href="assets/desktop_ui_layout_phase2.css?v=desktop-ui-layout-{version}">'
-        )
-
-    if desktop_ui_redesign.exists() and "assets/desktop_ui_redesign_phase3.css" not in patched:
-        version = hashlib.sha256(desktop_ui_redesign.read_bytes()).hexdigest()[:12]
-        head_tags.append(
-            f'<link rel="stylesheet" href="assets/desktop_ui_redesign_phase3.css?v=desktop-ui-redesign-{version}">'
-        )
 
     if "assets/jurisprudence_search.js" not in patched:
         body_tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
