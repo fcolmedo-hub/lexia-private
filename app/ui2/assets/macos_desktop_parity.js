@@ -246,11 +246,75 @@
       #home .hr-lower>.hr-card:nth-child(2) .hr-row>i {
         background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235146f6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3h7l4 4v14H7z'/%3E%3Cpath d='M14 3v5h4'/%3E%3Cpath d='M10 12h5M10 16h5'/%3E%3C/svg%3E")!important;
       }
+
+      /* El resaltado vive en la lista, no en la fila reemplazada por /api/live. */
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-scroll-list {
+        position:relative!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-scroll-list::before {
+        content:""!important;
+        position:absolute!important;
+        z-index:0!important;
+        top:var(--lexia-home-hover-top, 0px)!important;
+        left:2px!important;
+        right:8px!important;
+        height:var(--lexia-home-hover-height, 0px)!important;
+        border-radius:8px!important;
+        background:#f0efff!important;
+        box-shadow:inset 3px 0 0 #6258ff!important;
+        opacity:0!important;
+        pointer-events:none!important;
+        transition:none!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-scroll-list.lexia-home-hover-active::before {
+        opacity:1!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-scroll-list .hr-row {
+        position:relative!important;
+        z-index:1!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-scroll-list .hr-row:hover {
+        background:transparent!important;
+        box-shadow:none!important;
+        transform:none!important;
+        transition:none!important;
+      }
     `;
     document.head.appendChild(style);
   }
 
+
+  // El refresco heredado reemplaza las filas cada pocos segundos. Mantener el
+  // resaltado en la lista evita que el hover parpadee al cambiar esos nodos.
+  const homeRecentHoverLists = new WeakSet();
+
+  const clearHomeRecentHover = list => {
+    list.classList.remove('lexia-home-hover-active');
+    list.style.removeProperty('--lexia-home-hover-top');
+    list.style.removeProperty('--lexia-home-hover-height');
+  };
+
+  const installStableHomeRecentHover = () => {
+    document.addEventListener('pointerover', event => {
+      const row = event.target?.closest?.('#home .hr-scroll-list .hr-row');
+      if (!row) return;
+      const list = row.closest('.hr-scroll-list');
+      if (!list) return;
+
+      if (!homeRecentHoverLists.has(list)) {
+        homeRecentHoverLists.add(list);
+        list.addEventListener('pointerleave', () => clearHomeRecentHover(list));
+        list.addEventListener('scroll', () => clearHomeRecentHover(list), {passive: true});
+      }
+
+      list.style.setProperty('--lexia-home-hover-top', row.offsetTop + 'px');
+      list.style.setProperty('--lexia-home-hover-height', row.offsetHeight + 'px');
+      list.classList.add('lexia-home-hover-active');
+    }, true);
+  };
+
   paintActions(document);
+  installStableHomeRecentHover();
   document.addEventListener('pointerover', event => {
     const card = event.target?.closest?.('#searchpage .result-card');
     if (card) paintActions(card);

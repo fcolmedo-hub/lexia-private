@@ -30,3 +30,15 @@ def test_home_fix_does_not_add_observers_or_polling() -> None:
     source = PARITY.read_text(encoding="utf-8")
     assert "MutationObserver" not in source
     assert "setInterval" not in source
+
+
+def test_recent_hover_survives_live_row_replacement() -> None:
+    source = PARITY.read_text(encoding="utf-8")
+    assert "installStableHomeRecentHover" in source
+    assert "lexia-home-hover-active" in source
+    assert "--lexia-home-hover-top" in source
+    assert "--lexia-home-hover-height" in source
+    assert "row.offsetTop" in source
+    assert "row.offsetHeight" in source
+    assert "pointerleave" in source
+    assert "transition:none!important" in source
