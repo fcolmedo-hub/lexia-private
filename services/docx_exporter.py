@@ -58,7 +58,7 @@ class DocxExporter:
                     document,
                     text,
                     f"Heading {min(max(level, 2), 3)}",
-                    first_line_indent=True,
+                    left_indent=True,
                 )
             elif kind == "bullet":
                 self._add_paragraph(document, "• " + text, "Normal")
@@ -147,7 +147,10 @@ class DocxExporter:
         document.styles["Heading 1"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         document.styles["Heading 1"].font.bold = True
         for style_name in ("Heading 2", "Heading 3"):
-            document.styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            document.styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            document.styles[style_name].paragraph_format.left_indent = Cm(
+                self.FIRST_LINE_INDENT_CM
+            )
             document.styles[style_name].font.bold = False
 
     def _set_style_font(self, style):
@@ -175,6 +178,7 @@ class DocxExporter:
         bold=False,
         underline=False,
         first_line_indent=False,
+        left_indent=False,
     ):
         paragraph = document.add_paragraph(style=style)
         paragraph.paragraph_format.line_spacing = Pt(self.LINE_PITCH_PT)
@@ -185,6 +189,9 @@ class DocxExporter:
         paragraph.paragraph_format.first_line_indent = Cm(
             self.FIRST_LINE_INDENT_CM if first_line_indent else 0
         )
+        paragraph.paragraph_format.left_indent = Cm(
+            self.FIRST_LINE_INDENT_CM if left_indent else 0
+        )
         if style == "Normal":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         elif style == "Title":
@@ -192,7 +199,7 @@ class DocxExporter:
         elif style == "Heading 1":
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         elif style in ("Heading 2", "Heading 3"):
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
         self._disable_grid_snapping(paragraph._p.get_or_add_pPr())
         if text:
             self._write_rich_text(
