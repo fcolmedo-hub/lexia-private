@@ -171,6 +171,81 @@
         background:#f4f3ff!important;
         border-color:#d8d3ff!important;
       }
+
+      /* Inicio macOS: el lienzo no debe desplazarse; sólo las listas recientes. */
+      #home {
+        height:100vh!important;
+        min-height:0!important;
+        overflow-x:hidden!important;
+        overflow-y:hidden!important;
+      }
+      #home .home-real,
+      #home .hr-main {
+        height:100%!important;
+        min-height:0!important;
+        overflow:hidden!important;
+      }
+      #home .hr-content {
+        box-sizing:border-box!important;
+        height:100%!important;
+        min-height:0!important;
+        overflow:hidden!important;
+        display:flex!important;
+        flex-direction:column!important;
+      }
+      #home .hr-content>h1,
+      #home .hr-content>.hr-sub,
+      #home .hr-content>.hr-search,
+      #home .hr-content>.hr-metrics,
+      #home .hr-content>.footer {
+        flex:0 0 auto!important;
+      }
+      #home .hr-lower {
+        flex:1 1 0!important;
+        min-height:0!important;
+        overflow:hidden!important;
+      }
+      #home .hr-lower>.hr-card {
+        height:auto!important;
+        min-height:0!important;
+        max-height:none!important;
+        overflow:hidden!important;
+        display:flex!important;
+        flex-direction:column!important;
+      }
+      #home .hr-lower>.hr-card .hr-card-title {
+        flex:0 0 38px!important;
+      }
+      #home .hr-lower>.hr-card .hr-scroll-list {
+        flex:1 1 0!important;
+        min-height:0!important;
+        overflow-x:hidden!important;
+        overflow-y:auto!important;
+      }
+
+      /* Iconos deterministas: no dependen de glifos ni del texto "?" heredado. */
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i {
+        font-size:0!important;
+        color:transparent!important;
+        background-color:#f0efff!important;
+        background-repeat:no-repeat!important;
+        background-position:center!important;
+        background-size:18px 18px!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i::before,
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i::after {
+        content:none!important;
+        display:none!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(-n+2) .hr-row>i svg {
+        display:none!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(1) .hr-row>i {
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235146f6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5.5A2.5 2.5 0 0 1 6.5 3H10a3 3 0 0 1 3 3v15a3 3 0 0 0-3-3H6.5A2.5 2.5 0 0 0 4 20.5z'/%3E%3Cpath d='M20 5.5A2.5 2.5 0 0 0 17.5 3H16a3 3 0 0 0-3 3v15a3 3 0 0 1 3-3h1.5a2.5 2.5 0 0 1 2.5 2.5z'/%3E%3C/svg%3E")!important;
+      }
+      #home .hr-lower>.hr-card:nth-child(2) .hr-row>i {
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235146f6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3h7l4 4v14H7z'/%3E%3Cpath d='M14 3v5h4'/%3E%3Cpath d='M10 12h5M10 16h5'/%3E%3C/svg%3E")!important;
+      }
     `;
     document.head.appendChild(style);
   }
