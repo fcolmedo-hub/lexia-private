@@ -471,10 +471,11 @@
       #contextpage .context-layout>.head h1 {font-size:24px!important;line-height:1.15!important;text-align:left!important}
       #contextpage .context-layout>.head p {font-size:14px!important;line-height:1.4!important;margin-top:4px!important;text-align:left!important}
       #contextpage .context-layout>.head .head-actions .secondary {height:40px!important;padding:0 18px!important;font-size:14px!important;border-radius:9px!important}
-      #contextpage .investigation-tabs {display:flex!important;align-items:stretch!important;flex:none!important;gap:4px!important;min-height:42px!important;margin:0!important;padding:0!important;border-bottom:1px solid #dce1ef!important;text-align:left!important}
-      #contextpage .investigation-tab {position:relative!important;display:inline-flex!important;align-items:center!important;justify-content:flex-start!important;min-width:138px!important;min-height:42px!important;padding:0 16px!important;border:0!important;border-radius:8px 8px 0 0!important;background:transparent!important;color:#536184!important;font-size:14px!important;font-weight:600!important;text-align:left!important}
-      #contextpage .investigation-tab.active {background:#f1f0ff!important;color:#3327d4!important}
-      #contextpage .investigation-tab.active::after {content:"";position:absolute;right:0;bottom:-1px;left:0;height:3px;background:#5146f6;border-radius:3px 3px 0 0}
+      #contextpage .investigation-tabs {display:flex!important;align-items:center!important;flex:none!important;gap:6px!important;min-height:44px!important;margin:0!important;padding:0 12px!important;border:0!important;text-align:left!important}
+      #contextpage .investigation-tab {position:relative!important;display:inline-flex!important;align-items:center!important;justify-content:flex-start!important;min-width:0!important;min-height:38px!important;padding:0 11px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#596583!important;font-size:14px!important;font-weight:600!important;text-align:left!important}
+      #contextpage .investigation-tab:hover {background:#f5f4ff!important;color:#3830c9!important}
+      #contextpage .investigation-tab.active {background:#efedff!important;color:#3829cf!important}
+      #contextpage .investigation-tab.active::after {display:none!important;content:none!important}
       #contextpage #researchPanel.context-grid {display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:auto!important;gap:12px!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;overflow:visible!important;align-items:stretch!important}
       #contextpage #researchPanel[hidden] {display:none!important}
       #contextpage #researchPanel .research-main-column {display:block!important;min-width:0!important;min-height:0!important;overflow:visible!important}
