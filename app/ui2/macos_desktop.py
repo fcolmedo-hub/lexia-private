@@ -163,7 +163,6 @@ def ensure_ui_assets(root: Path) -> str | None:
     study_layout_guard = here / "assets" / "study_layout_guard.js"
     research_results = here / "assets" / "research_results.js"
     startup_frame_guard = here / "assets" / "startup_frame_guard.css"
-    visual_consistency = here / "assets" / "desktop_visual_consistency.css"
     if not (
         index.exists()
         and jurisprudence.exists()
@@ -179,13 +178,6 @@ def ensure_ui_assets(root: Path) -> str | None:
 
     if startup_frame_guard.exists() and "assets/startup_frame_guard.css" not in patched:
         head_tags.append('<link rel="stylesheet" href="assets/startup_frame_guard.css?v=startup-frame-1">')
-
-    if visual_consistency.exists() and "assets/desktop_visual_consistency.css" not in patched:
-        version = hashlib.sha256(visual_consistency.read_bytes()).hexdigest()[:12]
-        head_tags.append(
-            f'<link rel="stylesheet" '
-            f'href="assets/desktop_visual_consistency.css?v=visual-consistency-{version}">'
-        )
 
     if "assets/jurisprudence_search.js" not in patched:
         body_tags.append('<script src="assets/jurisprudence_search.js?v=juris-mobile-5"></script>')
