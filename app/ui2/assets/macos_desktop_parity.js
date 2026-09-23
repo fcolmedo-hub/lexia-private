@@ -460,4 +460,125 @@
     if (!trigger) return;
     [0, 30, 100, 250, 500].forEach(delay => window.setTimeout(() => paintActions(document), delay));
   }, true);
+
+  // Composición del render aprobado para Investigación en escritorio macOS.
+  if (!document.getElementById('lexiaMacResearchRenderStyle')) {
+    const style = document.createElement('style');
+    style.id = 'lexiaMacResearchRenderStyle';
+    style.textContent = `
+      #contextpage .context-layout {height:auto!important;min-height:calc(100vh - var(--global-top,0px))!important;min-height:calc(100dvh - var(--global-top,0px))!important;max-height:none!important;display:flex!important;flex-direction:column!important;gap:14px!important;overflow-x:hidden!important;overflow-y:auto!important;padding-bottom:18px!important;box-sizing:border-box!important}
+      #contextpage .context-layout>.head {flex:none!important;align-items:center!important;margin:0!important}
+      #contextpage .context-layout>.head h1 {font-size:24px!important;line-height:1.15!important}
+      #contextpage .context-layout>.head p {font-size:14px!important;line-height:1.4!important;margin-top:4px!important}
+      #contextpage .context-layout>.head .head-actions .secondary {height:40px!important;padding:0 18px!important;font-size:14px!important;border-radius:9px!important}
+      #contextpage .investigation-tabs {display:flex!important;flex:none!important;gap:0!important;min-height:42px!important;margin:0!important;padding:0!important;border-bottom:1px solid #dce1ef!important}
+      #contextpage .investigation-tab {position:relative!important;min-height:42px!important;padding:0 20px!important;border:0!important;border-radius:8px 8px 0 0!important;background:transparent!important;color:#536184!important;font-size:14px!important;font-weight:600!important}
+      #contextpage .investigation-tab.active {background:#f1f0ff!important;color:#3327d4!important}
+      #contextpage .investigation-tab.active::after {content:"";position:absolute;right:0;bottom:-1px;left:0;height:3px;background:#5146f6;border-radius:3px 3px 0 0}
+      #contextpage #researchPanel.context-grid {display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:auto!important;gap:12px!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;overflow:visible!important;align-items:stretch!important}
+      #contextpage #researchPanel[hidden] {display:none!important}
+      #contextpage #researchPanel .research-main-column {display:block!important;min-width:0!important;min-height:0!important;overflow:visible!important}
+      #contextpage #researchPanel .context-form {display:block!important;width:100%!important;min-height:0!important;max-height:none!important;overflow:visible!important;padding:18px 20px!important;border-radius:11px!important;box-sizing:border-box!important}
+      #contextpage #researchPanel .context-form>h3,#contextpage #researchProgress .job-top h3,#contextpage #researchPanel .context-side>h3,#contextpage #lexiaLatestResultsPanel .output-head h3 {font-size:18px!important;line-height:1.25!important;font-weight:700!important}
+      #contextpage #researchPanel .context-form>h3 {margin:0 0 14px!important}
+      #contextpage .research-settings {display:grid!important;grid-template-columns:minmax(190px,1fr) minmax(0,3fr)!important;gap:12px!important;align-items:center!important;margin:0 0 12px!important}
+      #contextpage .research-scope-trigger {height:38px!important;border-radius:7px!important;padding:0 11px!important;background:#fff!important}
+      #contextpage .research-scope-trigger span,#contextpage .research-scope-trigger small {font-size:13px!important}
+      #contextpage .research-settings .context-options {display:flex!important;position:static!important;gap:10px!important;margin:0!important;min-width:0!important}
+      #contextpage .research-settings .optionbox {display:flex!important;align-items:center!important;gap:10px!important;flex:1 1 0!important;min-width:0!important;height:38px!important;padding:0 10px!important;border-radius:7px!important;background:#fff!important;box-sizing:border-box!important}
+      #contextpage .research-settings .optionbox small {flex:none!important;margin:0!important;font-size:11px!important;line-height:1.1!important;letter-spacing:.02em!important;color:#5d6b90!important}
+      #contextpage .research-settings .optionbox select {min-width:0!important;width:100%!important;font-size:13px!important;font-weight:500!important}
+      #contextpage #researchPanel .form-label {font-size:13px!important;line-height:1.3!important;margin:9px 0 5px!important}
+      #contextpage #researchPanel .textarea {font-size:14px!important;line-height:1.45!important;padding:10px 12px!important;border-radius:7px!important}
+      #contextpage #researchPanel .context-query {min-height:76px!important;height:76px!important}
+      #contextpage .research-history-row {grid-template-columns:142px minmax(0,1fr)!important;gap:10px!important;margin-top:9px!important}
+      #contextpage .research-history-row select {height:37px!important;padding:0 10px!important;font-size:13px!important;border-radius:7px!important}
+      #contextpage #researchPanel .lexia-research-disclosure>summary {min-height:48px!important;box-sizing:border-box!important;padding:10px 14px!important;font-size:16px!important;line-height:1.25!important;font-weight:700!important}
+      #contextpage #researchPanel .lexia-research-disclosure textarea {min-height:76px!important;font-size:14px!important}
+      #contextpage #researchPanel .research-instruction-disclosure {margin-top:9px!important}
+      #contextpage #researchPanel .context-actions {margin-top:12px!important;padding-top:11px!important;gap:14px!important}
+      #contextpage #researchPanel .context-actions .hint {font-size:13px!important;line-height:1.35!important}
+      #contextpage #startContext {min-height:42px!important;padding:0 22px!important;font-size:14px!important;border-radius:8px!important}
+      #contextpage #researchProgress {display:block!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:16px 20px!important;overflow:visible!important;border-radius:11px!important;box-sizing:border-box!important}
+      #contextpage #researchProgress .job-top {align-items:center!important}
+      #contextpage #researchProgress .job-top h3 {margin:0!important}
+      #contextpage #researchProgress .job-top p,#contextpage #researchProgress .research-progress-foot {font-size:13px!important;line-height:1.35!important}
+      #contextpage #researchProgress .job-state {font-size:13px!important;padding:6px 10px!important}
+      #contextpage #researchProgress .research-progress-track {height:8px!important;margin-top:9px!important}
+      #contextpage #researchPanel .context-side {display:flex!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;padding:16px 20px!important;overflow:visible!important;border-radius:11px!important;box-sizing:border-box!important}
+      #contextpage #researchPanel .context-side .source-list {max-height:430px!important;overflow:auto!important}
+      #contextpage #researchPanel .context-side .source-item strong,#contextpage #researchPanel .context-side .source-item .source-name-link {font-size:13px!important}
+      #contextpage #researchPanel .context-side .source-item small,#contextpage #researchPanel .context-side .source-snippet {font-size:12px!important}
+      #contextpage #researchPanel .context-side .source-actions button,#contextpage #researchPanel .context-side #viewSources {font-size:12px!important;min-height:30px!important;height:30px!important}
+      #contextpage .context-layout #studyPanel,#contextpage .context-layout #lexiaLatestResultsPanel {flex:none!important;width:100%!important;margin:0!important;overflow:visible!important}
+      #contextpage .context-layout #studyPanel {padding:18px 20px!important}
+      #contextpage #lexiaLatestResultsPanel {padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
+      #contextpage #lexiaLatestResultsPanel .output-card {margin:0!important;padding:18px 20px!important}
+      #contextpage #lexiaLatestResultsPanel .output-summary {max-height:none!important;overflow:visible!important;font-size:13px!important}
+      #contextpage #lexiaLatestResultsPanel .outstat small {font-size:11px!important}
+      #contextpage #lexiaLatestResultsPanel .outstat b {font-size:14px!important}
+      #contextpage .context-layout>.footer {display:none!important}
+      @media(max-width:1100px) {#contextpage .research-settings {grid-template-columns:minmax(170px,1fr) minmax(0,2.3fr)!important}#contextpage .research-settings .optionbox {gap:6px!important;padding:0 7px!important}#contextpage .research-settings .optionbox small {font-size:10px!important}}
+      @media(max-width:820px) {#contextpage .research-settings {grid-template-columns:1fr!important}#contextpage .research-settings .context-options {display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}#contextpage .research-settings .optionbox {display:block!important;height:auto!important;min-height:54px!important;padding:7px 9px!important}#contextpage .research-settings .optionbox small {display:block!important;margin-bottom:4px!important}#contextpage .research-history-row {grid-template-columns:1fr!important;gap:2px!important}#contextpage #researchPanel .lexia-research-disclosure>summary {font-size:15px!important}}
+      @media(max-width:560px) {#contextpage .investigation-tab {padding:0 10px!important;font-size:12px!important}#contextpage .research-settings .context-options {grid-template-columns:1fr!important}#contextpage #researchPanel .context-actions {align-items:stretch!important;flex-direction:column!important}#contextpage #researchPanel .context-actions #startContext {align-self:flex-end}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  const contextPage = document.getElementById('contextpage');
+  const tabs = contextPage?.querySelector('.investigation-tabs');
+  const researchTab = document.getElementById('researchTab');
+  const studyTab = document.getElementById('studyTab');
+  const researchPanel = document.getElementById('researchPanel');
+  const studyPanel = document.getElementById('studyPanel');
+  const researchMain = researchPanel?.querySelector('.research-main-column');
+  const progress = document.getElementById('researchProgress');
+  const outputCard = contextPage?.querySelector('.output-card');
+  const page = contextPage?.querySelector('.context-layout');
+
+  if (tabs && researchTab && studyTab && researchPanel && studyPanel && researchMain && progress && outputCard && page) {
+    const sourcePanel = researchPanel.querySelector('.context-side');
+    if (sourcePanel && progress.parentElement !== researchPanel) researchPanel.insertBefore(progress, sourcePanel);
+    else if (!sourcePanel && progress.parentElement !== researchPanel) researchPanel.appendChild(progress);
+
+    let latestPanel = document.getElementById('lexiaLatestResultsPanel');
+    if (!latestPanel) {
+      latestPanel = document.createElement('section');
+      latestPanel.id = 'lexiaLatestResultsPanel';
+      latestPanel.className = 'investigation-panel';
+      latestPanel.setAttribute('role', 'tabpanel');
+      latestPanel.hidden = true;
+      latestPanel.appendChild(outputCard);
+      const footer = page.querySelector('.footer');
+      page.insertBefore(latestPanel, footer || null);
+    }
+
+    let latestTab = document.getElementById('lexiaLatestResultsTab');
+    if (!latestTab) {
+      latestTab = document.createElement('button');
+      latestTab.type = 'button';
+      latestTab.id = 'lexiaLatestResultsTab';
+      latestTab.className = 'investigation-tab';
+      latestTab.setAttribute('role', 'tab');
+      latestTab.setAttribute('aria-selected', 'false');
+      latestTab.textContent = 'Últimos resultados';
+      tabs.appendChild(latestTab);
+    }
+
+    const selectPanel = name => {
+      const panels = {research: researchPanel, study: studyPanel, latest: latestPanel};
+      const buttons = {research: researchTab, study: studyTab, latest: latestTab};
+      Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== name; });
+      Object.entries(buttons).forEach(([key, button]) => {
+        button.classList.toggle('active', key === name);
+        button.setAttribute('aria-selected', String(key === name));
+      });
+    };
+
+    researchTab.addEventListener('click', () => selectPanel('research'));
+    studyTab.addEventListener('click', () => selectPanel('study'));
+    latestTab.addEventListener('click', () => selectPanel('latest'));
+    document.getElementById('newContext')?.addEventListener('click', () => selectPanel('research'));
+  }
+
 })();
