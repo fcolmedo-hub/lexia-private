@@ -283,6 +283,82 @@
     document.head.appendChild(style);
   }
 
+  // Escala tipográfica compacta para escritorio. No cambia dimensiones de controles,
+  // espacios, columnas ni tarjetas.
+  if (!document.getElementById('lexiaMacosTypographyScale')) {
+    const typeScale = document.createElement('style');
+    typeScale.id = 'lexiaMacosTypographyScale';
+    typeScale.textContent = `
+      @media (min-width:900px) {
+        :root {
+          --lexia-font-display:26px;
+          --lexia-font-section:15px;
+          --lexia-font-body:12px;
+          --lexia-font-meta:10px;
+        }
+        #home .hr-content>h1,
+        .page:not(.home) .head h1 {font-size:var(--lexia-font-display)!important}
+        #home .hr-card-title>b,
+        .library .sidepanel h3,
+        .searchpage .filter-head h3,
+        .searchpage .insight h3,
+        .contextpage .context-form h3,
+        .contextpage .context-side h3,
+        #casespage .case-tree-head h2,
+        #casespage .workspace-head h2,
+        #casespage .source-title {font-size:var(--lexia-font-section)!important}
+
+        #home .hr-sub,
+        .library .head p,.searchpage .head p,.contextpage .head p,
+        .activitypage .head p,.systempage .head p,
+        .page:not(.home) .subtitle {font-size:var(--lexia-font-body)!important}
+
+        #home .hr-row div b,
+        .library .doc strong,.library .cell,
+        .searchpage .search-large input,.searchpage .result-title,
+        .searchpage .result-body p,
+        .contextpage .textarea,.contextpage .optionbox b,
+        #casespage .case-summary,#casespage .case-fact span,
+        #casespage .argument-block textarea,
+        #casespage .argument-evidence {font-size:var(--lexia-font-body)!important}
+
+        #home .hr-row div span,#home .hr-row time,#home .hr-row>em,
+        #home .hr-mhead,#home .hr-line,.hr-card-title button,
+        .library .doc small,.library .status,.library .tablehead,
+        .searchpage .search-modes .mode,.searchpage .result-meta,
+        .searchpage .result-tags span,.searchpage .result-actions button,
+        .searchpage .results-top,.searchpage .filters label,
+        .contextpage .investigation-tab,.contextpage .form-label,
+        .contextpage .optionbox small,.contextpage .context-actions .hint,
+        .contextpage .output-actions button,
+        #casespage .case-fact small,#casespage .branch-title small,
+        #casespage .question-row small,#casespage .workspace-section h3,
+        #casespage .argument-block-head,
+        #casespage .cases-button,#casespage .cases-button-secondary {
+          font-size:var(--lexia-font-meta)!important
+        }
+
+        .library .doc,.library .doc strong,.library .doc small,
+        .searchpage .result-card,.searchpage .result-body,
+        .searchpage .result-title,.searchpage .result-meta,
+        .searchpage .result-path,.searchpage .result-body p,
+        .contextpage .study-output,.contextpage .output-summary,
+        #home .hr-row div,
+        #home .hr-row div b,#home .hr-row div span,
+        #casespage .case-summary,#casespage .branch-title,
+        #casespage .branch-title b,#casespage .question-row,
+        #casespage .question-row strong,#casespage .source-body p,
+        #casespage .argument-evidence {
+          min-width:0!important;
+          max-width:100%!important;
+          white-space:normal!important;
+          overflow-wrap:anywhere!important;
+          word-break:normal!important
+        }
+      }
+    `;
+    document.head.appendChild(typeScale);
+  }
 
   // El refresco heredado reemplaza las filas cada pocos segundos. Mantener el
   // resaltado en la lista evita que el hover parpadee al cambiar esos nodos.
