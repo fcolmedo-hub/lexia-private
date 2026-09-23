@@ -35,7 +35,9 @@ def test_windows_launcher_injects_content_versioned_polish(tmp_path) -> None:
         "search_investigation_bridge.js",
         "windows_live_badge_cleanup.js",
         "windows_search_results_polish.js",
+        "macos_desktop_parity.js",
         "app_runtime.js",
+        "standards_ui.js",
     ]
     for name in required:
         (assets / name).write_text("// " + name, encoding="utf-8")
@@ -48,3 +50,6 @@ def test_windows_launcher_injects_content_versioned_polish(tmp_path) -> None:
 
     html = (ui2 / "index.html").read_text(encoding="utf-8")
     assert "assets/windows_search_results_polish.js?v=windows-search-results-" in html
+    assert 'id="lexiaDesktopVisualParity"' in html
+    assert "assets/macos_desktop_parity.js?v=desktop-parity-" in html
+    assert html.index("assets/macos_desktop_parity.js") < html.index("assets/standards_ui.js")

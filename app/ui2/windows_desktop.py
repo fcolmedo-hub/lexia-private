@@ -644,6 +644,7 @@ def ensure_ui_assets(
     live_badge_cleanup = (
         here / "assets" / "windows_live_badge_cleanup.js"
     )
+    desktop_parity = here / "assets" / "macos_desktop_parity.js"
     search_results_polish = (
         here / "assets" / "windows_search_results_polish.js"
     )
@@ -831,6 +832,20 @@ def ensure_ui_assets(
     if standards_nav_fix.exists():
         patched, asset_changed = _upsert_asset_script(
             patched, standards_nav_fix, "standards-nav-fix"
+        )
+        changed = changed or asset_changed
+
+    # Compartir en Windows la composición de Investigación que ya se aplica
+    # en Mac (pestañas con la misma tipografía que Buscar, controles compactos
+    # y consultas recientes alineadas). Se inyecta sólo durante la ejecución:
+    # al cerrar, restore_ui_assets devuelve index.html a su contenido original.
+    if desktop_parity.exists():
+        patched, asset_changed = _upsert_asset_script(
+            patched,
+            desktop_parity,
+            "desktop-parity",
+            script_id="lexiaDesktopVisualParity",
+            before_source="assets/standards_ui.js",
         )
         changed = changed or asset_changed
 
