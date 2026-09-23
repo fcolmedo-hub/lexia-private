@@ -461,46 +461,49 @@
     [0, 30, 100, 250, 500].forEach(delay => window.setTimeout(() => paintActions(document), delay));
   }, true);
 
-  // Ajustes de composición y legibilidad de Investigación en escritorio macOS.
+  // Composición alineada de Investigación para escritorio macOS.
   if (!document.getElementById('lexiaMacResearchRenderStyle')) {
     const style = document.createElement('style');
     style.id = 'lexiaMacResearchRenderStyle';
     style.textContent = `
       #contextpage .context-layout {height:auto!important;min-height:calc(100vh - var(--global-top,0px))!important;min-height:calc(100dvh - var(--global-top,0px))!important;max-height:none!important;display:flex!important;flex-direction:column!important;gap:14px!important;overflow-x:hidden!important;overflow-y:auto!important;padding-bottom:18px!important;box-sizing:border-box!important}
       #contextpage .context-layout>.head {flex:none!important;align-items:center!important;margin:0!important}
-      #contextpage .context-layout>.head h1 {font-size:24px!important;line-height:1.15!important}
-      #contextpage .context-layout>.head p {font-size:14px!important;line-height:1.4!important;margin-top:4px!important}
+      #contextpage .context-layout>.head h1 {font-size:24px!important;line-height:1.15!important;text-align:left!important}
+      #contextpage .context-layout>.head p {font-size:14px!important;line-height:1.4!important;margin-top:4px!important;text-align:left!important}
       #contextpage .context-layout>.head .head-actions .secondary {height:40px!important;padding:0 18px!important;font-size:14px!important;border-radius:9px!important}
-      #contextpage .investigation-tabs {display:flex!important;flex:none!important;gap:0!important;min-height:42px!important;margin:0!important;padding:0!important;border-bottom:1px solid #dce1ef!important}
-      #contextpage .investigation-tab {position:relative!important;min-height:42px!important;padding:0 20px!important;border:0!important;border-radius:8px 8px 0 0!important;background:transparent!important;color:#536184!important;font-size:14px!important;font-weight:600!important}
+      #contextpage .investigation-tabs {display:flex!important;align-items:stretch!important;flex:none!important;gap:4px!important;min-height:42px!important;margin:0!important;padding:0!important;border-bottom:1px solid #dce1ef!important;text-align:left!important}
+      #contextpage .investigation-tab {position:relative!important;display:inline-flex!important;align-items:center!important;justify-content:flex-start!important;min-width:138px!important;min-height:42px!important;padding:0 16px!important;border:0!important;border-radius:8px 8px 0 0!important;background:transparent!important;color:#536184!important;font-size:14px!important;font-weight:600!important;text-align:left!important}
       #contextpage .investigation-tab.active {background:#f1f0ff!important;color:#3327d4!important}
       #contextpage .investigation-tab.active::after {content:"";position:absolute;right:0;bottom:-1px;left:0;height:3px;background:#5146f6;border-radius:3px 3px 0 0}
       #contextpage #researchPanel.context-grid {display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:auto!important;gap:12px!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;overflow:visible!important;align-items:stretch!important}
       #contextpage #researchPanel[hidden] {display:none!important}
       #contextpage #researchPanel .research-main-column {display:block!important;min-width:0!important;min-height:0!important;overflow:visible!important}
-      #contextpage #researchPanel .context-form {display:block!important;width:100%!important;min-height:0!important;max-height:none!important;overflow:visible!important;padding:18px 20px!important;border-radius:11px!important;box-sizing:border-box!important}
-      #contextpage #researchPanel .context-form>h3,#contextpage #researchProgress .job-top h3,#contextpage #researchPanel .context-side>h3 {font-size:18px!important;line-height:1.25!important;font-weight:700!important}
-      #contextpage #researchPanel .research-settings {display:grid!important;grid-template-columns:minmax(205px,1fr) minmax(0,3fr)!important;align-items:stretch!important;gap:10px!important;margin:12px 0 14px!important;padding:10px!important;border:1px solid #e1e5f1!important;border-radius:10px!important;background:#f6f7fc!important;box-sizing:border-box!important}
-      #contextpage .research-scope {min-width:0!important}
-      #contextpage .research-scope-trigger {display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;width:100%!important;height:42px!important;padding:0 12px!important;border:1px solid #e0e4f0!important;border-radius:8px!important;background:#fff!important;color:#273454!important;box-shadow:0 1px 2px rgba(22,34,70,.04)!important}
-      #contextpage .research-scope-trigger span {font-size:12px!important;font-weight:600!important}
-      #contextpage .research-scope-trigger small {font-size:13px!important;font-weight:600!important;color:#536184!important}
-      #contextpage .research-settings .context-options {display:flex!important;position:static!important;gap:9px!important;margin:0!important;min-width:0!important}
-      #contextpage .research-settings .optionbox {display:flex!important;align-items:center!important;gap:9px!important;flex:1 1 0!important;min-width:0!important;height:42px!important;padding:0 10px!important;border:1px solid #e0e4f0!important;border-radius:8px!important;background:#fff!important;box-shadow:0 1px 2px rgba(22,34,70,.04)!important;box-sizing:border-box!important}
-      #contextpage .research-settings .optionbox small {flex:none!important;margin:0!important;font-size:10px!important;line-height:1.1!important;font-weight:700!important;letter-spacing:.045em!important;color:#657292!important}
-      #contextpage .research-settings .optionbox select {min-width:0!important;width:100%!important;height:34px!important;padding:0 20px 0 0!important;border:0!important;background-color:transparent!important;font-size:13px!important;font-weight:600!important;color:#253352!important}
-      #contextpage #researchPanel .form-label {font-size:13px!important;line-height:1.3!important;margin:9px 0 5px!important}
-      #contextpage #researchPanel .lexia-query-heading {display:block!important;font-size:16px!important;line-height:1.25!important;margin:12px 0 6px!important;font-weight:700!important;text-transform:none!important;letter-spacing:0!important;color:#17223e!important}
-      #contextpage #researchPanel .textarea {font-size:14px!important;line-height:1.45!important;padding:10px 12px!important;border-radius:7px!important}
-      #contextpage #researchPanel .context-query {min-height:76px!important;height:76px!important}
-      #contextpage .research-history-row {display:grid!important;grid-template-columns:150px minmax(0,1fr)!important;align-items:center!important;gap:10px!important;margin-top:9px!important}
-      #contextpage .research-history-row .lexia-recent-query-label {margin:0!important;font-size:13px!important;line-height:1.25!important;font-weight:600!important;text-transform:none!important;letter-spacing:0!important;white-space:nowrap!important;color:#536184!important}
-      #contextpage .research-history-row select {min-width:0!important;width:100%!important;height:38px!important;padding:0 10px!important;font-size:13px!important;border-radius:7px!important}
-      #contextpage #researchPanel .lexia-research-disclosure>summary {min-height:48px!important;box-sizing:border-box!important;padding:10px 14px!important;font-size:16px!important;line-height:1.25!important;font-weight:700!important}
+      #contextpage #researchPanel .context-form {display:block!important;width:100%!important;min-width:0!important;min-height:0!important;max-height:none!important;overflow:visible!important;padding:18px 20px!important;border-radius:11px!important;box-sizing:border-box!important;text-align:left!important}
+      #contextpage #researchPanel .context-form>h3,#contextpage #researchProgress .job-top h3,#contextpage #researchPanel .context-side>h3 {font-size:18px!important;line-height:1.25!important;font-weight:700!important;text-align:left!important;margin:0 0 12px!important}
+      #contextpage #researchPanel .research-settings {display:grid!important;grid-template-columns:minmax(190px,1fr) minmax(0,3fr)!important;align-items:stretch!important;gap:0!important;width:100%!important;margin:12px 0 14px!important;padding:0!important;border:1px solid #dfe4f1!important;border-radius:10px!important;background:#f8f9fd!important;box-sizing:border-box!important}
+      #contextpage .research-scope {position:relative!important;z-index:2!important;min-width:0!important}
+      #contextpage .research-scope-trigger {position:relative!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:3px!important;width:100%!important;height:64px!important;padding:8px 34px 8px 14px!important;border:0!important;border-right:1px solid #dfe4f1!important;border-radius:9px 0 0 9px!important;background:transparent!important;color:#273454!important;text-align:left!important;box-shadow:none!important}
+      #contextpage .research-scope-trigger::after {content:""!important;position:absolute!important;right:16px!important;top:27px!important;width:7px!important;height:7px!important;border-right:1.5px solid #5146f6!important;border-bottom:1.5px solid #5146f6!important;transform:rotate(45deg)!important}
+      #contextpage .research-scope-trigger span {font-size:11px!important;line-height:1.2!important;font-weight:700!important;letter-spacing:.025em!important;color:#657292!important}
+      #contextpage .research-scope-trigger small {font-size:14px!important;line-height:1.25!important;font-weight:600!important;color:#253352!important}
+      #contextpage .research-settings .context-options {display:flex!important;position:static!important;gap:0!important;margin:0!important;min-width:0!important}
+      #contextpage .research-settings .optionbox {display:flex!important;flex:1 1 0!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:3px!important;min-width:0!important;height:64px!important;margin:0!important;padding:8px 14px!important;border:0!important;border-right:1px solid #dfe4f1!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;box-sizing:border-box!important;text-align:left!important}
+      #contextpage .research-settings .optionbox:last-child {border-right:0!important}
+      #contextpage .research-settings .optionbox small {display:block!important;flex:none!important;margin:0!important;font-size:10px!important;line-height:1.2!important;font-weight:700!important;letter-spacing:.045em!important;color:#657292!important}
+      #contextpage .research-settings .optionbox select {display:block!important;min-width:0!important;width:100%!important;height:24px!important;margin:0!important;padding:0 20px 0 0!important;border:0!important;background-color:transparent!important;font-size:14px!important;line-height:1.25!important;font-weight:600!important;color:#253352!important;text-align:left!important}
+      #contextpage #researchPanel .form-label {display:block!important;font-size:13px!important;line-height:1.3!important;margin:9px 0 5px!important;text-align:left!important}
+      #contextpage #researchPanel .textarea {display:block!important;width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;font-size:14px!important;line-height:1.45!important;padding:10px 12px!important;border-radius:7px!important;box-sizing:border-box!important;text-align:left!important}
+      #contextpage #researchPanel .context-query {min-height:76px!important;height:76px!important;margin-top:0!important}
+      #contextpage .research-history-row {display:block!important;width:100%!important;margin:12px 0 0!important;padding:0!important;text-align:left!important}
+      #contextpage .research-history-row .lexia-recent-query-label {display:block!important;width:100%!important;margin:0 0 5px!important;font-size:13px!important;line-height:1.25!important;font-weight:600!important;text-transform:none!important;letter-spacing:0!important;white-space:normal!important;text-align:left!important;color:#536184!important}
+      #contextpage .research-history-row select {display:block!important;min-width:0!important;width:100%!important;height:38px!important;margin:0!important;padding:0 10px!important;font-size:13px!important;border-radius:7px!important;box-sizing:border-box!important;text-align:left!important}
+      #contextpage #researchPanel .lexia-research-disclosure {display:block!important;width:100%!important;max-width:100%!important;margin-left:0!important;margin-right:0!important;text-align:left!important;box-sizing:border-box!important}
+      #contextpage #researchPanel .lexia-research-disclosure>summary {min-height:48px!important;box-sizing:border-box!important;padding:10px 14px!important;font-size:16px!important;line-height:1.25!important;font-weight:700!important;text-align:left!important}
+      #contextpage #researchPanel .lexia-research-disclosure-state[hidden] {display:none!important}
       #contextpage #researchPanel .lexia-research-disclosure textarea {min-height:76px!important;font-size:14px!important}
       #contextpage #researchPanel .research-instruction-disclosure {margin-top:9px!important}
       #contextpage #researchPanel .context-actions {margin-top:12px!important;padding-top:11px!important;gap:14px!important}
-      #contextpage #researchPanel .context-actions .hint {font-size:13px!important;line-height:1.35!important}
+      #contextpage #researchPanel .context-actions .hint {font-size:13px!important;line-height:1.35!important;text-align:left!important}
       #contextpage #startContext {min-height:42px!important;padding:0 22px!important;font-size:14px!important;border-radius:8px!important}
       #contextpage #researchProgress {display:block!important;position:relative!important;flex:none!important;grid-column:1/-1!important;width:100%!important;height:auto!important;min-width:0!important;min-height:118px!important;max-height:none!important;margin:0!important;padding:15px 18px!important;overflow:visible!important;border-radius:11px!important;box-sizing:border-box!important}
       #contextpage #researchProgress .job-top {display:flex!important;position:static!important;align-items:flex-start!important;justify-content:space-between!important;flex-wrap:wrap!important;gap:8px 14px!important;width:100%!important;height:auto!important;min-height:0!important;margin:0!important;overflow:visible!important}
@@ -520,9 +523,9 @@
       #contextpage #aiResultsPanel {padding:18px 20px!important;border-radius:11px!important}
       #contextpage #aiResultsPanel[hidden] {display:none!important}
       #contextpage .context-layout>.footer {display:none!important}
-      @media(max-width:1100px) {#contextpage .research-settings {grid-template-columns:minmax(180px,1fr) minmax(0,2.3fr)!important}#contextpage .research-settings .context-options {gap:7px!important}#contextpage .research-settings .optionbox {gap:6px!important;padding:0 7px!important}#contextpage .research-settings .optionbox small {font-size:9px!important}}
-      @media(max-width:820px) {#contextpage .research-settings {grid-template-columns:1fr!important}#contextpage .research-settings .context-options {display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}#contextpage .research-settings .optionbox {display:block!important;height:auto!important;min-height:54px!important;padding:7px 9px!important}#contextpage .research-settings .optionbox small {display:block!important;margin-bottom:4px!important;font-size:10px!important}#contextpage .research-history-row {grid-template-columns:1fr!important;gap:4px!important}#contextpage #researchPanel .lexia-research-disclosure>summary {font-size:15px!important}}
-      @media(max-width:560px) {#contextpage .investigation-tab {padding:0 10px!important;font-size:12px!important}#contextpage .research-settings .context-options {grid-template-columns:1fr!important}#contextpage #researchPanel .context-actions {align-items:stretch!important;flex-direction:column!important}#contextpage #researchPanel .context-actions #startContext {align-self:flex-end}}
+      @media(max-width:1100px) {#contextpage .research-settings {grid-template-columns:minmax(180px,1fr) minmax(0,2.3fr)!important}#contextpage .research-settings .optionbox {padding-left:10px!important;padding-right:10px!important}}
+      @media(max-width:820px) {#contextpage .research-settings {grid-template-columns:1fr!important}#contextpage .research-scope-trigger {border-right:0!important;border-bottom:1px solid #dfe4f1!important;border-radius:9px 9px 0 0!important}#contextpage .research-settings .context-options {display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}#contextpage .research-settings .optionbox {height:60px!important;padding:7px 9px!important}#contextpage .research-settings .optionbox small {font-size:9px!important}#contextpage #researchPanel .lexia-research-disclosure>summary {font-size:15px!important}}
+      @media(max-width:560px) {#contextpage .investigation-tab {min-width:0!important;padding:0 9px!important;font-size:12px!important}#contextpage .research-settings .context-options {grid-template-columns:1fr!important}#contextpage #researchPanel .context-actions {align-items:stretch!important;flex-direction:column!important}#contextpage #researchPanel .context-actions #startContext {align-self:flex-end}}
     `;
     document.head.appendChild(style);
   }
@@ -535,15 +538,41 @@
     const query = document.getElementById('researchQuery');
     const queryLabel = query?.previousElementSibling;
     if (queryLabel?.classList.contains('form-label')) {
-      queryLabel.classList.add('lexia-query-heading');
-      queryLabel.textContent = 'Consulta';
+      query.setAttribute('aria-label', 'Consulta jurídica');
+      queryLabel.remove();
     }
+
     const history = document.getElementById('researchHistory');
     const historyLabel = history?.previousElementSibling;
     if (historyLabel?.classList.contains('form-label')) {
       historyLabel.classList.add('lexia-recent-query-label');
       historyLabel.textContent = 'Consultas recientes';
     }
+
+    const refreshDisclosureState = () => {
+      researchPanel.querySelectorAll('.lexia-research-disclosure').forEach(disclosure => {
+        const field = disclosure.querySelector('textarea');
+        const state = disclosure.querySelector('.lexia-research-disclosure-state');
+        if (!field || !state) return;
+        const populated = Boolean(String(field.value || '').trim());
+        state.hidden = !populated;
+        if (!populated) disclosure.open = false;
+      });
+    };
+    document.getElementById('newContext')?.addEventListener('click', () => {
+      researchPanel.querySelectorAll('.lexia-research-disclosure').forEach(disclosure => {
+        const field = disclosure.querySelector('textarea');
+        if (field) {
+          field.value = '';
+          field.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+        disclosure.open = false;
+      });
+      refreshDisclosureState();
+    }, true);
+    researchPanel.addEventListener('reset', () => {
+      window.setTimeout(refreshDisclosureState, 0);
+    });
 
     const sourcePanel = researchPanel.querySelector('.context-side');
     if (sourcePanel && progress.parentElement !== researchPanel) researchPanel.insertBefore(progress, sourcePanel);
