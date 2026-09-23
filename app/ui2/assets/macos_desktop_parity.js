@@ -283,82 +283,140 @@
     document.head.appendChild(style);
   }
 
-  // Escala tipográfica compacta para escritorio. No cambia dimensiones de controles,
-  // espacios, columnas ni tarjetas.
-  if (!document.getElementById('lexiaMacosTypographyScale')) {
-    const typeScale = document.createElement('style');
-    typeScale.id = 'lexiaMacosTypographyScale';
-    typeScale.textContent = `
+  // Investigación macOS: tres niveles tipográficos, sin cambiar la geometría de los controles.
+  if (!document.getElementById('lexiaMacosResearchTypography')) {
+    const style = document.createElement('style');
+    style.id = 'lexiaMacosResearchTypography';
+    style.textContent = `
       @media (min-width:900px) {
-        :root {
-          --lexia-font-display:26px;
-          --lexia-font-section:15px;
-          --lexia-font-body:12px;
-          --lexia-font-meta:10px;
-        }
-        #home .hr-content>h1,
-        .page:not(.home) .head h1 {font-size:var(--lexia-font-display)!important}
-        #home .hr-card-title>b,
-        .library .sidepanel h3,
-        .searchpage .filter-head h3,
-        .searchpage .insight h3,
-        .contextpage .context-form h3,
-        .contextpage .context-side h3,
-        #casespage .case-tree-head h2,
-        #casespage .workspace-head h2,
-        #casespage .source-title {font-size:var(--lexia-font-section)!important}
+        .contextpage .head h1 {font-size:24px!important}
+        #researchPanel .context-form h3,
+        #researchProgress h3 {font-size:16px!important}
+        .contextpage .head p,
+        .contextpage .investigation-tab,
+        #researchPanel .form-label,
+        #researchPanel .research-scope-trigger,
+        #researchPanel .optionbox,
+        #researchPanel .optionbox small,
+        #researchPanel select,
+        #researchPanel .textarea,
+        #researchPanel .hint,
+        #researchPanel button,
+        #researchProgress p,
+        #researchProgress .job-state,
+        #researchProgress .research-progress-foot {font-size:13px!important}
 
-        #home .hr-sub,
-        .library .head p,.searchpage .head p,.contextpage .head p,
-        .activitypage .head p,.systempage .head p,
-        .page:not(.home) .subtitle {font-size:var(--lexia-font-body)!important}
-
-        #home .hr-row div b,
-        .library .doc strong,.library .cell,
-        .searchpage .search-large input,.searchpage .result-title,
-        .searchpage .result-body p,
-        .contextpage .textarea,.contextpage .optionbox b,
-        #casespage .case-summary,#casespage .case-fact span,
-        #casespage .argument-block textarea,
-        #casespage .argument-evidence {font-size:var(--lexia-font-body)!important}
-
-        #home .hr-row div span,#home .hr-row time,#home .hr-row>em,
-        #home .hr-mhead,#home .hr-line,.hr-card-title button,
-        .library .doc small,.library .status,.library .tablehead,
-        .searchpage .search-modes .mode,.searchpage .result-meta,
-        .searchpage .result-tags span,.searchpage .result-actions button,
-        .searchpage .results-top,.searchpage .filters label,
-        .contextpage .investigation-tab,.contextpage .form-label,
-        .contextpage .optionbox small,.contextpage .context-actions .hint,
-        .contextpage .output-actions button,
-        #casespage .case-fact small,#casespage .branch-title small,
-        #casespage .question-row small,#casespage .workspace-section h3,
-        #casespage .argument-block-head,
-        #casespage .cases-button,#casespage .cases-button-secondary {
-          font-size:var(--lexia-font-meta)!important
-        }
-
-        .library .doc,.library .doc strong,.library .doc small,
-        .searchpage .result-card,.searchpage .result-body,
-        .searchpage .result-title,.searchpage .result-meta,
-        .searchpage .result-path,.searchpage .result-body p,
-        .contextpage .study-output,.contextpage .output-summary,
-        #home .hr-row div,
-        #home .hr-row div b,#home .hr-row div span,
-        #casespage .case-summary,#casespage .branch-title,
-        #casespage .branch-title b,#casespage .question-row,
-        #casespage .question-row strong,#casespage .source-body p,
-        #casespage .argument-evidence {
+        #researchPanel .research-history-row,
+        #researchPanel .form-row,
+        #researchPanel .context-actions,
+        #researchProgress,
+        #researchProgress * {
           min-width:0!important;
-          max-width:100%!important;
-          white-space:normal!important;
-          overflow-wrap:anywhere!important;
-          word-break:normal!important
+          max-width:100%!important
         }
+        #researchPanel .context-form,
+        #researchPanel .context-form * {
+          overflow-wrap:anywhere
+        }
+        #researchPanel .form-row>div {min-width:0!important}
       }
+
+      #researchPanel .lexia-research-disclosure {
+        min-width:0;
+        max-width:100%;
+        border:1px solid #e4e7f0;
+        border-radius:8px;
+        background:#fbfcff;
+        overflow:hidden;
+      }
+      #researchPanel .lexia-research-disclosure>summary {
+        display:flex;
+        align-items:center;
+        gap:10px;
+        min-width:0;
+        padding:9px 11px;
+        list-style:none;
+        cursor:pointer;
+        color:#263252;
+        font-weight:650;
+        line-height:1.35;
+      }
+      #researchPanel .lexia-research-disclosure>summary::-webkit-details-marker {display:none}
+      #researchPanel .lexia-research-disclosure>summary::after {
+        content:"";
+        flex:0 0 7px;
+        width:7px;
+        height:7px;
+        margin-left:auto;
+        border-right:1.5px solid #6258ff;
+        border-bottom:1.5px solid #6258ff;
+        transform:rotate(45deg) translateY(-2px);
+        transition:transform .15s ease;
+      }
+      #researchPanel .lexia-research-disclosure[open]>summary::after {
+        transform:rotate(225deg) translateY(-1px);
+      }
+      #researchPanel .lexia-research-disclosure>summary:hover {
+        background:#f4f3ff;
+      }
+      #researchPanel .lexia-research-disclosure-state {
+        flex:0 0 auto;
+        padding:2px 7px;
+        border-radius:999px;
+        background:#eeecff;
+        color:#5146f6;
+        font-weight:600;
+      }
+      #researchPanel .lexia-research-disclosure textarea {
+        display:block;
+        width:calc(100% - 16px);
+        max-width:calc(100% - 16px);
+        margin:0 8px 8px;
+      }
+      #researchPanel .research-instruction-disclosure {margin-top:12px}
     `;
-    document.head.appendChild(typeScale);
+    document.head.appendChild(style);
   }
+
+  // Los campos opcionales se pliegan sin reemplazar ni renombrar sus textareas.
+  // Los IDs originales siguen siendo usados por el flujo de investigación.
+  const installResearchDisclosures = () => {
+    const panel = document.getElementById('researchPanel');
+    if (!panel || panel.dataset.lexiaResearchDisclosures === '1') return;
+    const makeDisclosure = (fieldId, className) => {
+      const field = panel.querySelector('#' + fieldId);
+      const label = field?.previousElementSibling;
+      if (!field || !label) return;
+      const disclosure = document.createElement('details');
+      disclosure.className = 'lexia-research-disclosure ' + className;
+      disclosure.dataset.fieldId = fieldId;
+      disclosure.open = Boolean(String(field.value || '').trim());
+
+      const summary = document.createElement('summary');
+      const title = document.createElement('span');
+      title.textContent = String(label.textContent || '').trim();
+      const state = document.createElement('span');
+      state.className = 'lexia-research-disclosure-state';
+      state.textContent = 'Con contenido';
+      state.hidden = !String(field.value || '').trim();
+      summary.append(title, state);
+
+      label.replaceWith(disclosure);
+      disclosure.append(summary, field);
+      field.addEventListener('input', event => {
+        const populated = Boolean(String(field.value || '').trim());
+        state.hidden = !populated;
+        if (!event.isTrusted && populated) disclosure.open = true;
+      });
+    };
+
+    makeDisclosure('researchFacts', 'research-facts-disclosure');
+    makeDisclosure('researchObjective', 'research-objective-disclosure');
+    makeDisclosure('researchInstruction', 'research-instruction-disclosure');
+    panel.dataset.lexiaResearchDisclosures = '1';
+  };
+  installResearchDisclosures();
+
 
   // El refresco heredado reemplaza las filas cada pocos segundos. Mantener el
   // resaltado en la lista evita que el hover parpadee al cambiar esos nodos.
