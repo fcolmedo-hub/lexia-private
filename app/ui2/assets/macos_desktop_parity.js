@@ -578,6 +578,41 @@
     const sourcePanel = researchPanel.querySelector('.context-side');
     if (sourcePanel && progress.parentElement !== researchPanel) researchPanel.insertBefore(progress, sourcePanel);
     else if (!sourcePanel && progress.parentElement !== researchPanel) researchPanel.appendChild(progress);
+
+    // Usar el estilo calculado de las pestañas reales de Buscar para evitar
+    // que reglas específicas de Investigación alteren fuente, tamaño o espaciado.
+    const applySearchTabStyles = () => {
+      const modeButtons = [...document.querySelectorAll('#searchpage .search-modes .mode')];
+      const activeMode = modeButtons.find(button => button.classList.contains('active'));
+      const idleMode = modeButtons.find(button => !button.classList.contains('active'));
+      if (!activeMode || !idleMode) return;
+      const properties = [
+        'font-family', 'font-size', 'font-style', 'font-weight', 'line-height',
+        'letter-spacing', 'text-transform', 'white-space',
+        'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+        'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+        'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+        'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+        'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
+        'color', 'background-color', 'min-height', 'cursor', 'box-sizing'
+      ];
+      contextPage.querySelectorAll('.investigation-tab').forEach(tab => {
+        tab.classList.add('mode');
+        const reference = window.getComputedStyle(tab.classList.contains('active') ? activeMode : idleMode);
+        properties.forEach(property => {
+          const value = reference.getPropertyValue(property);
+          if (value) tab.style.setProperty(property, value, 'important');
+        });
+      });
+    };
+    applySearchTabStyles();
+    window.addEventListener('load', applySearchTabStyles, {once: true});
+    window.addEventListener('resize', applySearchTabStyles, {passive: true});
+    document.addEventListener('click', event => {
+      if (event.target?.closest?.('#contextpage .investigation-tab')) {
+        window.requestAnimationFrame(applySearchTabStyles);
+      }
+    }, true);
   }
 
 })();
