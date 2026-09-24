@@ -9,7 +9,7 @@
     const stylesheet=document.createElement('link');
     stylesheet.id='lexiaSharedUiConsistency';
     stylesheet.rel='stylesheet';
-    stylesheet.href='assets/shared_ui_consistency.css?v=1';
+    stylesheet.href='assets/shared_ui_consistency.css?v=2';
     document.head.appendChild(stylesheet);
   }
 
