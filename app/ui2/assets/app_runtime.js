@@ -4,12 +4,16 @@
 
   const params=new URLSearchParams(window.location.search||'');
 
+  if(/Windows|Win32|Win64/i.test(navigator.userAgent+' '+navigator.platform)){
+    document.documentElement.dataset.lexiaWindows='1';
+  }
+
   // Estilos de las pantallas comunes; se cargan también fuera de PyWebView.
   if(!document.getElementById('lexiaSharedUiConsistency')){
     const stylesheet=document.createElement('link');
     stylesheet.id='lexiaSharedUiConsistency';
     stylesheet.rel='stylesheet';
-    stylesheet.href='assets/shared_ui_consistency.css?v=2';
+    stylesheet.href='assets/shared_ui_consistency.css?v=3';
     document.head.appendChild(stylesheet);
   }
 
