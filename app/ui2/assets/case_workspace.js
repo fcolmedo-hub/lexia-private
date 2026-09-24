@@ -149,7 +149,64 @@
       '#' + PAGE_ID + ' .primary-head{gap:9px;padding:9px 11px}#' + PAGE_ID + ' .branch-mark{width:24px;height:24px;font-size:12px}#' + PAGE_ID + ' .branch-title b{font-size:13px;line-height:1.25}#' + PAGE_ID + ' .branch-title small{margin-top:2px;font-size:10px}#' + PAGE_ID + ' .branch-questions{padding:8px 10px 10px}#' + PAGE_ID + ' .question-row{gap:9px;padding:8px 9px;margin-top:6px}#' + PAGE_ID + ' .question-row strong{font-size:12px;line-height:1.28}#' + PAGE_ID + ' .question-row small{margin-top:2px;max-width:none;font-size:10px;line-height:1.3}#' + PAGE_ID + ' .question-row-active strong{font-size:13px}',
       '#' + PAGE_ID + ' .question-row-active{position:relative;z-index:1;margin-top:7px;padding:8px 9px;border-color:#8e85ff;background:#fbfaff;box-shadow:0 0 0 2px rgba(93,81,244,.10)}#' + PAGE_ID + ' .question-row-active strong{font-size:13px;color:#25305a;white-space:normal;overflow:visible}#' + PAGE_ID + ' .question-row-active small{display:none}#' + PAGE_ID + ' .case-workspace-inline{margin:0!important;border:1px solid #8e85ff!important;border-top:0!important;border-radius:0 0 8px 8px!important;box-shadow:0 2px 7px rgba(72,62,184,.08)!important}#' + PAGE_ID + ' .question-row-active + .case-workspace-inline{margin-top:-1px!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-layout{min-height:0!important}#' + PAGE_ID + ' .case-workspace-inline .workspace-editor{padding-top:9px!important}',
       '#searchpage #realSearchResults .result-card{grid-template-columns:34px minmax(0,1fr) 72px!important;column-gap:12px!important;height:auto!important;max-height:none!important;min-height:0!important;padding:14px!important;overflow:visible!important;align-items:start!important}#searchpage #realSearchResults .result-body{display:block!important;min-width:0!important;height:auto!important;max-height:none!important;overflow:visible!important}#searchpage #realSearchResults .result-body p{display:block!important;visibility:visible!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}#searchpage #realSearchResults .result-actions{position:relative!important;display:flex!important;flex-direction:column!important;align-items:flex-end!important;justify-content:flex-start!important;width:72px!important;min-width:72px!important;max-width:72px!important;gap:7px!important;overflow:visible!important}#searchpage #realSearchResults .result-actions>.score{order:2!important;box-sizing:border-box!important;width:auto!important;min-width:0!important;max-width:72px!important;height:auto!important;min-height:0!important;padding:4px 6px!important;font-size:9px!important;line-height:1!important;white-space:nowrap!important}#searchpage #realSearchResults .result-action-menu{position:relative!important;order:1!important;display:block!important;width:30px!important;height:28px!important}#searchpage #realSearchResults .result-menu-toggle{box-sizing:border-box!important;width:30px!important;min-width:30px!important;height:28px!important;min-height:28px!important;padding:0!important;display:grid!important;place-items:center!important;border:1px solid #cfd5e5!important;border-radius:7px!important;background:#fff!important;color:#3d4563!important;font:900 18px/1 system-ui,sans-serif!important;letter-spacing:1px!important;cursor:pointer!important}#searchpage #realSearchResults .result-menu-toggle:hover,#searchpage #realSearchResults .result-menu-toggle[aria-expanded="true"]{border-color:#7168f5!important;background:#f3f1ff!important;color:#5146f6!important}#searchpage #realSearchResults .result-menu-popover{position:fixed!important;z-index:10120!important;box-sizing:border-box!important;width:220px!important;min-width:220px!important;padding:6px!important;display:flex!important;flex-direction:column!important;gap:2px!important;border:1px solid #dce1ed!important;border-radius:10px!important;background:#fff!important;box-shadow:0 14px 38px rgba(28,37,73,.22)!important}#searchpage #realSearchResults .result-menu-popover[hidden]{display:none!important}#searchpage #realSearchResults button.result-menu-item{box-sizing:border-box!important;width:100%!important;min-width:0!important;height:auto!important;min-height:34px!important;margin:0!important;padding:7px 9px!important;display:grid!important;grid-template-columns:20px minmax(0,1fr)!important;gap:8px!important;align-items:center!important;justify-items:start!important;border:0!important;border-radius:7px!important;background:#fff!important;color:#303a5b!important;font:700 11px/1.25 system-ui,-apple-system,"Segoe UI",sans-serif!important;text-align:left!important;white-space:normal!important;cursor:pointer!important}#searchpage #realSearchResults button.result-menu-item:hover{background:#f4f3ff!important;color:#272e50!important}#searchpage #realSearchResults button.result-menu-item::before{display:grid!important;place-items:center!important;width:20px!important;height:20px!important;border-radius:5px!important;font:900 14px/1 system-ui,sans-serif!important}#searchpage #realSearchResults button.result-menu-open::before{content:"↗"!important;background:#e7f7ee!important;color:#128447!important}#searchpage #realSearchResults button.result-menu-investigate::before{content:"⌕"!important;background:#eceaff!important;color:#5146f6!important}#searchpage #realSearchResults button.result-menu-case::before{content:"⇥"!important;background:#e5e0ff!important;color:#3428c7!important}#searchpage #realSearchResults button.result-menu-info::before{content:"i"!important;background:#f1f3f8!important;color:#45506f!important;font-family:Georgia,serif!important}#searchpage #realSearchResults button.result-menu-ocr::before{content:"↻"!important;background:#ece9ff!important;color:#4b3fbd!important}#searchpage #realSearchResults button.result-menu-delete{margin-top:4px!important;border-top:1px solid #edf0f5!important;border-radius:0 0 7px 7px!important;color:#b32638!important}#searchpage #realSearchResults button.result-menu-delete::before{content:"×"!important;background:#fff0f1!important;color:#c72b3d!important;font-size:16px!important}',
-      '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
+      '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}',
+      `#${PAGE_ID}{font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+       #${PAGE_ID} .cases-main{padding:20px 24px 36px}
+       #${PAGE_ID} .cases-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #dfe4f1}
+       #${PAGE_ID} .cases-page-heading{min-width:0}
+       #${PAGE_ID} .cases-page-heading h1{margin:0;color:#202a48;font-size:20px;line-height:1.2}
+       #${PAGE_ID} .cases-page-heading p{margin:2px 0 0;color:#63708f;font-size:12px}
+       #${PAGE_ID} .cases-toolbar-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
+       #${PAGE_ID} .cases-picker{flex:0 1 220px;min-width:160px}
+       #${PAGE_ID} .cases-picker summary{font-size:12px;font-weight:700}
+       #${PAGE_ID} .cases-picker-menu input,#${PAGE_ID} .cases-picker-option{font-size:12px}
+       #${PAGE_ID} .cases-button,#${PAGE_ID} .cases-button-secondary{font-size:12px!important;line-height:1.25!important;font-weight:700;padding:7px 10px!important;min-height:32px}
+       #${PAGE_ID} .cases-icon{font-size:12px!important}
+       #${PAGE_ID} .case-identification{padding:10px 12px;margin-bottom:10px;border-radius:10px}
+       #${PAGE_ID} .case-identification-head{align-items:center}
+       #${PAGE_ID} .case-identification-info{min-width:0}
+       #${PAGE_ID} .case-identification h2{margin:0;color:#202a48;font-size:15px;line-height:1.3}
+       #${PAGE_ID} .case-identification .case-summary{margin:2px 0 0;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+       #${PAGE_ID} .case-actions{gap:6px;flex-shrink:0}
+       #${PAGE_ID} .case-tree{padding:12px;border-radius:10px}
+       #${PAGE_ID} .case-tree-head h2{font-size:15px}
+       #${PAGE_ID} .case-tree-head p{font-size:12px}
+       #${PAGE_ID} .primary-branch{overflow:visible}
+       #${PAGE_ID} .primary-head{gap:9px;padding:9px 10px;flex-wrap:wrap;border-radius:8px}
+       #${PAGE_ID} .branch-title b{font-size:14px}
+       #${PAGE_ID} .branch-title small{font-size:11px}
+       #${PAGE_ID} .branch-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+       #${PAGE_ID} .branch-actions .cases-button-secondary{white-space:nowrap}
+       #${PAGE_ID} .question-row{flex-wrap:wrap}
+       #${PAGE_ID} .question-row strong{font-size:13px}
+       #${PAGE_ID} .question-row small{font-size:11px}
+       #${PAGE_ID} .question-row-active strong{font-size:13px}
+       #${PAGE_ID} .cases-row-menu{position:relative;flex:0 0 auto}
+       #${PAGE_ID} .cases-row-menu summary{display:grid;place-items:center;box-sizing:border-box;width:32px;height:32px;border:1px solid #d8deed;border-radius:7px;background:#fff;color:#465176;cursor:pointer;list-style:none;font-size:19px;line-height:1}
+       #${PAGE_ID} .cases-row-menu summary::-webkit-details-marker{display:none}
+       #${PAGE_ID} .cases-row-menu[open] summary,#${PAGE_ID} .cases-row-menu summary:hover{border-color:#8176fa;color:#5146f6}
+       #${PAGE_ID} .cases-row-menu-items{position:absolute;z-index:20;right:0;top:calc(100% + 4px);display:grid;gap:3px;width:max-content;min-width:200px;max-width:min(300px,75vw);padding:6px;border:1px solid #dce1ed;border-radius:9px;background:#fff;box-shadow:0 12px 28px rgba(31,39,76,.18)}
+       #${PAGE_ID} .cases-row-menu-items button{width:100%;text-align:left}
+       #${PAGE_ID} .workspace-layout{display:block;min-height:0}
+       #${PAGE_ID} .workspace-editor{border-right:0;padding:10px 12px}
+       #${PAGE_ID} .argument-section summary{font-size:13px}
+       #${PAGE_ID} .argument-paragraph-number{font-size:11px}
+       #${PAGE_ID} .argument-block textarea{font-size:13px!important;line-height:1.45!important}
+       #${PAGE_ID} .argument-evidence{font-size:12px;line-height:1.45}
+       #${PAGE_ID} .block-files{grid-column:2/-1;min-width:0;margin:4px 0 7px}
+       #${PAGE_ID} .block-files>summary{display:inline-flex;align-items:center;gap:5px;list-style:none;cursor:pointer;color:#5146f6;font-size:12px;font-weight:700}
+       #${PAGE_ID} .block-files>summary::-webkit-details-marker{display:none}
+       #${PAGE_ID} .block-files>summary:before{content:'▸';font-size:11px}
+       #${PAGE_ID} .block-files[open]>summary:before{transform:rotate(90deg)}
+       #${PAGE_ID} .block-files .workspace-sources{max-width:720px;margin-top:7px;padding:10px;border:1px solid #dce2f0;border-radius:8px;background:#fbfbff}
+       #${PAGE_ID} .block-files .source-help,#${PAGE_ID} .block-files .sources-drop-help{font-size:12px;line-height:1.4}
+       #${PAGE_ID} .block-files .evidence-candidate{font-size:12px;min-height:30px}
+       #${PAGE_ID} .block-files .sources-empty{font-size:12px}
+       #${PAGE_ID} .branch-ai summary,#${PAGE_ID} .branch-ai-option{font-size:12px}
+       #${PAGE_ID} .branch-ai textarea{font-size:13px}
+       #${PAGE_ID} .cases-field label{font-size:11px}
+       #${PAGE_ID} .cases-field input,#${PAGE_ID} .cases-field textarea,#${PAGE_ID} .cases-field select{font-size:13px}
+       @media(max-width:800px){#${PAGE_ID} .cases-main{padding:14px 12px 28px}#${PAGE_ID} .cases-toolbar{align-items:stretch;flex-direction:column;gap:10px}#${PAGE_ID} .cases-toolbar-actions{justify-content:space-between}#${PAGE_ID} .cases-picker{flex:1;min-width:0}#${PAGE_ID} .case-identification-head{align-items:flex-start;flex-direction:column}#${PAGE_ID} .case-actions{align-self:stretch}#${PAGE_ID} .primary-head{align-items:center}#${PAGE_ID} .branch-actions{width:100%;justify-content:flex-start}}`
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
   }
@@ -285,9 +342,12 @@
     draw(''); input.addEventListener('input', () => draw(input.value));
     picker.addEventListener('toggle', () => { if (picker.open) setTimeout(() => input.focus(), 0); else { input.value = ''; draw(''); } });
     picker.append(summary, el('div', {className: 'cases-picker-menu'}, input, list));
-    const add = el('button', {type: 'button', className: 'cases-button', textContent: '+ Caso'});
+    const add = el('button', {type: 'button', className: 'cases-button', textContent: '+ Nuevo caso'});
     add.addEventListener('click', openNewCaseDialog);
-    return el('header', {className: 'cases-toolbar'}, picker, add);
+    return el('header', {className: 'cases-toolbar'},
+      el('div', {className: 'cases-page-heading'}, el('h1', {textContent: 'Casos'}),
+        el('p', {textContent: 'Trabajá cada cuestión y sus fuentes en el mismo lugar.'})),
+      el('div', {className: 'cases-toolbar-actions'}, picker, add));
   }
   function newCaseForm(close) {
     const form = el('form', {className: 'cases-card cases-create'});
@@ -305,13 +365,16 @@
   function identification(snapshot) {
     if (editingCase) return editCase(snapshot);
     const details = snapshot.case, card = el('section', {className: 'cases-card case-identification'});
-    const edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
+    const edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar caso'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar caso'});
     edit.addEventListener('click', () => { editingCase = true; render({cases: caseList}); });
     remove.addEventListener('click', async () => {
       if (!confirm('¿Eliminar el caso “' + details.name + '”?\\n\\nSe eliminarán ramas, notas y vínculos locales. Los documentos originales de LexIA no se borrarán.')) return;
       try { await api('/api/cases/delete', {method: 'POST', body: JSON.stringify({case_id: details.id, confirmed: true})}); currentCase = null; expandedNodeId = null; await loadCases(false); } catch (error) { alert(error.message); }
     });
-    card.append(el('div', {className: 'case-identification-head'}, el('div', {}, el('h1', {textContent: details.name}), el('p', {className: 'case-summary', textContent: details.description || 'Sin resumen aún.'})), el('div', {className: 'case-actions'}, edit, remove)), el('div', {className: 'case-facts'}, fact('Tribunal o autoridad', details.authority || 'Sin consignar'), fact('Expediente', details.file_number || 'Sin consignar')));
+    card.append(el('div', {className: 'case-identification-head'},
+      el('div', {className: 'case-identification-info'}, el('h2', {textContent: details.name}),
+        el('p', {className: 'case-summary', textContent: [details.authority, details.file_number && 'Expte. ' + details.file_number, details.description].filter(Boolean).join(' · ') || 'Sin datos del caso aún.'})),
+      el('div', {className: 'case-actions'}, edit, remove)));
     return card;
   }
   function editCase(snapshot) {
@@ -486,19 +549,19 @@
     return form;
   }
   function primary(snapshot, node) {
-    const sourceLabel = node.primary_document_name || ((node.sources || []).length ? ((node.sources || []).length + ' archivo(s) vinculado(s)') : 'Hito sin documento inicial');
+    const sourceLabel = node.primary_document_name ? 'Documento inicial: ' + node.primary_document_name : ((node.sources || []).length ? ((node.sources || []).length + ' archivo(s) vinculado(s)') : 'Hito sin documento inicial');
     const article = el('article', {className: 'primary-branch'}), title = el('div', {className: 'branch-title'}, el('b', {textContent: node.title}), el('small', {textContent: sourceLabel}));
     const input = el('input', {type: 'file', multiple: 'multiple', accept: '.pdf,.doc,.docx,.odt,.txt,.html,.htm,.rtf,.xls,.ods', hidden: 'hidden'});
     const isOpen = openPrimaryIds.has(node.id);
-    const toggle = actionIcon(isOpen ? 'hide' : 'show', isOpen ? 'Ocultar rama' : 'Mostrar rama');
-    const upload = actionIcon('files', 'Cargar archivos en esta rama');
-    const replace = node.primary_document_id ? actionIcon('replace', 'Reemplazar documento inicial') : null;
-    const analyze = node.primary_document_id ? actionIcon('ai', 'Armar árbol con IA') : null;
+    const upload = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Archivos', title: 'Cargar archivos en esta rama'});
+    const replace = node.primary_document_id ? el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Reemplazar documento inicial'}) : null;
+    const analyze = node.primary_document_id ? el('button', {type: 'button', className: 'cases-button-secondary', textContent: '✦ Árbol con IA'}) : null;
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
-    const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
+    const addQuestion = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Cuestión', title: canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'});
+    const edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar rama'});
+    const remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar rama'});
     addQuestion.disabled = !canAddQuestion;
     const togglePrimary = () => { if (openPrimaryIds.has(node.id)) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); persistCaseUiState(snapshot.case.id); render({cases: caseList}); };
-    toggle.addEventListener('click', togglePrimary);
     upload.addEventListener('click', () => input.click());
     if (replace) replace.addEventListener('click', () => replacePrimaryDocument(snapshot, node));
     if (analyze) analyze.addEventListener('click', () => openAiStructureDialog(snapshot, node));
@@ -506,7 +569,13 @@
     addQuestion.addEventListener('click', () => { openPrimaryIds.add(node.id); openQuestionDialog(snapshot, node.id); });
     edit.addEventListener('click', async () => { const titleValue = prompt('Nombre de la rama principal:', node.title); if (titleValue === null) return; try { await updateNode(Object.assign({}, node, {title: titleValue, primary_document_id: node.primary_document_id || null})); } catch (error) { alert(error.message); } });
     remove.addEventListener('click', () => removeNode(node, node.children && node.children.length ? 'También se eliminarán sus cuestiones y vínculos locales.' : ''));
-    const head = el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, toggle, upload, replace, analyze, addQuestion, edit, remove));
+    const menu = el('details', {className: 'cases-row-menu'});
+    menu.append(el('summary', {textContent: '⋯', title: 'Más acciones de la rama', 'aria-label': 'Más acciones de la rama'}),
+      el('div', {className: 'cases-row-menu-items'},
+        ...(replace ? [replace] : []), edit, remove,
+        el('button', {type: 'button', className: 'cases-button-secondary', textContent: isOpen ? 'Ocultar rama' : 'Mostrar rama', onclick: togglePrimary})));
+    menu.addEventListener('click', event => { if (event.target.closest('button')) menu.open = false; });
+    const head = el('header', {className: 'primary-head'}, el('span', {className: 'branch-mark', textContent: '↳'}), title, el('div', {className: 'branch-actions'}, upload, analyze, addQuestion, menu));
     enableDoubleClickToggle(head, togglePrimary); article.append(input, head);
     if (!isOpen) return article;
     const questions = el('div', {className: 'branch-questions'}); (node.children || []).forEach((question, index) => questions.append(questionRow(snapshot, question, String(index + 1))));
@@ -524,19 +593,22 @@
   function questionRow(snapshot, node, numberLabel) {
     const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
     const active = expandedNodeId === node.id;
-    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = actionIcon(active ? 'hide' : 'show', active ? 'Ocultar cuestión' : 'Mostrar cuestión');
+    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = el('button', {type: 'button', className: 'cases-button-secondary', textContent: active ? 'Ocultar' : 'Abrir'});
     const toggleQuestion = () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; persistCaseUiState(snapshot.case.id); render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.question-row-active'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); };
     open.addEventListener('click', toggleQuestion);
     const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
-    const addChild = actionIcon('add', canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión');
+    const addChild = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Subcuestión', title: canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión'});
     addChild.disabled = !canAddChild;
     addChild.addEventListener('click', () => openQuestionDialog(snapshot, node.id));
     const row = el('div', {className: 'question-row' + (active ? ' question-row-active' : '')}, el('div', {className: 'branch-mark question-number', textContent: numberLabel || '1'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), open, addChild);
     if (active) {
-      const edit = actionIcon('edit', 'Editar nombre de la cuestión'), remove = actionIcon('remove', 'Eliminar cuestión', 'cases-danger');
+      const edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar cuestión'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar cuestión'});
       edit.addEventListener('click', async () => { const title = prompt('Nombre de la cuestión jurídica:', node.title); if (title === null) return; try { await updateNode(Object.assign({}, node, {title, adversary_text: node.adversary_text || '', own_position: node.own_position || ''})); } catch (error) { alert(error.message); } });
       remove.addEventListener('click', () => removeNode(node, 'Se eliminarán también sus bloques, resaltados y resultado de IA.'));
-      row.append(edit, remove);
+      const menu = el('details', {className: 'cases-row-menu'});
+      menu.append(el('summary', {textContent: '⋯', title: 'Más acciones de la cuestión', 'aria-label': 'Más acciones de la cuestión'}), el('div', {className: 'cases-row-menu-items'}, edit, remove));
+      menu.addEventListener('click', event => { if (event.target.closest('button')) menu.open = false; });
+      row.append(menu);
     }
     enableDoubleClickToggle(row, toggleQuestion);
     const article = el('article', {});
@@ -665,7 +737,7 @@
     const editor = el('section', {className: 'workspace-editor'});
     editor.append(argumentSection(snapshot, node, 'contraparte', 'Planteo de la contraparte'));
     editor.append(argumentSection(snapshot, node, 'propia', 'Nuestra postura y fundamentos'));
-    box.append(el('div', {className: 'workspace-layout'}, editor, sources(snapshot, node, activeWorkspaceSide))); return box;
+    box.append(el('div', {className: 'workspace-layout'}, editor)); return box;
   }
   function argumentSection(snapshot, node, side, label) {
     const blocks = (node.blocks && node.blocks[side]) || [], body = el('div', {});
@@ -737,18 +809,18 @@
         body.append(excerpt);
       }
     });
-    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove)); requestAnimationFrame(resizeText); return article;
+    const files = el('details', {className: 'block-files'});
+    files.append(el('summary', {textContent: 'Archivos del caso · ' + availableDocuments(snapshot, node).length}), sources(snapshot, node, block));
+    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove), files); requestAnimationFrame(resizeText); return article;
   }
-  function sources(snapshot, node, side) {
-    const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Archivos del caso'}), el('p', {className: 'source-help', textContent: 'Elegí un archivo para seleccionar el pasaje que querés incorporar al párrafo activo. Los resaltados ya incorporados se editan directamente desde el párrafo.'}));
-    const blocks = Object.values(node.blocks || {}).flat(), candidates = availableDocuments(snapshot, node);
+  function sources(snapshot, node, block) {
+    const panel = el('aside', {className: 'workspace-sources'}, el('p', {className: 'source-help', textContent: 'Elegí un archivo para seleccionar el pasaje que querés incorporar a este bloque. Los resaltados incorporados se editan desde el bloque.'}));
+    const candidates = availableDocuments(snapshot, node);
     const protectedDocuments = primaryDocumentIds(snapshot.nodes || []);
     if (!candidates.length) panel.append(el('p', {className: 'sources-empty', textContent: 'Cargá un archivo en la rama para poder crear una cuestión respaldada.'}));
     candidates.forEach(doc => {
       const choose = actionIcon('add', 'Seleccionar un pasaje de este archivo');
       choose.addEventListener('click', () => {
-        const block = blocks.find(item => item.id === activeEvidenceBlockId);
-        if (!block) return alert('Primero hacé clic dentro del párrafo al que querés vincular este pasaje.');
         openEvidenceDialog(snapshot, node, block, [doc]);
       });
       const actions = [choose];
@@ -758,13 +830,11 @@
       }
       panel.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name, title: protectedDocuments.has(Number(doc.id)) ? 'Documento inicial de una rama: se reemplaza desde su cabecera.' : ''}), ...actions));
     });
-    panel.append(el('p', {className: 'sources-drop-help', textContent: 'Para incorporar un archivo nuevo, seleccioná primero el bloque y arrastrá aquí el archivo.'}));
+    panel.append(el('p', {className: 'sources-drop-help', textContent: 'Arrastrá aquí un archivo nuevo para incorporarlo a este bloque.'}));
     panel.addEventListener('dragover', event => { event.preventDefault(); panel.classList.add('drop-target'); });
     panel.addEventListener('dragleave', event => { if (!panel.contains(event.relatedTarget)) panel.classList.remove('drop-target'); });
     panel.addEventListener('drop', event => {
       event.preventDefault(); panel.classList.remove('drop-target');
-      const block = blocks.find(item => item.id === activeEvidenceBlockId);
-      if (!block) return alert('Primero hacé clic dentro del bloque al que querés vincular el archivo.');
       if (event.dataTransfer?.files?.length) importBlockFiles(snapshot, node, block, event.dataTransfer.files, panel);
     });
     return panel;
