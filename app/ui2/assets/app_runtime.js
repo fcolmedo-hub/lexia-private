@@ -4,6 +4,15 @@
 
   const params=new URLSearchParams(window.location.search||'');
 
+  // Estilos de las pantallas comunes; se cargan también fuera de PyWebView.
+  if(!document.getElementById('lexiaSharedUiConsistency')){
+    const stylesheet=document.createElement('link');
+    stylesheet.id='lexiaSharedUiConsistency';
+    stylesheet.rel='stylesheet';
+    stylesheet.href='assets/shared_ui_consistency.css?v=1';
+    document.head.appendChild(stylesheet);
+  }
+
   function loadCaseWorkspace(){
     if(document.querySelector('script[data-lexia-case-workspace]'))return;
     const caseWorkspace=document.createElement('script');

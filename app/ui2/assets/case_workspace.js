@@ -342,7 +342,7 @@
     draw(''); input.addEventListener('input', () => draw(input.value));
     picker.addEventListener('toggle', () => { if (picker.open) setTimeout(() => input.focus(), 0); else { input.value = ''; draw(''); } });
     picker.append(summary, el('div', {className: 'cases-picker-menu'}, input, list));
-    const add = el('button', {type: 'button', className: 'cases-button', textContent: '+ Nuevo caso'});
+    const add = el('button', {type: 'button', className: 'cases-button', textContent: 'Nuevo caso'});
     add.addEventListener('click', openNewCaseDialog);
     return el('header', {className: 'cases-toolbar'},
       el('div', {className: 'cases-page-heading'}, el('h1', {textContent: 'Casos'}),
