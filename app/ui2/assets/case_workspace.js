@@ -66,7 +66,8 @@
       '#' + PAGE_ID + ' .argument-block{display:grid;grid-template-columns:17px minmax(0,1fr) auto;column-gap:5px;align-items:start;margin:1px 0;padding:2px 0;border:0;border-radius:0;background:transparent}#' + PAGE_ID + ' .argument-block + .argument-block{border-top:1px solid #edf0f5;padding-top:4px}#' + PAGE_ID + ' .argument-paragraph-number{display:grid;place-items:center;width:16px;height:16px;margin-top:3px;border-radius:50%;background:#eeeaff;color:#5648ed;font-size:9px;font-weight:800}#' + PAGE_ID + ' .argument-block-body{min-width:0}#' + PAGE_ID + ' .argument-block textarea{min-height:27px!important;height:27px;border-color:transparent;background:#fcfcff;padding:4px 5px!important;font-size:11px!important;line-height:1.3!important;overflow:hidden!important}#' + PAGE_ID + ' .argument-block textarea:focus{border-color:#b9b3ff;background:#fff}#' + PAGE_ID + ' .argument-block-actions{margin:1px 0 0;display:flex;gap:2px;align-items:flex-start}#' + PAGE_ID + ' .argument-evidence{margin:3px 0 0;padding:6px 7px;border-left:2px solid #8075fa;background:#f8f7ff;white-space:pre-wrap;font-size:11px;line-height:1.4;color:#4e5878}#' + PAGE_ID + ' .argument-evidence:first-of-type{margin-top:3px}#' + PAGE_ID + ' .case-identification{padding:10px 12px;margin-bottom:9px}#' + PAGE_ID + ' .case-identification h1{font-size:15px}#' + PAGE_ID + ' .case-identification .case-summary{margin-top:4px;font-size:10px;line-height:1.3}#' + PAGE_ID + ' .case-identification .case-facts{gap:6px;margin-top:8px;padding-top:8px}#' + PAGE_ID + ' .case-identification .case-fact small{font-size:8px;margin-bottom:1px}#' + PAGE_ID + ' .case-identification .case-fact span{font-size:10px}#' + PAGE_ID + ' .case-identification .cases-form-grid{gap:7px}#' + PAGE_ID + ' .case-identification .cases-field{gap:3px}#' + PAGE_ID + ' .case-identification .cases-field label{font-size:8px}#' + PAGE_ID + ' .case-identification .cases-field input,#' + PAGE_ID + ' .case-identification .cases-field textarea{padding:6px 8px;font-size:11px;line-height:1.25}#' + PAGE_ID + ' .case-identification .cases-field textarea{min-height:52px}#' + PAGE_ID + ' .case-identification .cases-form-actions{margin-top:7px}#' + PAGE_ID + ' .workspace-sources.drop-target{outline:2px dashed #6558f5;outline-offset:-5px;background:#f3f1ff}#' + PAGE_ID + ' .sources-drop-help{margin:7px 0 0;padding:8px;border:1px dashed #c9c3ff;border-radius:7px;color:#6257db;font-size:9px;text-align:center}#' + PAGE_ID + ' .argument-section summary{font-size:11px}#' + PAGE_ID + ' .branch-actions .cases-icon,#' + PAGE_ID + ' .question-row .cases-icon{display:grid;place-items:center;min-width:22px;padding:4px!important}#' + PAGE_ID + ' .cases-icon svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}#' + PAGE_ID + ' .evidence-dialog-head{justify-content:space-between}#' + PAGE_ID + ' .evidence-reader{box-sizing:border-box!important;display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;white-space:pre-wrap!important;overflow-x:hidden!important;overflow-y:auto!important;overflow-wrap:anywhere!important;word-break:break-word!important;tab-size:4}#' + PAGE_ID + ' .branch-ai{margin:8px 8px 2px;padding:8px 9px;border-top:1px solid #e5e8f1;background:#fbfbfe}#' + PAGE_ID + ' .branch-ai summary{cursor:pointer;color:#38436a;font-size:10px;font-weight:800}#' + PAGE_ID + ' .branch-ai-options{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}#' + PAGE_ID + ' .branch-ai-option{display:flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px;border:1px solid #e0e4ee;border-radius:6px;background:#fff;color:#56617f;font-size:9px}#' + PAGE_ID + ' .branch-ai-option span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}#' + PAGE_ID + ' .branch-ai textarea{box-sizing:border-box;width:100%;min-height:96px;margin-top:7px;padding:7px 8px;border:1px solid #dce2ee;border-radius:6px;font:inherit;font-size:11px;line-height:1.4;color:#293357}',
       '.cases-create-dialog{width:min(680px,92vw);max-width:680px}.cases-create-dialog .branch-form{margin:0;padding:2px;border:0;background:transparent}.cases-create-dialog .cases-form-actions{margin-bottom:0}',
       '.evidence-selection-dialog[open]{width:min(940px,92vw);height:min(84vh,720px);max-height:84vh;border:1px solid #d8deeb;border-radius:12px;padding:0;box-shadow:0 20px 70px rgba(20,30,65,.28);display:flex;flex-direction:column;overflow:hidden}.evidence-selection-dialog[open]::backdrop{background:rgba(24,31,56,.34)}.evidence-selection-dialog .evidence-dialog-head{flex:0 0 auto;padding:11px 13px;border-bottom:1px solid #e6eaf2;display:flex;justify-content:space-between;gap:8px;align-items:center}.evidence-selection-dialog .evidence-dialog-body{box-sizing:border-box;display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden;padding:11px 13px}.evidence-selection-dialog .evidence-reader{box-sizing:border-box;display:block;flex:1 1 auto;width:100%;min-height:130px;height:auto!important;margin-top:8px;overflow:auto!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.evidence-selection-dialog .evidence-selection-status{flex:0 0 auto;margin:7px 0}.evidence-selection-dialog .evidence-dialog-actions{flex:0 0 auto;display:flex;justify-content:flex-end;gap:6px;margin-top:0;padding-top:8px;background:#fff;border-top:1px solid #edf0f5}',
-      '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}'
+      '@media(max-width:1199px){#' + PAGE_ID + '{left:0;padding-top:58px}#' + PAGE_ID + ' .cases-main{padding:16px 18px 32px}}@media(max-width:800px){#' + PAGE_ID + ' .cases-main{padding:14px 12px 28px}.cases-form-grid,.case-facts,.workspace-layout{grid-template-columns:1fr}.workspace-editor{border-right:0;border-bottom:1px solid #e8ebf3}.case-identification-head,.workspace-head{align-items:flex-start;flex-direction:column}.case-identification-head .case-actions{align-self:stretch}.case-actions button{flex:1}.primary-head{align-items:flex-start}.branch-actions{flex-wrap:wrap;justify-content:flex-end}}',
+      `#${PAGE_ID} .cases-main{font-size:12px}#${PAGE_ID} .cases-toolbar{align-items:end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px}#${PAGE_ID} .cases-page-heading{min-width:200px;flex:1}#${PAGE_ID} .cases-page-heading h1{margin:0;color:#202a48;font-size:24px;line-height:1.2}#${PAGE_ID} .cases-page-heading p{margin:3px 0 0;color:#697492;font-size:12px}#${PAGE_ID} .cases-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}#${PAGE_ID} .cases-picker{flex:none;min-width:min(245px,100%)}#${PAGE_ID} .cases-picker input{height:36px;font-size:12px}#${PAGE_ID} .cases-button,#${PAGE_ID} .cases-button-secondary{min-height:32px;font-size:11px!important;font-weight:700;padding:7px 11px!important}#${PAGE_ID} .case-identification{padding:12px 14px}#${PAGE_ID} .case-identification h2{margin:0;color:#202a48;font-size:16px}#${PAGE_ID} .case-identification .case-summary{margin-top:4px;color:#66718d;font-size:11px;line-height:1.4;overflow-wrap:anywhere}#${PAGE_ID} .case-tree-head h2{font-size:14px}#${PAGE_ID} .primary-head{gap:9px;padding:9px 11px}#${PAGE_ID} .branch-mark{width:24px;height:24px;font-size:12px}#${PAGE_ID} .branch-title b{font-size:13px;line-height:1.25}#${PAGE_ID} .branch-title small{margin-top:2px;font-size:10px}#${PAGE_ID} .branch-actions{gap:5px;flex-wrap:wrap}#${PAGE_ID} .branch-actions .cases-button-secondary{min-height:29px;padding:5px 8px!important}#${PAGE_ID} .branch-questions{padding:8px 10px 10px}#${PAGE_ID} .question-row{gap:9px;padding:8px 9px;margin-top:6px}#${PAGE_ID} .question-row strong{font-size:12px;line-height:1.3}#${PAGE_ID} .question-row small{font-size:10px;line-height:1.3}#${PAGE_ID} .question-row-active{border-color:#8e85ff;background:#fbfaff}#${PAGE_ID} .question-actions{display:flex;align-items:center;gap:5px}#${PAGE_ID} .question-actions .cases-button-secondary{min-height:28px;padding:5px 8px!important}#${PAGE_ID} .case-workspace{min-height:0}#${PAGE_ID} .workspace-layout{display:block;min-height:0}#${PAGE_ID} .workspace-editor{padding:10px 12px;border-right:0}#${PAGE_ID} .workspace-head h2{font-size:14px}#${PAGE_ID} .argument-block{row-gap:3px}#${PAGE_ID} .block-files{grid-column:2/-1;min-width:0;margin:4px 0 6px;border:1px solid #e2e6f0;border-radius:7px;background:#fff}#${PAGE_ID} .block-files summary{padding:7px 9px;cursor:pointer;color:#465176;font-size:11px;font-weight:700}#${PAGE_ID} .block-files summary:hover{color:#5146f6}#${PAGE_ID} .block-files .workspace-sources{padding:8px 10px;border-top:1px solid #edf0f5;background:#fff}#${PAGE_ID} .block-files .source-help,#${PAGE_ID} .block-files .sources-empty,#${PAGE_ID} .block-files .sources-drop-help{font-size:10px}#${PAGE_ID} .block-files .evidence-candidate{font-size:10px}#${PAGE_ID} .cases-field label{font-size:10px}#${PAGE_ID} .cases-field input,#${PAGE_ID} .cases-field textarea,#${PAGE_ID} .cases-field select{font-size:12px}@media(max-width:800px){#${PAGE_ID} .cases-toolbar{align-items:stretch}#${PAGE_ID} .cases-toolbar-actions{width:100%}#${PAGE_ID} .cases-picker{flex:1;min-width:0}#${PAGE_ID} .branch-actions{justify-content:flex-start}#${PAGE_ID} .question-row{flex-wrap:wrap}#${PAGE_ID} .question-actions{width:100%;justify-content:flex-end}}`
     ].join('');
     document.head.appendChild(el('style', {id: 'lexiaCasesStyle', textContent: css}));
   }
@@ -188,9 +189,12 @@
     const input = el('input', {type: 'search', list: 'lexiaCaseOptions', placeholder: 'Buscar o seleccionar un caso…', value: currentCase && currentCase.case ? currentCase.case.name : ''});
     const list = el('datalist', {id: 'lexiaCaseOptions'}); caseList.forEach(item => list.append(el('option', {value: item.name})));
     input.addEventListener('change', () => { const found = caseList.find(item => item.name === input.value.trim()); if (found) loadCase(found.id); });
-    const add = el('button', {type: 'button', className: 'cases-button', textContent: '+ Caso'});
+    const add = el('button', {type: 'button', className: 'cases-button', textContent: '+ Nuevo caso'});
     add.addEventListener('click', () => { showNewCase = !showNewCase; render({cases: caseList}); });
-    return el('header', {className: 'cases-toolbar'}, el('div', {className: 'cases-picker'}, input, list), add);
+    return el('header', {className: 'cases-toolbar'},
+      el('div', {className: 'cases-page-heading'}, el('h1', {textContent: 'Casos'}),
+        el('p', {textContent: 'Trabajá cada cuestión y sus fuentes en el mismo lugar.'})),
+      el('div', {className: 'cases-toolbar-actions'}, el('div', {className: 'cases-picker'}, input, list), add));
   }
   function newCaseForm() {
     const form = el('form', {className: 'cases-card cases-create'});
@@ -208,13 +212,16 @@
   function identification(snapshot) {
     if (editingCase) return editCase(snapshot);
     const details = snapshot.case, card = el('section', {className: 'cases-card case-identification'});
-    const edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar'});
+    const edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar caso'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar caso'});
     edit.addEventListener('click', () => { editingCase = true; render({cases: caseList}); });
     remove.addEventListener('click', async () => {
       if (!confirm('¿Eliminar el caso “' + details.name + '”?\\n\\nSe eliminarán ramas, notas y vínculos locales. Los documentos originales de LexIA no se borrarán.')) return;
       try { await api('/api/cases/delete', {method: 'POST', body: JSON.stringify({case_id: details.id, confirmed: true})}); currentCase = null; expandedNodeId = null; await loadCases(false); } catch (error) { alert(error.message); }
     });
-    card.append(el('div', {className: 'case-identification-head'}, el('div', {}, el('h1', {textContent: details.name}), el('p', {className: 'case-summary', textContent: details.description || 'Sin resumen aún.'})), el('div', {className: 'case-actions'}, edit, remove)), el('div', {className: 'case-facts'}, fact('Tribunal o autoridad', details.authority || 'Sin consignar'), fact('Expediente', details.file_number || 'Sin consignar')));
+    card.append(el('div', {className: 'case-identification-head'},
+      el('div', {}, el('h2', {textContent: details.name}),
+        el('p', {className: 'case-summary', textContent: [details.authority, details.file_number && 'Expte. ' + details.file_number, details.description].filter(Boolean).join(' · ') || 'Sin datos del caso aún.'})),
+      el('div', {className: 'case-actions'}, edit, remove)));
     return card;
   }
   function editCase(snapshot) {
@@ -258,15 +265,15 @@
     return form;
   }
   function primary(snapshot, node) {
-    const sourceLabel = node.primary_document_name || ((node.sources || []).length ? ((node.sources || []).length + ' archivo(s) vinculado(s)') : 'Hito sin documento inicial');
+    const sourceLabel = node.primary_document_name ? 'Documento inicial: ' + node.primary_document_name : ((node.sources || []).length ? ((node.sources || []).length + ' archivo(s) vinculado(s)') : 'Hito sin documento inicial');
     const article = el('article', {className: 'primary-branch'}), title = el('div', {className: 'branch-title'}, el('b', {textContent: node.title}), el('small', {textContent: sourceLabel}));
     const input = el('input', {type: 'file', multiple: 'multiple', accept: '.pdf,.doc,.docx,.odt,.txt,.html,.htm,.rtf,.xls,.ods', hidden: 'hidden'});
     const isOpen = openPrimaryIds.has(node.id);
-    const toggle = actionIcon(isOpen ? 'hide' : 'show', isOpen ? 'Ocultar rama' : 'Mostrar rama');
-    const upload = actionIcon('files', 'Cargar archivos en esta rama');
-    const replace = node.primary_document_id ? actionIcon('replace', 'Reemplazar documento inicial') : null;
+    const toggle = el('button', {type: 'button', className: 'cases-button-secondary', textContent: isOpen ? 'Ocultar' : 'Mostrar', title: isOpen ? 'Ocultar rama' : 'Mostrar rama'});
+    const upload = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Archivos', title: 'Cargar archivos en esta rama'});
+    const replace = node.primary_document_id ? el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Reemplazar documento inicial'}) : null;
     const canAddQuestion = !!node.primary_document_id || (node.sources || []).some(source => source.document_id);
-    const addQuestion = actionIcon('add', canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'), edit = actionIcon('edit', 'Editar rama'), remove = actionIcon('remove', 'Eliminar rama', 'cases-danger');
+    const addQuestion = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Cuestión', title: canAddQuestion ? 'Agregar cuestión' : 'Cargá primero un archivo en esta rama'}), edit = el('button', {type: 'button', className: 'cases-button-secondary', textContent: 'Editar rama'}), remove = el('button', {type: 'button', className: 'cases-button-secondary cases-danger', textContent: 'Eliminar rama'});
     addQuestion.disabled = !canAddQuestion;
     toggle.addEventListener('click', () => { if (isOpen) { openPrimaryIds.delete(node.id); expandedNodeId = null; } else openPrimaryIds.add(node.id); render({cases: caseList}); });
     upload.addEventListener('click', () => input.click());
@@ -291,13 +298,13 @@
   }
   function questionRow(snapshot, node) {
     const blockCount = ((node.blocks?.contraparte || []).length + (node.blocks?.propia || []).length);
-    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = actionIcon(expandedNodeId === node.id ? 'hide' : 'show', expandedNodeId === node.id ? 'Ocultar cuestión' : 'Mostrar cuestión');
+    const preview = blockCount ? (blockCount + ' bloque(s) de trabajo') : (node.adversary_text || node.own_position || 'Sin desarrollo todavía'), open = el('button', {type: 'button', className: 'cases-button-secondary', textContent: expandedNodeId === node.id ? 'Ocultar' : 'Abrir', title: expandedNodeId === node.id ? 'Ocultar cuestión' : 'Mostrar cuestión'});
     open.addEventListener('click', () => { expandedNodeId = expandedNodeId === node.id ? null : node.id; render({cases: caseList}); if (expandedNodeId) setTimeout(() => { const box = document.querySelector('.case-workspace'); if (box) box.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 0); });
     const canAddChild = Object.values(node.blocks || {}).some(blocks => (blocks || []).some(block => (block.highlights || []).length));
-    const addChild = actionIcon('add', canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión');
+    const addChild = el('button', {type: 'button', className: 'cases-button-secondary', textContent: '+ Subcuestión', title: canAddChild ? 'Agregar subcuestión' : 'Agregá primero un resaltado a esta cuestión'});
     addChild.disabled = !canAddChild;
     addChild.addEventListener('click', () => openQuestionDialog(snapshot, node.id));
-    const row = el('div', {className: 'question-row'}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), open, addChild);
+    const row = el('div', {className: 'question-row' + (expandedNodeId === node.id ? ' question-row-active' : '')}, el('div', {className: 'branch-mark', textContent: '§'}), el('div', {style: 'flex:1;min-width:0'}, el('strong', {textContent: node.title}), el('small', {textContent: preview})), el('div', {className: 'question-actions'}, open, addChild));
     const article = el('article', {});
     article.append(row);
     if (expandedNodeId === node.id) article.append(workspace(snapshot, node));
@@ -381,7 +388,7 @@
     const editor = el('section', {className: 'workspace-editor'});
     editor.append(argumentSection(snapshot, node, 'contraparte', 'Planteo de la contraparte'));
     editor.append(argumentSection(snapshot, node, 'propia', 'Nuestra postura y fundamentos'));
-    box.append(el('div', {className: 'workspace-layout'}, editor, sources(snapshot, node, activeWorkspaceSide))); return box;
+    box.append(el('div', {className: 'workspace-layout'}, editor)); return box;
   }
   function argumentSection(snapshot, node, side, label) {
     const blocks = (node.blocks && node.blocks[side]) || [], body = el('div', {});
@@ -424,20 +431,18 @@
       excerpt.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, availableDocuments(snapshot, node), highlight));
       body.append(excerpt);
     });
-    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove)); requestAnimationFrame(resizeText); return article;
+    const files = el('details', {className: 'block-files'});
+    files.append(el('summary', {textContent: 'Archivos del caso · ' + availableDocuments(snapshot, node).length}), sources(snapshot, node, block));
+    const article = el('article', {className: 'argument-block'}); article.addEventListener('pointerdown', selectBlock); article.append(el('span', {className: 'argument-paragraph-number', textContent: String(number)}), body, el('div', {className: 'argument-block-actions'}, evidence, remove), files); requestAnimationFrame(resizeText); return article;
   }
-  function sources(snapshot, node, side) {
-    const panel = el('aside', {className: 'workspace-sources'}, el('h3', {className: 'source-title', textContent: 'Archivos del caso'}), el('p', {className: 'source-help', textContent: 'Elegí un archivo para seleccionar el pasaje que querés incorporar al párrafo activo. Los resaltados ya incorporados se editan directamente desde el párrafo.'}));
-    const blocks = Object.values(node.blocks || {}).flat(), candidates = availableDocuments(snapshot, node);
+  function sources(snapshot, node, block) {
+    const panel = el('aside', {className: 'workspace-sources'}, el('p', {className: 'source-help', textContent: 'Elegí un archivo para seleccionar un pasaje para este bloque. Los resaltados incorporados se editan desde el bloque.'}));
+    const candidates = availableDocuments(snapshot, node);
     const protectedDocuments = primaryDocumentIds(snapshot.nodes || []);
     if (!candidates.length) panel.append(el('p', {className: 'sources-empty', textContent: 'Cargá un archivo en la rama para poder crear una cuestión respaldada.'}));
     candidates.forEach(doc => {
       const choose = actionIcon('add', 'Seleccionar un pasaje de este archivo');
-      choose.addEventListener('click', () => {
-        const block = blocks.find(item => item.id === activeEvidenceBlockId);
-        if (!block) return alert('Primero hacé clic dentro del párrafo al que querés vincular este pasaje.');
-        openEvidenceDialog(snapshot, node, block, [doc]);
-      });
+      choose.addEventListener('click', () => openEvidenceDialog(snapshot, node, block, [doc]));
       const actions = [choose];
       if (!protectedDocuments.has(Number(doc.id))) {
         const remove = actionIcon('remove', 'Eliminar archivo del caso', 'cases-danger');
@@ -445,13 +450,11 @@
       }
       panel.append(el('div', {className: 'evidence-candidate'}, el('b', {textContent: doc.document_name, title: protectedDocuments.has(Number(doc.id)) ? 'Documento inicial de una rama: se reemplaza desde su cabecera.' : ''}), ...actions));
     });
-    panel.append(el('p', {className: 'sources-drop-help', textContent: 'Para incorporar un archivo nuevo, seleccioná primero el bloque y arrastrá aquí el archivo.'}));
+    panel.append(el('p', {className: 'sources-drop-help', textContent: 'Arrastrá aquí un archivo nuevo para incorporarlo a este bloque.'}));
     panel.addEventListener('dragover', event => { event.preventDefault(); panel.classList.add('drop-target'); });
     panel.addEventListener('dragleave', event => { if (!panel.contains(event.relatedTarget)) panel.classList.remove('drop-target'); });
     panel.addEventListener('drop', event => {
       event.preventDefault(); panel.classList.remove('drop-target');
-      const block = blocks.find(item => item.id === activeEvidenceBlockId);
-      if (!block) return alert('Primero hacé clic dentro del bloque al que querés vincular el archivo.');
       if (event.dataTransfer?.files?.length) importBlockFiles(snapshot, node, block, event.dataTransfer.files, panel);
     });
     return panel;
