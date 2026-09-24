@@ -1,4 +1,17 @@
 /* Superficies y encabezados comunes a los escritorios Mac y Windows. */
+/* WebView en Windows no dibuja la línea del marco nativo de macOS. */
+html[data-lexia-windows="1"]::after {
+  content:"";
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  height:1px;
+  background:#e2e2e2;
+  pointer-events:none;
+  z-index:100000;
+}
+
 html body :is(#home .home-real,#home .hr-main,#home .hr-content,
   #library,#searchpage,#contextpage,#activitypage,#systempage,#casespage,#maintenance,#lexiaStandardsShell),
 html body :is(#library,#searchpage,#contextpage,#activitypage,#systempage) > .main,
