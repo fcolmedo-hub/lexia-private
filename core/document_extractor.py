@@ -215,18 +215,19 @@ class DocumentExtractor:
                 needs_ocr=True,
             )
 
-        if total_pages > SETTINGS.ocr_max_pages_per_document:
-            raise DocumentExtractionError(
-                "El PDF supera el máximo de páginas "
-                "configurado para OCR."
-            )
-
-        ocr_pages = self.ocr_service.extract_pdf_pages(
-            path,
-            pages_requiring_ocr,
-            progress_callback=progress_callback,
-            total_pages=total_pages,
-        )
+        # El límite protege el tamaño de cada trabajo OCR, no el largo del
+        # expediente. Enviar las páginas pendientes en tandas permite leer
+        # archivos extensos sin omitir hojas ni alterar su numeración.
+        batch_size = max(1, int(SETTINGS.ocr_max_pages_per_document))
+        ocr_pages: dict[int, str] = {}
+        for offset in range(0, len(pages_requiring_ocr), batch_size):
+            batch = pages_requiring_ocr[offset:offset + batch_size]
+            ocr_pages.update(self.ocr_service.extract_pdf_pages(
+                path,
+                batch,
+                progress_callback=progress_callback,
+                total_pages=total_pages,
+            ))
 
         merged_pages = dict(native_pages)
 
