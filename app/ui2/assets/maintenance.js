@@ -256,7 +256,7 @@
   function updateSidebar(){
     ensureSidebar();
     const op=(state||{}).operation||{},live=(state||{}).live||{},sync=live.autosync||{},ocr=live.ocr||{};
-    const set=(id,value)=>{const element=document.getElementById(id);if(element)element.textContent=value;};
+    const set=(id,value)=>{const element=document.getElementById(id);if(element){element.textContent=value;if(id==='liveAutoSyncDetail'||id==='liveOperationFunction'||id==='liveOperationQueue')element.title=String(value);}};
     set('liveAutoSyncLabel',op.engine==='OCR'?'OCR trabajando':(['waiting','scanning','indexing','knowledge'].includes(sync.phase)?'AutoSync trabajando':'AutoSync activo'));
     set('liveAutoSyncDetail',op.status||sync.status||'Biblioteca al día');
     set('liveOperationFunction',(op.engine||'LexIA')+' · '+phaseLabel(op.function));

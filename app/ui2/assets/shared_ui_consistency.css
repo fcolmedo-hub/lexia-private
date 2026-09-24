@@ -1,0 +1,100 @@
+/* Superficies y encabezados comunes a los escritorios Mac y Windows. */
+html body :is(#home .home-real,#home .hr-main,#home .hr-content,
+  #library,#searchpage,#contextpage,#activitypage,#systempage,#casespage,#maintenance,#lexiaStandardsShell),
+html body :is(#library,#searchpage,#contextpage,#activitypage,#systempage) > .main,
+html body :is(#library,#searchpage,#contextpage,#activitypage,#systempage) > .main > .page {
+  background:#f9faff!important;
+}
+
+html body :is(#library,#searchpage,#contextpage,#activitypage,#systempage) .page > .head h1,
+html body #contextpage .context-layout > .head h1,
+html body #home .hr-content > h1,
+html body #casespage .cases-page-heading h1,
+html body #maintenance .maint-head h1,
+html body #lexiaStandardsShell .std-head .std-title {
+  font-size:24px!important;
+  line-height:1.2!important;
+  font-weight:760!important;
+  letter-spacing:-.6px!important;
+  color:#202a48!important;
+}
+
+/* Tres tarjetas del inicio con la misma superficie disponible. */
+html body #home .hr-lower {
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+}
+html body #home .hr-lower > .hr-card,
+html body #home .hr-lower .hr-card-title,
+html body #home .hr-lower .hr-scroll-list {
+  min-width:0!important;
+}
+
+/* AutoSync conserva su geometría aunque cambie el documento en proceso. */
+html body #globalSidebar .health {
+  box-sizing:border-box!important;
+  height:216px!important;
+  min-height:216px!important;
+  max-height:216px!important;
+  overflow:hidden!important;
+}
+html body #globalSidebar .health p {
+  box-sizing:border-box!important;
+  height:calc(100% - 38px)!important;
+  min-width:0!important;
+  overflow:hidden!important;
+}
+html body #globalSidebar .health p > b,
+html body #globalSidebar .health #liveAutoSyncDetail,
+html body #globalSidebar .health .lexia-operation-detail > span:first-child,
+html body #globalSidebar .health .lexia-operation-detail > small {
+  display:block!important;
+  min-width:0!important;
+  max-width:100%!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+html body #globalSidebar .health p > br {display:none}
+
+/* Selector legible y botón de una línea en Casos. */
+html body #casespage .cases-toolbar-actions {flex:0 0 auto;min-width:0}
+html body #casespage .cases-picker {flex:0 1 320px;min-width:280px;width:320px}
+html body #casespage .cases-picker summary,
+html body #casespage .cases-toolbar-actions > .cases-button {min-height:38px;white-space:nowrap}
+html body #casespage .cases-toolbar-actions > .cases-button {flex:0 0 auto;padding-inline:16px!important}
+
+/* Un solo trazo de foco en el editor de los bloques. */
+html body #casespage .argument-block textarea:focus {
+  outline:none!important;
+  box-shadow:none!important;
+  border:1px solid #8176fa!important;
+}
+
+@container lexia-home-content (max-width:760px) {
+  html body #home .hr-lower {grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  html body #home .hr-lower > .hr-card:nth-child(3) {grid-column:1 / -1!important}
+}
+@container lexia-home-content (max-width:560px) {
+  html body #home .hr-lower {grid-template-columns:minmax(0,1fr)!important}
+  html body #home .hr-lower > .hr-card:nth-child(3) {grid-column:auto!important}
+}
+@supports not (container-type:inline-size) {
+  @media (max-width:970px) {
+    html body #home .hr-lower {grid-template-columns:repeat(2,minmax(0,1fr))!important}
+    html body #home .hr-lower > .hr-card:nth-child(3) {grid-column:1 / -1!important}
+  }
+  @media (max-width:770px) {
+    html body #home .hr-lower {grid-template-columns:minmax(0,1fr)!important}
+    html body #home .hr-lower > .hr-card:nth-child(3) {grid-column:auto!important}
+  }
+}
+@media (max-width:800px) {
+  html body #casespage .cases-toolbar-actions {width:100%;flex-wrap:wrap}
+  html body #casespage .cases-picker {flex:1 1 240px;width:auto;min-width:0}
+  html body :is(#library,#searchpage,#contextpage,#activitypage,#systempage) .page > .head h1,
+  html body #contextpage .context-layout > .head h1,
+  html body #home .hr-content > h1,
+  html body #casespage .cases-page-heading h1,
+  html body #maintenance .maint-head h1,
+  html body #lexiaStandardsShell .std-head .std-title {font-size:22px!important}
+}
