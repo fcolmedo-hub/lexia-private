@@ -220,6 +220,7 @@ class Settings:
     ocr_dpi: int = 170
     ocr_page_timeout_seconds: int = 120
     ocr_min_chars_per_page: int = 40
+    # Máximo de páginas por tanda OCR; no limita el largo del PDF.
     ocr_max_pages_per_document: int = 800
 
     # Procesamiento
