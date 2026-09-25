@@ -9,7 +9,7 @@ const html='<html><head><style>'+styles+'</style><style>'+fs.readFileSync(root+'
 await page.setContent(html);
 await page.evaluate(()=>{
 window.fixture={ok:true,live:{autosync:{phase:'scanning',progress_label:'Actualizando rutas en el catálogo',progress_total_known:true,processed:120,total:360,recent_files:Array.from({length:50},(_,i)=>({path:'/Biblioteca/Jurisprudencia/Fallo '+i+'.pdf',source:'/Biblioteca/Anterior/Fallo '+i+'.pdf',action:'Ruta actualizada',status:'Revisado'}))},ocr:{pending:39,error:0,running:false},catalog:{documents:86791}},autosync_config:{mode:'automatic'},history:Array.from({length:8},(_,i)=>({action:'autosync-scan',message:'Revisión de archivos y cambios de la biblioteca '+i,created_at:'25/09/2026 16:21'}))};
-window.fetch=async(url,opts)=>({ok:true,json:async()=>url==='/api/maintenance'?window.fixture:url==='/api/maintenance-live'?{ok:true,...window.fixture.live}:JSON.parse(opts?.body||'{}').action==='ocr-list'?{ok:true,total:39,offset:0,items:Array.from({length:39},(_,i)=>({document_path:'/Biblioteca/Jurisprudencia/Tribunales/Segunda instancia/Carpeta muy larga para comprobar truncamiento/Sentencia '+i+'.pdf',document_name:'Sentencia laboral '+i+'.pdf',status:'pending',total_pages:47}))}:{ok:true}});
+window.fetch=async(url,opts)=>({ok:true,json:async()=>url==='/api/maintenance'?window.fixture:url==='/api/maintenance-live'?{ok:true,...window.fixture.live}:url.endsWith('/duplicates')?{ok:true,duplicates:Array.from({length:50},(_,i)=>({path:'/Biblioteca/Escritos/Tributario/Carpeta con nombre largo para comprobar el ajuste/'+i+' - CONTESTACION RECURSO DE APELACION.pdf',name:i+' - CONTESTACION RECURSO DE APELACION.pdf',duplicate_of:'/Biblioteca/Escritos/Administrativos/Carpeta con nombre largo/'+i+' - CONTESTACION RECURSO DE APELACION.pdf',original_name:i+' - CONTESTACION RECURSO DE APELACION.pdf',category:'Escritos',size:13248}))}:JSON.parse(opts?.body||'{}').action==='ocr-list'?{ok:true,total:39,offset:0,items:Array.from({length:39},(_,i)=>({document_path:'/Biblioteca/Jurisprudencia/Tribunales/Segunda instancia/Carpeta muy larga para comprobar truncamiento/Sentencia '+i+'.pdf',document_name:'Sentencia laboral '+i+'.pdf',status:'pending',total_pages:47}))}:{ok:true}});
 });
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.addScriptTag({content:fs.readFileSync(root+'/app/ui2/assets/maintenance.js','utf8')});
@@ -43,6 +43,31 @@ await page.evaluate(()=>{window.fixture.live.ocr={pending:38,processing:1,runnin
 await page.locator('#mRefresh').click();await page.waitForTimeout(80);
 assert.ok(await page.locator('.maint-ocr-items').evaluate(e=>e.clientHeight>=50));
 assert.ok(await page.locator('#mOcrStop').evaluate(e=>e.getBoundingClientRect().bottom<=innerHeight));
+// Duplicates reuse OCR row typography and buttons, with only the list scrolling.
+const ocrStyles=await page.locator('[data-ocr-delete]').first().evaluate(e=>{
+  const s=getComputedStyle(e);return [s.fontSize,s.fontWeight,s.height,s.color,s.backgroundColor,s.borderColor,s.padding];
+});
+await page.addScriptTag({content:fs.readFileSync(root+'/app/ui2/assets/windows_maintenance_duplicates.js','utf8')});
+await page.locator('[data-maint-tab="duplicates"]').click();
+await page.locator('[data-dup-open-original]').first().waitFor();
+for(const [width,height] of [[1440,900],[1280,720],[1024,768],[390,844]]){
+  await page.setViewportSize({width,height});
+  const dimensions=await page.evaluate(()=>{
+    const outer=document.querySelector('#maintenance'),content=document.querySelector('.maint-content'),list=document.querySelector('.lexia-dup-list');
+    return {outer:outer.scrollHeight-outer.clientHeight,content:content.scrollHeight-content.clientHeight,horizontal:outer.scrollWidth-outer.clientWidth,list:list.scrollHeight-list.clientHeight};
+  });
+  assert.equal(dimensions.outer,0);assert.equal(dimensions.content,0);assert.equal(dimensions.horizontal,0);assert.ok(dimensions.list>0);
+  const actual=await page.locator('[data-dup-delete]').first().evaluate(e=>{const s=getComputedStyle(e);return [s.fontSize,s.fontWeight,s.height,s.color,s.backgroundColor,s.borderColor,s.padding];});
+  assert.deepEqual(actual,ocrStyles);
+  if(process.env.LEXIA_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.LEXIA_SCREENSHOT_DIR,'duplicates-'+width+'.png')});
+}
+await page.locator('.lexia-dup-list').evaluate(e=>e.scrollTop=350);
+await page.locator('[data-dup-refresh]').click();await page.waitForTimeout(80);
+assert.equal(await page.locator('.lexia-dup-list').evaluate(e=>e.scrollTop),350);
+await page.locator('#mRefresh').click();await page.waitForTimeout(80);
+assert.equal(await page.locator('.lexia-dup-list').evaluate(e=>e.scrollTop),350);
+console.log('Duplicates match OCR; internal scrolling and refresh OK');
+await page.setViewportSize({width:1280,height:720});
 // Real event propagation: the old capture router must never receive the root click.
 await page.evaluate(()=>{
   document.querySelector('#maintenance').style.display='none';

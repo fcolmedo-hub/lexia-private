@@ -161,3 +161,16 @@ test('Advanced tools stay accessible and AutoSync configuration is separate from
   await app.click('[data-maint-tab="about"]');
   assert.ok(app.document.querySelector('.maint-about'));
 });
+
+
+test('Duplicate and original buttons open their own paths and cancelled deletion changes nothing',async()=>{
+  const app=await setup();await app.click('[data-maint-tab="duplicates"]');
+  await app.click('[data-dup-open]');await app.click('[data-dup-open-original]');
+  assert.deepEqual(app.opened.map(args=>args[0]),['/library/copy.pdf','/library/original.pdf']);
+  app.document.querySelector('.lexia-dup-list').scrollTop=135;
+  await app.click('[data-dup-refresh]');
+  assert.equal(app.document.querySelector('.lexia-dup-list').scrollTop,135);
+  await app.click('[data-dup-delete]');
+  assert.match(app.confirmations[0],/documento original se conservará/);
+  assert.equal(app.requests.some(r=>r.url.endsWith('/delete-duplicate')),false);
+});

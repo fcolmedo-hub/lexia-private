@@ -26,24 +26,22 @@
     const style=document.createElement('style');
     style.id=STYLE_ID;
     style.textContent=`
-      #${PANEL_ID}{display:block;margin-top:14px}
-      .lexia-dup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-      .lexia-dup-head h3{margin:0 0 4px}.lexia-dup-head p{margin:0;color:#6d7691;font-size:11px}
-      .lexia-dup-list{display:grid;gap:8px;max-height:65vh;overflow:auto;overscroll-behavior:contain}
-      .lexia-dup-row{border:1px solid #e0e3ef;border-radius:10px;background:#fff;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
-      .lexia-dup-row strong{display:block;color:#283253;font-size:12px;overflow-wrap:anywhere}
-      .lexia-dup-row small{display:block;margin-top:3px;color:#727b96;font-size:11px;overflow-wrap:anywhere}
-      .lexia-dup-origin{margin-top:6px;padding:6px 8px;border-radius:7px;background:#f5f4ff;color:#5146f6;font-size:9.5px}
-      .lexia-dup-origin button{border:0;background:transparent;padding:0;color:#5146f6;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer}
-      .lexia-dup-origin button:hover{color:#352bc7}
-      .lexia-dup-actions{display:flex;gap:6px;align-items:center}
-      .lexia-dup-actions button{font:inherit;font-size:12px;padding:6px 8px;border-radius:6px;cursor:pointer}
-      .lexia-dup-actions button:disabled{opacity:.58;cursor:wait}
-      .lexia-dup-open{border:1px solid #cfcbea;background:#fff;color:#4036b4}
-      .lexia-dup-delete{border:1px solid #9a3b8f;background:#9a3b8f;color:#fff}
-      .lexia-dup-delete:hover{background:#7f2f76;border-color:#7f2f76}
-      .lexia-dup-empty{padding:18px;border:1px dashed #ccd2e3;border-radius:10px;color:#6d7691;text-align:center;font-size:11px;background:#fafbfe}
-      @media(max-width:760px){.lexia-dup-row{grid-template-columns:1fr}.lexia-dup-actions{justify-content:flex-end}}
+      html body #maintenance .maint-content[data-maint-view="duplicates"]{overflow:hidden}
+      html body #maintenance #${PANEL_ID}{display:flex;flex-direction:column;height:100%;min-height:0;box-sizing:border-box;margin:0;padding:12px;overflow:hidden}
+      #${PANEL_ID} .lexia-dup-head{flex:none;margin-bottom:8px}
+      #${PANEL_ID} .lexia-dup-head p{margin:6px 0;color:#66708f;font-size:12px;line-height:1.35}
+      #${PANEL_ID} .lexia-dup-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;margin:2px 0 6px}
+      #${PANEL_ID} .lexia-dup-count{font-size:12px;color:#66708f}
+      #${PANEL_ID} .lexia-dup-list{display:block}
+      html body #maintenance #${PANEL_ID} .lexia-dup-row{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+      html body #maintenance #${PANEL_ID} .lexia-dup-info{grid-column:1}
+      html body #maintenance #${PANEL_ID} .lexia-dup-actions{grid-column:2;grid-row:1}
+      #${PANEL_ID} .lexia-dup-info small{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+      #${PANEL_ID} .lexia-dup-empty{padding:16px 0;color:#66708f;font-size:12px}
+      @media(max-width:840px){
+        html body #maintenance #${PANEL_ID} .lexia-dup-row{grid-template-columns:minmax(0,1fr)}
+        html body #maintenance #${PANEL_ID} .lexia-dup-actions{grid-column:1;grid-row:auto;justify-content:flex-start;flex-wrap:wrap}
+      }
     `;
     document.head.appendChild(style);
   }
@@ -63,24 +61,31 @@
   function render(){
     if(!ensure())return;
     const panel=document.getElementById(PANEL_ID);if(!panel)return;
+    const scroll=panel.querySelector('.lexia-dup-list')?.scrollTop||0;
     const rows=duplicates.map((item,index)=>`
-      <div class="lexia-dup-row">
-        <div>
-          <strong>${esc(item.name||shortName(item.path)||'Documento')}</strong>
+      <div class="maint-ocr-queue-item lexia-dup-row">
+        <div class="maint-ocr-item-info lexia-dup-info">
+          <strong title="${esc(item.name||shortName(item.path)||'Documento')}">${esc(item.name||shortName(item.path)||'Documento')}</strong>
+          <span title="${esc(item.path)}">${esc(item.path)}</span>
           <small>${esc(item.category||'Sin categoría')} · ${esc(bytes(item.size))}</small>
-          <small title="${esc(item.path)}">${esc(item.path)}</small>
-          <div class="lexia-dup-origin">Duplicado de: <button type="button" data-dup-open-original="${index}" title="Abrir documento principal">${esc(item.original_name||shortName(item.duplicate_of)||'Documento original')}</button><br>${esc(item.duplicate_of||'')}</div>
+          <span title="${esc(item.duplicate_of||'')}">Original: ${esc(item.original_name||shortName(item.duplicate_of)||'Documento original')} · ${esc(item.duplicate_of||'')}</span>
         </div>
-        <div class="lexia-dup-actions">
-          <button type="button" class="lexia-dup-open" data-dup-open="${index}">Abrir duplicado</button>
-          <button type="button" class="lexia-dup-delete" data-dup-delete="${index}" ${loading||deleting?'disabled':''}>Eliminar</button>
+        <div class="maint-ocr-item-actions lexia-dup-actions">
+          <button type="button" class="maint-btn" data-dup-open="${index}">Abrir duplicado</button>
+          <button type="button" class="maint-btn" data-dup-open-original="${index}" ${item.duplicate_of?'':'disabled'}>Abrir original</button>
+          <button type="button" class="maint-btn danger" data-dup-delete="${index}" ${loading||deleting?'disabled':''}>Eliminar de LexIA</button>
         </div>
       </div>`).join('');
     panel.innerHTML=`
-      <div class="lexia-dup-head"><div><h3>Archivos duplicados</h3><p>LexIA no elimina nada automáticamente. Abrí el duplicado y el principal para compararlos antes de decidir.</p></div><button type="button" class="maint-btn secondary" data-dup-refresh ${loading||deleting?'disabled':''}>${loading?'Actualizando…':'Actualizar lista'}</button></div>
-      ${loadError?'<p class="maint-toast-error" role="alert">'+esc(loadError)+'</p>':''}
-      ${loading?'<p class="maint-note" role="status">Buscando duplicados en el catálogo…</p>':''}
-      ${rows?'<div class="lexia-dup-list">'+rows+'</div>':!loading&&!loadError?'<div class="lexia-dup-empty">No hay archivos marcados como duplicados.</div>':''}`;
+      <div class="lexia-dup-head"><h3>Archivos duplicados</h3><p>LexIA no elimina nada automáticamente. Abrí el duplicado y el principal para compararlos antes de decidir.</p></div>
+      <div class="maint-ocr-queue">
+        <div class="lexia-dup-toolbar"><span class="lexia-dup-count">${loaded?duplicates.length.toLocaleString('es-AR')+' duplicado'+(duplicates.length===1?'':'s'):''}</span><button type="button" class="maint-btn secondary" data-dup-refresh ${loading||deleting?'disabled':''}>${loading?'Actualizando…':'Actualizar lista'}</button></div>
+        ${loadError?'<p class="maint-toast-error" role="alert">'+esc(loadError)+'</p>':''}
+        ${loading?'<p class="maint-note" role="status">Buscando duplicados en el catálogo…</p>':''}
+        <div class="maint-ocr-items lexia-dup-list">${rows||(!loading&&!loadError?'<div class="lexia-dup-empty">No hay archivos marcados como duplicados.</div>':'')}</div>
+      </div>`;
+    panel.querySelector('.lexia-dup-list').scrollTop=scroll;
+
   }
 
   async function load(){
