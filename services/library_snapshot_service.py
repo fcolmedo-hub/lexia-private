@@ -1,6 +1,8 @@
 import json
 import os
 from pathlib import Path
+from time import monotonic
+from core.document_detector import DocumentDetector
 
 
 class LibrarySnapshotService:
@@ -53,6 +55,7 @@ class LibrarySnapshotService:
 
     def scan(
         self,
+        progress_callback=None,
     ) -> tuple[
         set[str],
         set[str],
@@ -60,6 +63,10 @@ class LibrarySnapshotService:
     ]:
         previous = self.load()
         current: dict[str, list[int]] = {}
+        last_report = 0.0
+        last_path = ""
+        if progress_callback:
+            progress_callback(0, 0, "")
 
         if not self.library_path.exists():
             return set(), set(previous), current
@@ -92,7 +99,7 @@ class LibrarySnapshotService:
 
                             if suffix not in (
                                 self.supported_extensions
-                            ):
+                            ) or DocumentDetector.is_auxiliary_file(entry.name):
                                 continue
 
                             stat = entry.stat(
@@ -105,6 +112,11 @@ class LibrarySnapshotService:
                                 int(stat.st_size),
                                 int(stat.st_mtime_ns),
                             ]
+                            last_path = resolved
+                            now = monotonic()
+                            if progress_callback and (len(current) == 1 or now - last_report >= 0.25):
+                                progress_callback(len(current), 0, resolved)
+                                last_report = now
                         except OSError:
                             continue
             except OSError:
@@ -116,6 +128,9 @@ class LibrarySnapshotService:
             if previous.get(path) != signature
         }
         deleted = set(previous) - set(current)
+
+        if progress_callback:
+            progress_callback(len(current), len(current), last_path)
 
         return changed, deleted, current
 

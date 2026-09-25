@@ -15,6 +15,15 @@ class DocumentDetector:
         self.library_path = Path(library_path).resolve()
         self.library_path.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def is_auxiliary_file(path: str | Path) -> bool:
+        name = Path(path).name.casefold()
+        return name in {".ds_store", "_ds_store", "thumbs.db", "desktop.ini"} or name.startswith(("._", "~$"))
+
+    @classmethod
+    def accepts_path(cls, path: str | Path) -> bool:
+        return Path(path).suffix.lower() in cls.SUPPORTED_EXTENSIONS and not cls.is_auxiliary_file(path)
+
     def scan(
         self,
         paths: Iterable[str | Path] | None = None,
@@ -100,10 +109,7 @@ class DocumentDetector:
 
                         path = Path(entry.path)
 
-                        if (
-                            path.suffix.lower()
-                            in self.SUPPORTED_EXTENSIONS
-                        ):
+                        if self.accepts_path(path):
                             yield path.resolve()
 
             except (OSError, PermissionError):
@@ -129,6 +135,7 @@ class DocumentDetector:
                     and candidate.is_file()
                     and candidate.suffix.lower()
                     in self.SUPPORTED_EXTENSIONS
+                    and not self.is_auxiliary_file(candidate)
                 ):
                     found[str(candidate)] = candidate
 

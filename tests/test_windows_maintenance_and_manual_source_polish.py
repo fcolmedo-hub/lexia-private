@@ -17,8 +17,8 @@ def test_autosync_detail_explains_phases_without_continuous_observer():
     assert "Comparando la biblioteca física con el catálogo" in source
     assert "Indexando los documentos modificados y actualizando sus vectores." in source
     assert "Actualizando el Knowledge Engine con los documentos procesados." in source
-    assert "Analizando biblioteca…" in source
-    assert "Fase: detección y comparación de cambios" in source
+    assert "progress_total_known" in source
+    assert "archivos revisados" in source
     assert "[0,40,140]" in source
     assert "MutationObserver" not in source
     assert "setInterval(" not in source

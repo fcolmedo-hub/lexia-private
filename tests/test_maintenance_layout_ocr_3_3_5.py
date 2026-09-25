@@ -272,7 +272,7 @@ def test_ocr_ui_keeps_last_page_visible_and_refreshes_queue_details():
         root / "app/ui2/assets/maintenance.js"
     ).read_text(encoding="utf-8")
 
-    assert "(ocr.running||ocr.document_name)?ocrDetails(ocr):''" in javascript
+    assert "(ocr.running?ocrDetails(ocr):'')" in javascript
     assert "String(item.status||'').trim().toLowerCase()" in javascript
     assert "refresh(false,false)" in javascript
     assert "ocrList.error" in javascript

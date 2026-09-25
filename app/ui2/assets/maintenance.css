@@ -209,3 +209,86 @@
   margin:18px 0 0!important;
   overflow:visible!important;
 }
+
+/* Maintenance workspace: a stable viewport, with scrolling inside each panel. */
+html body #maintenance{overflow:hidden!important}
+html body #maintenance .maint-wrap{height:100%;min-height:0;display:flex;flex-direction:column}
+html body #maintenance .maint-head{flex:none;margin-bottom:10px;gap:12px}
+html body #maintenance .maint-head .maint-actions{margin:0}
+html body #maintenance .maint-tabs{flex:none;gap:8px;margin:0 0 10px;padding:0 0 8px;min-height:34px;align-items:center}
+html body #maintenance .maint-tab{border:0;border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12px;font-weight:600;line-height:1.3;background:transparent;color:#5a6489;white-space:nowrap}
+html body #maintenance .maint-tab.active{background:var(--brandsoft,#f0eeff);color:#3428ba;font-weight:650}
+html body #maintenance .maint-kpis{flex:none;margin-bottom:10px}
+html body #maintenance .mkpi{padding:10px 12px;min-height:70px}
+html body #maintenance .mkpi-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #maintenance .maint-content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}
+html body #maintenance .maint-toast{flex:none;min-height:0;margin:8px 0 0;font-size:12px}
+html body #maintenance .maint-toast:empty{display:none}
+html body #maintenance .maint-card h3{font-size:14px!important;line-height:1.3!important;margin:0 0 8px}
+html body #maintenance .maint-btn{font-family:inherit!important;font-size:12px!important;font-weight:600!important;line-height:1.2!important;height:30px!important;min-height:30px!important;padding:6px 10px!important;box-sizing:border-box!important;white-space:nowrap}
+html body #maintenance .maint-note{font-size:12px!important;line-height:1.35!important}
+html body #maintenance .maint-content[data-maint-view="ocr"]{overflow:hidden}
+html body #maintenance .maint-ocr-card{height:100%;box-sizing:border-box;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:12px}
+html body #maintenance .maint-ocr-card>h3,html body #maintenance .maint-ocr-card>.maint-note,html body #maintenance .maint-ocr-stats,html body #maintenance .maint-ocr-global{flex:none}
+html body #maintenance .maint-ocr-stats{grid-template-columns:repeat(3,minmax(0,1fr));margin:8px 0;max-width:650px}
+html body #maintenance .maint-ocr-stats button{font-family:inherit!important;font-size:12px!important;font-weight:600!important;line-height:1.2!important;min-height:32px!important;padding:6px 10px!important}
+html body #maintenance .maint-ocr-stats button b{font-size:12px!important}
+html body #maintenance .maint-ocr-queue{display:flex;flex-direction:column;flex:1;min-height:0;margin:0;padding:8px 10px;overflow:hidden}
+html body #maintenance .maint-ocr-queue>.maint-actions{flex:none;margin:2px 0 6px;gap:6px}
+html body #maintenance .maint-ocr-queue>b{display:none}
+html body #maintenance .maint-ocr-items{flex:1;min-height:0;max-height:none;margin:0;overflow:auto;scrollbar-gutter:stable;overflow-anchor:none}
+html body #maintenance .maint-ocr-queue-item{grid-template-columns:18px minmax(0,1fr) auto;gap:8px;padding:8px 0;align-items:center}
+html body #maintenance .maint-ocr-item-actions{grid-column:3;grid-row:1;gap:5px;align-items:center}
+html body #maintenance .maint-ocr-item-actions .maint-btn{font-size:11px!important;height:28px!important;min-height:28px!important;padding:5px 8px!important}
+html body #maintenance .maint-ocr-item-info strong{display:block;font-size:12px!important;line-height:1.35!important;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+html body #maintenance .maint-ocr-item-info>span{font-size:11px!important;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+html body #maintenance .maint-ocr-item-info small{font-size:11px!important;line-height:1.3!important}
+html body #maintenance .maint-ocr-paging{flex:none;margin-top:6px;font-size:11px}
+html body #maintenance .maint-ocr-global{margin-top:8px;gap:6px}
+html body #maintenance .maint-ocr-details{flex:none;margin:6px 0;gap:6px}
+html body #maintenance .maint-ocr-details>div{padding:5px 8px}
+html body #maintenance .maint-ocr-file{flex:none;margin:3px 0!important;padding:5px 8px}
+html body #maintenance .maint-ocr-file span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+html body #maintenance .maint-activity-grid{height:100%;grid-template-rows:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+html body #maintenance .maint-activity-grid>.maint-card{min-height:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}
+html body #maintenance .maint-activity{display:flex;flex-direction:column;min-height:0}
+html body #maintenance .maint-history-card{display:flex;flex-direction:column;max-height:none!important;overflow:hidden!important}
+html body #maintenance .maint-history{flex:1;min-height:0;max-height:none!important;overflow-anchor:none}
+html body #maintenance .maint-history .maint-row{grid-template-columns:24px minmax(0,1fr)}
+html body #maintenance .maint-history .maint-tag{grid-column:2;justify-self:start;padding:3px 6px}
+html body #maintenance .maint-sync-summary{flex:none;font-size:12px;line-height:1.4}
+html body #maintenance .maint-current-file{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+html body #maintenance .maint-sync-files{flex:1;min-height:90px;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}
+html body #maintenance .maint-sync-file{display:grid;gap:3px;padding:8px 0;border-bottom:1px solid #edf0f6;min-width:0}
+html body #maintenance .maint-sync-file b{font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+html body #maintenance .maint-sync-file span,html body #maintenance .maint-sync-file small{font-size:11px;color:#66708f;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+html body #maintenance .maint-autosync-grid{height:100%;grid-template-columns:minmax(260px,.85fr) minmax(0,1.15fr);align-items:stretch}
+html body #maintenance .maint-autosync-grid .maint-activity{grid-row:auto;overflow:hidden}
+html body #maintenance .maint-autosync-card{overflow:auto}
+html body #maintenance .maint-form{grid-template-columns:minmax(0,1fr) 115px}
+html body #maintenance .maint-form>.maint-btn{justify-self:start}
+@media(max-width:840px){
+  html body #maintenance .maint-head{flex-direction:row;align-items:start}
+  html body #maintenance .maint-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  html body #maintenance .mkpi{min-height:55px;padding:8px}
+  html body #maintenance .mkpi-value{font-size:14px}
+  html body #maintenance .maint-head p{display:none}
+  html body #maintenance .maint-ocr-queue-item{grid-template-columns:18px minmax(0,1fr)}
+  html body #maintenance .maint-ocr-item-actions{grid-column:2;grid-row:auto}
+  html body #maintenance .maint-ocr-queue>.maint-actions .maint-btn{font-size:11px!important;min-height:28px!important;padding:5px 7px!important}
+  html body #maintenance .maint-ocr-details{grid-template-columns:repeat(4,minmax(0,1fr))}
+  html body #maintenance .maint-activity-grid,html body #maintenance .maint-autosync-grid{height:auto;grid-template-columns:1fr;grid-template-rows:auto}
+  html body #maintenance .maint-activity-grid>.maint-card{max-height:360px}
+  html body #maintenance .maint-history-card{height:260px}
+  html body #maintenance .maint-sync-files{max-height:230px}
+}
+@media(max-height:650px){
+  html body #maintenance .maint-kpis{display:flex;gap:6px}
+  html body #maintenance .mkpi{flex:1;min-width:0;min-height:0;padding:6px 8px}
+  html body #maintenance .mkpi-detail{display:none}
+  html body #maintenance .maint-head p{display:none}
+  html body #maintenance .maint-ocr-card>.maint-note{display:none}
+}
+
+html body #maintenance .maint-ocr-item-info small{color:#66708f}
+html body #maintenance .maint-ocr-item-info .maint-ocr-item-error{color:#a63b28}

@@ -18,6 +18,7 @@
     const deleted=Number(autosync?.snapshot_deleted||0);
     const files=Number(autosync?.snapshot_files||0);
 
+    if(autosync?.progress_label)return autosync.progress_label;
     if(phase==='waiting')return status||'Esperando el fin del período de estabilización antes de procesar los cambios.';
     if(phase==='scanning'){
       if(lastStage==='smart_snapshot'){
@@ -57,18 +58,14 @@
     const queue=document.getElementById('liveOperationQueue');
     const bar=document.getElementById('liveOperationProgress');
 
-    /* Durante scanning no existe un porcentaje lineal fiable: el snapshot recorre
-       el árbol completo y recién al terminar conoce el trabajo real. Mostrar 50%
-       en esa fase era un dato artificial y confundía al usuario. */
-    if(phase==='scanning'){
-      if(label)label.textContent='Analizando biblioteca…';
-      if(queue)queue.textContent='Fase: detección y comparación de cambios';
-      if(bar)bar.style.width='100%';
-      if(bar)bar.style.opacity='.35';
-    }else{
-      if(bar)bar.style.opacity='1';
-      if(label&&active&&total>0)label.textContent=Math.max(0,Math.min(100,Math.round(100*processed/total)))+'%';
-    }
+    const known=autosync.progress_total_known===true||(autosync.progress_total_known===undefined&&total>0);
+    if(active){
+      if(fn)fn.textContent='AutoSync · '+(autosync.progress_label||phase);
+      if(label)label.textContent=known&&total?processed+' de '+total+' · '+Math.max(0,Math.min(100,Math.round(100*processed/total)))+'%':phase==='waiting'?'Esperando cambios…':processed.toLocaleString('es-AR')+' archivos revisados';
+      if(queue)queue.textContent=known?'Progreso de esta etapa':'Calculando el total…';
+      if(bar){bar.style.width=known&&total?Math.min(100,100*processed/total)+'%':'100%';bar.style.opacity=known?'1':'.35';}
+    }else if(bar){bar.style.opacity='1';}
+
   }
 
   function install(){

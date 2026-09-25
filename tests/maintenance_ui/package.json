@@ -1,6 +1,6 @@
 {
   "name": "lexia-maintenance-ui-tests",
   "private": true,
-  "scripts": {"test": "node --test maintenance.test.cjs"},
-  "devDependencies": {"linkedom": "0.18.12"}
+  "scripts": {"test": "node --test maintenance.test.cjs", "test:layout": "node layout.cjs"},
+  "devDependencies": {"linkedom": "0.18.12", "playwright": "1.62.1"}
 }

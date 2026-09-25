@@ -38,12 +38,7 @@ class _LibraryEventHandler(FileSystemEventHandler):
         self.move_callback = move_callback
 
     def on_created(self, event):
-        if not event.is_directory:
-            self.callback(
-                "created",
-                getattr(event, "src_path", ""),
-                False,
-            )
+        self.callback("created", getattr(event, "src_path", ""), event.is_directory)
 
     def on_modified(self, event):
         if not event.is_directory:
@@ -62,15 +57,12 @@ class _LibraryEventHandler(FileSystemEventHandler):
             )
 
     def on_deleted(self, event):
-        if not event.is_directory:
-            self.callback(
-                "deleted",
-                getattr(event, "src_path", ""),
-                False,
-            )
+        self.callback("deleted", getattr(event, "src_path", ""), event.is_directory)
 
     def on_moved(self, event):
-        if not event.is_directory:
+        if event.is_directory:
+            self.callback("moved", getattr(event, "dest_path", "") or getattr(event, "src_path", ""), True)
+        else:
             self.move_callback(
                 getattr(event, "src_path", ""),
                 getattr(event, "dest_path", ""),
@@ -138,6 +130,9 @@ class AutoSyncService:
             "processed": 0,
             "total": 0,
             "percentage": 0,
+            "progress_label": "",
+            "progress_total_known": False,
+            "recent_files": [],
             "documents_total": (
                 windows_startup_documents
                 if windows_startup_documents > 0
@@ -373,7 +368,13 @@ class AutoSyncService:
         event_path: str,
         is_directory: bool,
     ) -> None:
-        if not event_path or is_directory:
+        if not event_path:
+            return
+        if is_directory:
+            if event_type in {"created", "deleted", "moved"}:
+                self.request_full_scan("folder_reorganized")
+            return
+        if not DocumentDetector.accepts_path(event_path):
             return
 
         resolved = str(Path(event_path).resolve())
@@ -389,11 +390,9 @@ class AutoSyncService:
         self._last_change = time.monotonic()
         self._changed.set()
 
-        self._update(
+        self._announce_pending(
             status="Cambio detectado",
-            phase="waiting",
             current_file=Path(resolved).name,
-            pending_changes=True,
             scan_mode="targeted",
         )
 
@@ -409,8 +408,10 @@ class AutoSyncService:
         # del debounce, usando el estado físico final como fuente de verdad.
         if not source_path and not destination_path:
             return
+        if not any(path and DocumentDetector.accepts_path(path) for path in (source_path, destination_path)):
+            return
 
-        visible_path = destination_path or source_path
+        visible_path = destination_path if DocumentDetector.accepts_path(destination_path) else source_path
 
         with self._event_lock:
             self._full_scan_requested = True
@@ -433,11 +434,9 @@ class AutoSyncService:
         self._last_change = time.monotonic()
         self._changed.set()
 
-        self._update(
+        self._announce_pending(
             status="Movimiento detectado; verificando estado final",
-            phase="waiting",
             current_file=Path(visible_path).name,
-            pending_changes=True,
             scan_mode="smart_reconcile",
         )
         # <<< LEXIA AUTOSYNC STABLE SAVE 2.0
@@ -448,11 +447,9 @@ class AutoSyncService:
 
         self._last_change = time.monotonic()
         self._changed.set()
-        self._update(
+        self._announce_pending(
             status="🔍 Buscando cambios...",
-            phase="waiting",
             scan_mode=reason,
-            pending_changes=True,
         )
 
     def sync_now(self) -> dict:
@@ -476,10 +473,8 @@ class AutoSyncService:
             self._deleted_files.difference_update(resolved)
         self._last_change = time.monotonic()
         self._changed.set()
-        self._update(
+        self._announce_pending(
             status="Procesamiento dirigido en cola",
-            phase="waiting",
-            pending_changes=True,
             scan_mode="directed_import",
         )
 
@@ -517,7 +512,53 @@ class AutoSyncService:
 
     def state(self) -> dict:
         with self._state_lock:
-            return dict(self._state)
+            return {**self._state, "recent_files": [dict(item) for item in self._state.get("recent_files", [])]}
+
+    def _announce_pending(self, **changes) -> None:
+        # Watchdog may receive more events while a batch is still running.
+        # Do not replace the active batch's progress with "waiting".
+        with self._state_lock:
+            if self._state.get("phase") in {"scanning", "indexing", "knowledge"}:
+                self._update(pending_changes=True)
+            else:
+                self._update(phase="waiting", pending_changes=True,
+                             processed=0, total=0, percentage=0,
+                             progress_label="Esperando que terminen los cambios",
+                             progress_total_known=False, **changes)
+
+    def _publish_progress(self, stage, label, done, total, path="", *,
+                          phase="scanning", total_known=True, finished=False, source=""):
+        path = "" if path == "Completado" else str(path or "")
+        done, total = max(0, int(done)), max(0, int(total))
+        if total_known:
+            done = min(done, total)
+        with self._state_lock:
+            previous_stage = self._state.get("progress_stage")
+            previous_path = self._state.get("current_file")
+            previous_done = int(self._state.get("processed", 0))
+            completed = finished or (previous_stage == stage and previous_path == path and done > previous_done)
+            recent = [dict(item) for item in self._state.get("recent_files", [])]
+            if path and DocumentDetector.accepts_path(path):
+                recent = [item for item in recent if (item["stage"], item["path"]) != (stage, path)]
+                recent.append({"stage": stage, "action": label, "path": path,
+                               "source": source, "status": "Revisado" if completed else "En curso"})
+            self._state.update(
+                phase=phase, status=label, progress_label=label, progress_stage=stage,
+                processed=done, total=total, progress_total_known=total_known,
+                percentage=round(100 * done / total) if total_known and total else 0,
+                current_file=path, recent_files=recent[-50:],
+            )
+        # Progress is live in memory; avoid one JSON disk write per document.
+        now = time.monotonic()
+        if previous_stage != stage or (total_known and done == total) or now - getattr(self, "_last_progress_save", 0) >= 1:
+            self._last_progress_save = now
+            self._save()
+
+    def _tracked_paths(self, paths, label, stage):
+        for position, path in enumerate(paths, start=1):
+            self._publish_progress(stage, label, position - 1, len(paths), path)
+            yield path
+            self._publish_progress(stage, label, position, len(paths), path, finished=True)
 
     def _take_work(self):
         with self._event_lock:
@@ -597,6 +638,10 @@ class AutoSyncService:
                 ),
                 pending_changes=False,
                 last_error=None,
+                recent_files=[],
+                progress_label="Preparando comparación de la biblioteca",
+                progress_total_known=False,
+                progress_stage="reconciliation",
             )
 
             started_at = perf_counter()
@@ -621,7 +666,8 @@ class AutoSyncService:
 
                 reconciliation_started = perf_counter()
 
-                for old_path, new_path in moved:
+                for position, (old_path, new_path) in enumerate(moved, start=1):
+                    self._publish_progress("move_reconciliation", "Revisando ubicación en Knowledge", position - 1, len(moved), new_path, source=old_path)
                     try:
                         moved_in_knowledge = self.knowledge.move_document(
                             old_path,
@@ -638,6 +684,8 @@ class AutoSyncService:
                             new_path,
                         )
                         move_failures.append((old_path, new_path))
+
+                    self._publish_progress("move_reconciliation", "Revisando ubicación en Knowledge", position, len(moved), new_path, finished=True, source=old_path)
 
                 for old_path, new_path in move_failures:
                     deleted.add(old_path)
@@ -680,7 +728,10 @@ class AutoSyncService:
                         smart_changed,
                         smart_deleted,
                         snapshot_after_scan,
-                    ) = self.library_snapshot.scan()
+                    ) = self.library_snapshot.scan(progress_callback=lambda done, total, path: self._publish_progress(
+                        "smart_snapshot", "Explorando documentos de la biblioteca", done, total, path,
+                        total_known=bool(total), finished=True,
+                    ))
 
                     stage_timings["smart_snapshot"] = round(
                         perf_counter() - snapshot_started,
@@ -816,7 +867,7 @@ class AutoSyncService:
                         deleted_by_hash: dict[str, list[str]] = {}
                         old_state_by_path: dict[str, dict] = {}
 
-                        for old_path in list(deleted):
+                        for old_path in self._tracked_paths(list(deleted), "Comparando ubicaciones anteriores", "compare_old_paths"):
                             _probe_t0 = perf_counter()
                             try:
                                 state = catalog.get_file_state(old_path)
@@ -873,7 +924,7 @@ class AutoSyncService:
                         fast_fingerprint_fallback_hashes = 0
                         # <<< LEXIA SMART RELOCATION FAST FINGERPRINT 1.0
 
-                        for new_path in list(changed):
+                        for new_path in self._tracked_paths(list(changed), "Identificando archivos reubicados", "compare_new_paths"):
                             new_file = Path(new_path)
 
                             try:
@@ -1029,6 +1080,7 @@ class AutoSyncService:
 
                         if smart_relocations:
                             batch_ok = False
+                            self._publish_progress("relocate_catalog", "Actualizando rutas en el catálogo", 0, len(smart_relocations))
                             try:
                                 _probe_t0 = perf_counter()
                                 batch_result = catalog.relocate_documents_batch(
@@ -1056,6 +1108,8 @@ class AutoSyncService:
                                 batch_ok = False
 
                             if batch_ok:
+                                for position, (old_path, new_path) in enumerate(smart_relocations, start=1):
+                                    self._publish_progress("relocate_catalog", "Ruta actualizada en el catálogo", position, len(smart_relocations), new_path, finished=True, source=old_path)
                                 changed -= matched_new
                                 deleted -= matched_old
                                 move_successes.extend(smart_relocations)
@@ -1072,9 +1126,11 @@ class AutoSyncService:
                                 # >>> LEXIA KNOWLEDGE RELOCATION BATCH INTEGRATION 1.0.1
                                 try:
                                     _probe_t0 = perf_counter()
+                                    self._publish_progress("move_knowledge", "Actualizando vínculos de archivos reubicados", 0, len(smart_relocations))
                                     knowledge_batch = self.knowledge.move_documents(
                                         smart_relocations
                                     )
+                                    self._publish_progress("move_knowledge", "Vínculos de archivos reubicados revisados", len(smart_relocations), len(smart_relocations))
                                     knowledge_batch_elapsed = perf_counter() - _probe_t0
                                     smart_probe_knowledge += knowledge_batch_elapsed
                                     self.logger.info(
@@ -1154,24 +1210,12 @@ class AutoSyncService:
                     total: int,
                     path: str,
                 ):
-                    percentage = (
-                        50
-                        if total <= 0
-                        else min(
-                            50,
-                            int(done / total * 50),
-                        )
-                    )
-                    self._update(
-                        status=mode,
-                        phase="scanning",
-                        current_file=("" if path == "Completado" else str(path)),
-                        processed=done,
-                        total=total,
-                        percentage=percentage,
+                    self._publish_progress(
+                        "pipeline", "Revisando y extrayendo texto", done, total, path, phase="scanning"
                     )
 
                 stage = "pipeline"
+                self._publish_progress(stage, "Preparando revisión de documentos", 0, 0, phase="scanning", total_known=False)
                 self._update(
                     last_stage=stage,
                     last_failure_stage=None,
@@ -1310,24 +1354,12 @@ class AutoSyncService:
                     total: int,
                     path: str,
                 ):
-                    percentage = 50 + (
-                        49
-                        if total <= 0
-                        else min(
-                            49,
-                            int(done / total * 49),
-                        )
-                    )
-                    self._update(
-                        status="⚙️ Procesando documentos...",
-                        phase="indexing",
-                        current_file=("" if path == "Completado" else str(path)),
-                        processed=done,
-                        total=total,
-                        percentage=percentage,
+                    self._publish_progress(
+                        "vector_indexing", "Actualizando índice de búsqueda", done, total, path, phase="indexing"
                     )
 
                 stage = "vector_indexing"
+                self._publish_progress(stage, "Preparando actualización del índice", 0, 0, phase="indexing", total_known=False)
                 self._update(
                     last_stage=stage,
                     stage_timings=dict(stage_timings),
@@ -1370,20 +1402,12 @@ class AutoSyncService:
                     total: int,
                     path: str,
                 ):
-                    percentage = 99 if total <= 0 else min(
-                        99,
-                        90 + int(done / total * 9),
-                    )
-                    self._update(
-                        status="Actualizando Knowledge Engine",
-                        phase="knowledge",
-                        current_file=("" if path == "Completado" else str(path)),
-                        processed=done,
-                        total=total,
-                        percentage=percentage,
+                    self._publish_progress(
+                        "knowledge", "Actualizando vínculos de conocimiento", done, total, path, phase="knowledge"
                     )
 
                 stage = "knowledge"
+                self._publish_progress(stage, "Preparando actualización de vínculos", 0, 0, phase="knowledge", total_known=False)
                 self._update(
                     last_stage=stage,
                     stage_timings=dict(stage_timings),
@@ -1485,19 +1509,17 @@ class AutoSyncService:
                         else "Biblioteca al día"
                     ),
                     phase="completed",
+                    progress_label="Sincronización detenida" if getattr(indexed, "cancelled", False) else "Sincronización finalizada",
+                    progress_total_known=True,
                     current_file="",
                     last_stage="completed",
                     stage_timings=dict(stage_timings),
                     last_failure_stage=None,
                     last_failure_file=None,
                     last_failure_message=None,
-                    processed=(
-                        indexed.documents_indexed
-                    ),
-                    total=(
-                        indexed.documents_indexed
-                    ),
-                    percentage=100,
+                    processed=self.state().get("processed", 0),
+                    total=self.state().get("total", 0),
+                    percentage=self.state().get("percentage", 0) if getattr(indexed, "cancelled", False) else 100,
                     documents_total=total_documents,
                     documents_indexed=(
                         indexed.documents_indexed
@@ -1545,6 +1567,7 @@ class AutoSyncService:
                 self._update(
                     status="Error de sincronización",
                     phase="error",
+                    progress_label="Sincronización interrumpida por un error",
                     current_file=failed_file,
                     last_stage=stage,
                     last_error=str(error),
