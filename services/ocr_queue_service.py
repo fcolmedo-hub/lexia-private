@@ -117,16 +117,34 @@ class OCRQueueService:
     def select_all(self, selected: bool) -> None:
         self.repository.select_all(selected)
 
-    def start_selected(self) -> bool:
+    def start_selected(self, paths: list[str] | None = None) -> bool:
         with self._lock:
             if self._running or self.repository.stats().get("processing", 0):
                 return False
 
-            paths = self.repository.get_selected_paths()
+            if paths is None:
+                paths = self.repository.get_selected_paths()
+            else:
+                if not isinstance(paths, list) or not 1 <= len(paths) <= 100:
+                    raise ValueError("Seleccioná entre 1 y 100 archivos OCR.")
+                if any(not isinstance(path, str) or not path for path in paths):
+                    raise ValueError("La selección OCR contiene una ruta inválida.")
+                paths = list(dict.fromkeys(paths))
+                library = Path(SETTINGS.library_path).expanduser().resolve()
+                # Validate the entire explicit selection before starting any work.
+                # Never reuse the repository's default selected=1 flags here.
+                for path in paths:
+                    item = self.repository.get(path)
+                    if not item or item["status"] not in {"pending", "error"}:
+                        raise ValueError("El archivo ya no está pendiente ni con error: " + path)
+                    source = Path(path).expanduser().resolve()
+                    if not source.is_relative_to(library) or not source.is_file():
+                        raise ValueError("El archivo no está disponible en la biblioteca: " + path)
             if not paths:
                 return False
 
             self._running = True
+            self._state.update(running=True, total=len(paths), processed=0, stage="ocr")
             self._cancel_requested.clear()
             thread = threading.Thread(
                 target=self._process,

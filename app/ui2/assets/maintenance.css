@@ -124,6 +124,20 @@
 #maintenance .maint-ocr-queue-item span{font-size:9px;color:#66708f;overflow-wrap:anywhere;word-break:break-word}
 #maintenance .maint-ocr-queue-item small{font-size:9px;color:#a63b28;overflow-wrap:anywhere}
 
+/* OCR: selection stays visible while only the document list scrolls. */
+#maintenance .maint-ocr-queue{max-height:none;overflow:visible}
+#maintenance .maint-ocr-items{max-height:420px;overflow:auto;overscroll-behavior:contain;margin-top:12px}
+#maintenance .maint-ocr-queue-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:12px 0}
+#maintenance .maint-ocr-queue-item>input{width:16px;height:16px;margin:3px 0;accent-color:#5146f6}
+#maintenance .maint-ocr-item-info{min-width:0;grid-column:2}
+#maintenance .maint-ocr-item-info strong{font-size:12px;line-height:1.4}
+#maintenance .maint-ocr-item-info>span{font-size:11px;display:block;overflow-wrap:anywhere;color:#66708f}
+#maintenance .maint-ocr-item-info small{display:block;font-size:11px;line-height:1.45}
+#maintenance .maint-ocr-item-actions{grid-column:2;display:flex;flex-wrap:wrap;gap:6px}
+#maintenance .maint-ocr-item-actions .maint-btn{padding:6px 9px;min-height:32px}
+#maintenance .maint-btn.danger{color:#96387f;border-color:#dfc3d9;background:#fff}
+#maintenance .maint-ocr-paging{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:12px;color:#66708f}
+
 @media(max-width:1199px){
   body:not(.lexia-nav-open) .global-sidebar{transform:translateX(calc(-100% - 24px))!important;visibility:hidden!important;pointer-events:none!important}
   body.lexia-nav-open .global-sidebar{transform:translateX(0)!important;visibility:visible!important;pointer-events:auto!important}

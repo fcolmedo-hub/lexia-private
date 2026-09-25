@@ -95,6 +95,17 @@
   let noticeError=false;
   let keepPollingUntil=0;
   let ocrQueueFilter='';
+  const ocrSelection=new Set();
+  let ocrList={items:[],total:0,offset:0,limit:50,loading:false,error:''};
+  let ocrListRequest=0;
+
+  // The tab belongs to this renderer; its data module never injects navigation.
+  if(!document.querySelector('script[data-lexia-windows-maintenance-duplicates]')){
+    const script=document.createElement('script');
+    script.src='assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-2';
+    script.dataset.lexiaWindowsMaintenanceDuplicates='1';
+    (document.body||document.documentElement).appendChild(script);
+  }
 
   const card=(html,extra='')=>'<section class="maint-card '+extra+'">'+html+'</section>';
   const button=(id,label,kind='secondary',disabled=false)=>'<button type="button" class="maint-btn '+kind+'" id="'+id+'" '+(disabled?'disabled':'')+'>'+label+'</button>';
@@ -106,7 +117,7 @@
     return items.length?items.map(item=>'<div class="maint-warn"><b>'+esc(item.kind)+'</b><p>'+esc(item.message)+'</p><small>Cómo corregir: '+esc(item.action)+'</small></div>').join(''):'<p class="maint-empty">No se detectaron incidencias que requieran intervención.</p>';
   }
   function history(items){
-    const labels={'autosync-config':'Configuración AutoSync','autosync-scan':'Sincronización manual','autosync-stop-indexing':'Detención de indexación','ocr-start-all':'Inicio de OCR','ocr-stop':'Detención de OCR',diagnostic:'Diagnóstico',backup:'Copia operativa'};
+    const labels={'autosync-config':'Configuración AutoSync','autosync-scan':'Sincronización manual','autosync-stop-indexing':'Detención de indexación','ocr-start-all':'Inicio de OCR','ocr-start-selected':'OCR de archivos seleccionados','ocr-stop':'Detención de OCR',diagnostic:'Diagnóstico',backup:'Copia operativa'};
     const rows=(Array.isArray(items)?items:[]).slice(0,8);
     return rows.length?'<div class="maint-history">'+rows.map(item=>'<div class="maint-row"><i class="maint-icon">'+(item.status==='error'?'!':'•')+'</i><div><b>'+esc(labels[item.action]||item.action||'Mantenimiento')+'</b><p>'+esc(item.message||'Operación registrada')+'</p></div><span class="maint-tag '+(item.status==='error'?'maint-bad':'maint-good')+'">'+esc(item.created_at||'')+'</span></div>').join('')+'</div>':'<p class="maint-empty">Todavía no hay acciones registradas desde Mantenimiento.</p>';
   }
@@ -131,17 +142,73 @@
     return '<div class="maint-ocr-details"><div><span>Etapa</span><b>'+esc(stage)+'</b></div><div><span>Documento</span><b>'+(documentTotal?esc(documentPosition)+' de '+esc(documentTotal):'—')+'</b></div><div><span>Página actual</span><b>'+(totalPages?esc(currentPage)+' de '+esc(totalPages):'—')+'</b></div><div><span>Páginas completadas</span><b>'+esc(completedPages)+'</b></div></div>'+(name?'<p class="maint-ocr-file"><b>'+esc(name)+'</b><span title="'+esc(path)+'">'+esc(path)+'</span></p>'+progress(completedPages,totalPages,pagePercentage):'');
   }
   function ocrQueuePanel(ocr){
-    const items=Array.isArray(ocr.items)?ocr.items:[];
     if(!ocrQueueFilter)return '<p class="maint-ocr-help">Seleccioná un estado para ver los archivos y su ubicación.</p>';
-    const selected=items.filter(item=>String(item.status||'').trim().toLowerCase()===ocrQueueFilter);
     const labels={pending:'Pendientes',processing:'En proceso',error:'Con error'};
-    const expected=Number(ocr[ocrQueueFilter]||0);
-    if(ocr.items_error)return '<div class="maint-ocr-queue maint-ocr-queue-error"><b>'+esc(labels[ocrQueueFilter]||ocrQueueFilter)+'</b><p>'+esc(ocr.items_error)+'</p><small>Usá “Actualizar estado” para reintentar la lectura.</small></div>';
-    if(!selected.length)return '<div class="maint-ocr-queue"><b>'+esc(labels[ocrQueueFilter]||ocrQueueFilter)+'</b><p class="maint-empty">'+(expected?'La cola informa '+esc(expected)+' archivo(s), pero el detalle todavía no está disponible. Actualizando…':'No hay archivos en este estado.')+'</p></div>';
-    const retry=ocrQueueFilter==='error'
-      ?'<div class="maint-actions">'+button('mOcrRetryErrors','Reintentar OCR con error','primary',Boolean(ocr.running))+'</div>'
-      :'';
-    return '<div class="maint-ocr-queue"><b>'+esc(labels[ocrQueueFilter]||ocrQueueFilter)+' · '+selected.length+(expected>selected.length?' de '+esc(expected):'')+'</b>'+selected.map(item=>'<div class="maint-ocr-queue-item"><strong>'+esc(item.name||'Documento')+'</strong><span>'+esc(item.path||'Sin ubicación registrada')+'</span>'+((item.total_pages||item.progress_page)?'<small>Página '+esc(item.progress_page||0)+' de '+esc(item.total_pages||'—')+'</small>':'')+(item.error?'<small class="maint-ocr-item-error">'+esc(item.error)+'</small>':'')+'</div>').join('')+retry+'</div>';
+    const disabled=working||Boolean(ocr.running)||ocrList.loading||Boolean(ocrList.error);
+    const canSelect=ocrQueueFilter!=='processing';
+    const rows=ocrList.items.map(item=>{
+      const path=String(item.document_path||''),name=item.document_name||shortFileName(path)||'Documento';
+      const busy=disabled||String(item.status||'').trim().toLowerCase()==='processing';
+      return '<div class="maint-ocr-queue-item">'+
+        (canSelect?'<input type="checkbox" data-ocr-select="'+esc(path)+'" aria-label="Seleccionar '+esc(name)+'" '+(ocrSelection.has(path)?'checked ':'')+(busy?'disabled':'')+'>':'')+
+        '<div class="maint-ocr-item-info"><strong>'+esc(name)+'</strong><span title="'+esc(path)+'">'+esc(path)+'</span>'+((item.total_pages||item.progress_page)?'<small>Página '+esc(item.progress_page||0)+' de '+esc(item.total_pages||'—')+'</small>':'')+(item.error?'<small class="maint-ocr-item-error">'+esc(item.error)+'</small>':'')+'</div>'+
+        '<div class="maint-ocr-item-actions"><button type="button" class="maint-btn" data-ocr-open="'+esc(path)+'">Abrir</button>'+(canSelect?'<button type="button" class="maint-btn" data-ocr-retry="'+esc(path)+'" '+(busy?'disabled':'')+'>Reprocesar</button><button type="button" class="maint-btn danger" data-ocr-delete="'+esc(path)+'" '+(busy?'disabled':'')+'>Eliminar de LexIA</button>':'')+'</div></div>';
+    }).join('');
+    const controls=canSelect?'<div class="maint-actions">'+button('mOcrSelectPage','Seleccionar esta página','secondary',disabled||!ocrList.items.length)+button('mOcrClearSelection','Quitar selección','secondary',working||!ocrSelection.size)+button('mOcrRetrySelected','Reprocesar seleccionados ('+ocrSelection.size+')','primary',disabled||!ocrSelection.size)+'</div>':'';
+    const paging='<div class="maint-ocr-paging">'+button('mOcrPrevious','Anterior','secondary',ocrList.loading||ocrList.offset===0)+'<span>'+esc(ocrList.total?ocrList.offset+1:0)+'–'+esc(ocrList.offset+ocrList.items.length)+' de '+esc(ocrList.total)+'</span>'+button('mOcrNext','Siguiente','secondary',ocrList.loading||ocrList.offset+ocrList.items.length>=ocrList.total)+'</div>';
+    return '<div class="maint-ocr-queue"><b>'+esc(labels[ocrQueueFilter])+' · '+esc(ocrList.total)+'</b>'+controls+(ocrList.loading?'<p class="maint-note" role="status">Actualizando archivos…</p>':'')+(ocrList.error?'<p class="maint-toast-error" role="alert">'+esc(ocrList.error)+'</p>':'')+'<div class="maint-ocr-items">'+(rows||(!ocrList.loading&&!ocrList.error?'<p class="maint-empty">No hay archivos en este estado.</p>':''))+'</div>'+paging+'</div>';
+  }
+
+  async function jsonRequest(url,body){
+    const response=await fetch(url,body===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const payload=await response.json();
+    if(!response.ok||payload.ok===false)throw new Error(payload.error||'No se pudo completar la operación.');
+    return payload;
+  }
+  async function loadOcrList(offset=ocrList.offset){
+    if(!ocrQueueFilter)return;
+    const request=++ocrListRequest,filter=ocrQueueFilter;
+    ocrList={...ocrList,offset,loading:true,error:''};
+    render();
+    try{
+      const payload=await jsonRequest('/api/maintenance-action',{action:'ocr-list',status:filter,offset,limit:50});
+      if(request!==ocrListRequest)return;
+      ocrList={items:payload.items||[],total:Number(payload.total||0),offset:Number(payload.offset||0),limit:50,loading:false,error:''};
+      if(!ocrList.items.length&&ocrList.offset&&ocrList.total){return loadOcrList(Math.floor((ocrList.total-1)/50)*50);}
+      if(!ocrList.total){ocrList.offset=0;ocrSelection.clear();}
+    }catch(error){
+      if(request!==ocrListRequest)return;
+      ocrList={...ocrList,loading:false,error:error.message||String(error)};
+    }
+    render();
+  }
+  function retryOcr(paths){
+    if(!paths.length||working)return;
+    requestAction('ocr-start-selected',{paths},()=>{paths.forEach(path=>ocrSelection.delete(path));});
+  }
+  async function deleteOcrFile(path){
+    if(working)return;
+    const name=shortFileName(path);
+    if(!confirm('¿Eliminar de LexIA “'+name+'”?\n\n'+path+'\n\nSe eliminará el archivo físico de la biblioteca, su texto indexado y sus datos asociados en LexIA. Esta acción no es solo quitarlo de la cola OCR.'))return;
+    working=true;notice='Eliminando '+name+'…';noticeError=false;render();
+    try{
+      const started=await jsonRequest('/api/delete-file',{path,confirm_name:name});
+      const target=String(started.state?.path||path),deadline=Date.now()+120000;
+      let completed=false;
+      while(Date.now()<deadline){
+        await new Promise(resolve=>setTimeout(resolve,800));
+        const payload=await jsonRequest('/api/delete-file-status');
+        const deletion=payload.state||{};
+        if(String(deletion.path||'')!==target)throw new Error('Cambió la operación de eliminación. Actualizá el estado antes de reintentar.');
+        if(deletion.status==='completed'){completed=true;break;}
+        if(['error','interrupted'].includes(deletion.status))throw new Error(deletion.error||'No se pudo completar la eliminación.');
+      }
+      if(!completed)throw new Error('La eliminación sigue pendiente. Actualizá el estado antes de reintentar.');
+      ocrSelection.delete(path);notice='Archivo eliminado: '+name;
+      window.lexiaSearch320RemovePath?.(target);
+      window.dispatchEvent(new CustomEvent('lexia:document-deleted',{detail:{path:target}}));
+    }catch(error){notice=error.message||String(error);noticeError=true;}
+    finally{working=false;await refresh(false,false);render();schedulePoll();}
   }
   function ocrStatusButtons(ocr){
     return '<div class="maint-ocr-stats"><button type="button" data-ocr-filter="pending" class="'+(ocrQueueFilter==='pending'?'active':'')+'"><span>Pendientes</span><b>'+esc(ocr.pending||0)+'</b></button><button type="button" data-ocr-filter="processing" class="'+(ocrQueueFilter==='processing'?'active':'')+'"><span>En proceso</span><b>'+esc(ocr.processing||0)+'</b></button><button type="button" data-ocr-filter="error" class="'+(ocrQueueFilter==='error'?'active':'')+'"><span>Con error</span><b>'+esc(ocr.error||0)+'</b></button></div>';
@@ -162,6 +229,9 @@
   }
 
   function render(){
+    const scroll=page.querySelector('.maint-ocr-items')?.scrollTop||0;
+    const duplicateScroll=page.querySelector('.lexia-dup-list')?.scrollTop||0;
+    const focused=document.activeElement?.getAttribute('data-ocr-select');
     if(!state){
       page.innerHTML='<div class="maint-wrap"><div class="maint-loading"><span class="maint-spinner"></span>Leyendo estado operativo…</div></div>';
       return;
@@ -194,6 +264,8 @@
       body='<div class="maint-grid">'+card('<h3>Actividad actual</h3><div class="maint-row"><i class="maint-icon">↻</i><div><b>AutoSync</b><p>'+esc(sync.current_file||sync.status||'Biblioteca disponible')+'</p></div><span class="maint-tag">'+esc(phaseLabel(sync.phase))+'</span></div><div class="maint-row"><i class="maint-icon">O</i><div><b>OCR</b><p>'+esc(ocr.running?((ocr.document_name||'Procesando OCR')+(ocr.total_pages?' · página '+ocr.current_page+' de '+ocr.total_pages:'')):(String(ocr.pending||0)+' pendiente(s) en cola.'))+'</p></div><span class="maint-tag '+(ocr.error?'maint-bad':'maint-good')+'">'+(ocr.error?esc(String(ocr.error)+' error(es)'):'OK')+'</span></div>'+((ocr.running||ocr.document_name)?ocrDetails(ocr):'')+''+currentActivitySummary+'<div class="maint-actions">'+button('mScan','Buscar cambios ahora')+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Errores y recuperación</h3>'+problems(items))+card('<h3>Historial operativo</h3><p class="maint-note">Se muestran únicamente las últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
     }else if(tab==='automation'){
       body='<div class="maint-grid">'+card('<h3>AutoSync</h3><p class="maint-note">Elegí cómo LexIA detecta y procesa los cambios de la biblioteca.</p><div class="maint-form"><label>Modo<select id="mMode" class="maint-select"><option value="manual" '+(config.mode==='manual'?'selected':'')+'>Manual</option><option value="automatic" '+(config.mode==='automatic'?'selected':'')+'>Automático</option><option value="scheduled" '+(config.mode==='scheduled'?'selected':'')+'>Programado</option></select></label><label>Hora programada<input id="mSchedule" class="maint-time" type="time" value="'+esc(config.schedule_time||'03:00')+'" '+(config.mode==='scheduled'?'':'disabled')+'></label>'+button('mSaveMode','Guardar modo','primary',working)+'</div><div class="maint-actions">'+button('mScan','Ejecutar sincronización manual','secondary',working)+'</div>','maint-autosync-card')+card('<h3>OCR</h3><p class="maint-note">'+esc((state.ocr_policy||{}).description||'Los documentos escaneados se procesan desde la cola manual.')+'</p>'+ocrStatusButtons(ocr)+ocrQueuePanel(ocr)+ocrDetails(ocr)+progress(ocr.processed,ocr.total,0)+'<div class="maint-actions">'+button('mOcrStart','Procesar pendientes y errores OCR','primary',working||Boolean(ocr.running))+button('mOcrStop','Detener OCR','secondary',working||!ocr.running)+'</div>','maint-ocr-card')+'</div>';
+    }else if(tab==='duplicates'){
+      body='<section class="maint-card" id="lexiaMaintenanceDuplicatesPanel"><p class="maint-empty">Cargando revisión de duplicados…</p></section>';
     }else if(tab==='diagnosis'){
       const diagnostic=state.diagnostic||{};
       body='<div class="maint-grid">'+card('<h3>Incidencias detectadas</h3>'+problems(items))+card('<h3>Diagnóstico bajo demanda</h3><p class="maint-note">Comprueba disco, catálogo, bases y componentes en segundo plano. La pantalla continúa respondiendo.</p><div class="maint-actions">'+button('mDiagnose',diagnostic.running?'Diagnóstico en ejecución':'Ejecutar diagnóstico','primary',working||diagnostic.running)+'</div>'+diagnosticPanel(diagnostic))+'</div>';
@@ -207,10 +279,14 @@
       body=aboutPanel(state.platform||{});
     }
 
-    const tabs=[['activity','Estado y actividad'],['automation','Automatizaciones'],['diagnosis','Diagnóstico'],['backups','Copias'],['monitor','Monitor técnico'],['about','Acerca de LexIA']].map(([id,label])=>'<button class="maint-tab '+(tab===id?'active':'')+'" data-maint-tab="'+id+'">'+label+'</button>').join('');
+    const tabs=[['activity','Estado y actividad'],['automation','Automatizaciones'],['duplicates','Duplicados'],['diagnosis','Diagnóstico'],['backups','Copias'],['monitor','Monitor técnico'],['about','Acerca de LexIA']].map(([id,label])=>'<button type="button" class="maint-tab '+(tab===id?'active':'')+'" data-maint-tab="'+id+'" aria-pressed="'+(tab===id)+'">'+label+'</button>').join('');
     const header='<div class="maint-wrap"><div class="maint-head"><div><h1>Mantenimiento</h1><p>Operación real de AutoSync, OCR, diagnóstico y copias de LexIA.</p></div><div class="maint-actions">'+button('mRefresh',refreshing?'Actualizando…':'Actualizar','secondary',refreshing)+'</div></div><div class="maint-tabs">'+tabs+'</div><div class="maint-kpis">'+kpi('ESTADO GENERAL',attention?'Requiere atención':'Operativo',sync.status||'Biblioteca disponible','activity')+kpi('BIBLIOTECA',Number(catalog.documents||0).toLocaleString('es-AR'),'documentos activos','navigator')+kpi('OCR',String(ocr.pending||0)+' pendientes',String(ocr.error||0)+' con error','ocr')+kpi('AUTOSYNC',modes[config.mode]||'Automático',config.mode==='scheduled'?(config.schedule_time||'03:00'):(sync.last_sync||'sin registro'),'autosync')+'</div>'+body+'<p id="mToast" class="maint-toast '+(noticeError?'maint-toast-error':'')+'">'+esc(notice)+'</p></div>';
     page.innerHTML=header;
     bind();
+    const list=page.querySelector('.maint-ocr-items');if(list)list.scrollTop=scroll;
+    if(focused)Array.from(page.querySelectorAll('[data-ocr-select]')).find(element=>element.dataset.ocrSelect===focused)?.focus({preventScroll:true});
+    window.dispatchEvent(new CustomEvent('lexia:maintenance-render',{detail:{tab}}));
+    const duplicateList=page.querySelector('.lexia-dup-list');if(duplicateList)duplicateList.scrollTop=duplicateScroll;
     updateSidebar();
   }
 
@@ -294,7 +370,7 @@
     const activeSync=['waiting','scanning','indexing','knowledge'].includes(autosync.phase);
     const total=Number((activeOcr?ocr.total:autosync.total)||0),processed=Number((activeOcr?ocr.processed:autosync.processed)||0);
     const op={engine:activeOcr?'OCR':activeSync?'AutoSync':'LexIA',function:activeOcr?(ocr.stage||'ocr'):(autosync.phase||'idle'),status:activeOcr?'Procesando OCR':(autosync.status||'Biblioteca al día'),current_file:activeOcr?(ocr.current_file||''):(autosync.current_file||''),document_name:activeOcr?(ocr.document_name||''):'',processed,total,percentage:Number((activeOcr?0:autosync.percentage)||0)||(total?Math.round(100*processed/total):0),queued:activeOcr?Number(ocr.pending||0):Math.max(0,total-processed),current_page:Number(ocr.current_page||0),total_pages:Number(ocr.total_pages||0),page_percentage:Number(ocr.page_percentage||0)};
-    state={...(state||{}),live:{...((state||{}).live||{}),autosync,ocr},operation:op};
+    state={...(state||{}),live:{...((state||{}).live||{}),autosync,ocr:{...state?.live?.ocr,...ocr}},operation:op};
     updateSidebar();
   };
 
@@ -320,7 +396,7 @@
     }
   }
   function bind(){
-    document.querySelectorAll('[data-maint-tab]').forEach(element=>element.onclick=()=>{tab=element.dataset.maintTab;render();schedulePoll();});
+    document.querySelectorAll('[data-maint-tab]').forEach(element=>element.onclick=()=>{tab=element.dataset.maintTab;render();if(tab==='automation'&&ocrQueueFilter)loadOcrList();schedulePoll();});
     document.querySelectorAll('[data-maint-target]').forEach(element=>{
       const go=()=>navigate(element.dataset.maintTarget);
       element.onclick=go;
@@ -328,14 +404,32 @@
     });
     document.querySelectorAll('[data-ocr-filter]').forEach(element=>element.addEventListener('click',()=>{
       ocrQueueFilter=element.dataset.ocrFilter||'';
-      render();
-      refresh(false,false);
+      ocrSelection.clear();ocrList={items:[],total:0,offset:0,limit:50,loading:false,error:''};
+      loadOcrList(0);
     }));
-    document.getElementById('mRefresh')?.addEventListener('click',()=>refresh(true,true));
+    page.querySelectorAll('[data-ocr-select]').forEach(element=>element.addEventListener('change',()=>{
+      if(element.checked){
+        if(ocrSelection.size>=100){notice='Podés seleccionar hasta 100 archivos por operación.';noticeError=true;}
+        else ocrSelection.add(element.dataset.ocrSelect);
+      }else ocrSelection.delete(element.dataset.ocrSelect);
+      render();
+    }));
+    page.querySelectorAll('[data-ocr-open]').forEach(element=>element.addEventListener('click',()=>{
+      const path=element.dataset.ocrOpen;
+      if(window.lexiaQuickViewerOpen)window.lexiaQuickViewerOpen(path,1,'');
+      else window.open('/api/file-preview?path='+encodeURIComponent(path),'_blank','noopener');
+    }));
+    page.querySelectorAll('[data-ocr-retry]').forEach(element=>element.addEventListener('click',()=>retryOcr([element.dataset.ocrRetry])));
+    page.querySelectorAll('[data-ocr-delete]').forEach(element=>element.addEventListener('click',()=>deleteOcrFile(element.dataset.ocrDelete)));
+    document.getElementById('mOcrSelectPage')?.addEventListener('click',()=>{ocrList.items.forEach(item=>{if(ocrSelection.size<100)ocrSelection.add(item.document_path);});render();});
+    document.getElementById('mOcrClearSelection')?.addEventListener('click',()=>{ocrSelection.clear();render();});
+    document.getElementById('mOcrRetrySelected')?.addEventListener('click',()=>retryOcr([...ocrSelection]));
+    document.getElementById('mOcrPrevious')?.addEventListener('click',()=>loadOcrList(Math.max(0,ocrList.offset-50)));
+    document.getElementById('mOcrNext')?.addEventListener('click',()=>loadOcrList(ocrList.offset+50));
+    document.getElementById('mRefresh')?.addEventListener('click',()=>{if(tab==='duplicates')window.lexiaMaintenanceDuplicates?.load();refresh(true,true);});
     document.getElementById('mScan')?.addEventListener('click',()=>requestAction('autosync-scan'));
     document.getElementById('mStopIndex')?.addEventListener('click',()=>requestAction('autosync-stop-indexing'));
     document.getElementById('mOcrStart')?.addEventListener('click',()=>requestAction('ocr-start-all'));
-    document.getElementById('mOcrRetryErrors')?.addEventListener('click',()=>requestAction('ocr-start-all'));
     document.getElementById('mOcrStop')?.addEventListener('click',()=>requestAction('ocr-stop'));
     document.getElementById('mBackup')?.addEventListener('click',()=>requestAction('backup'));
     document.getElementById('mDiagnose')?.addEventListener('click',()=>requestAction('diagnostic'));
@@ -360,7 +454,8 @@
       if(!response.ok||!payload.ok)throw new Error(payload.error||'No se pudo leer el estado operativo.');
       state=payload;
       if(announce)notice='Estado actualizado a las '+new Date().toLocaleTimeString('es-AR')+'.';
-      noticeError=false;
+      if(announce)noticeError=false;
+      if(tab==='automation'&&ocrQueueFilter)await loadOcrList();
     }catch(error){
       notice=error.message||String(error);
       noticeError=true;
@@ -370,7 +465,7 @@
       if(schedule)schedulePoll();
     }
   }
-  async function requestAction(action,extra={}){
+  async function requestAction(action,extra={},onSuccess=null){
     if(working)return;
     working=true;
     notice='Ejecutando operación…';
@@ -380,6 +475,7 @@
       const response=await fetch('/api/maintenance-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
       const payload=await response.json();
       if(!response.ok||!payload.ok)throw new Error(payload.error||'La operación no pudo completarse.');
+      onSuccess?.();
       notice=payload.message||'Operación completada.';
       noticeError=false;
       keepPollingUntil=Date.now()+15000;
