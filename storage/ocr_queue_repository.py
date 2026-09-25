@@ -94,6 +94,22 @@ class OCRQueueRepository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_page(self, status: str, offset: int = 0, limit: int = 50) -> dict:
+        if status not in {"pending", "error", "processing"}:
+            raise ValueError("Estado OCR inválido.")
+        offset, limit = max(0, int(offset)), max(1, min(100, int(limit)))
+        with self._connect() as connection:
+            total = connection.execute(
+                "SELECT COUNT(*) FROM ocr_queue WHERE status = ?", (status,)
+            ).fetchone()[0]
+            rows = connection.execute(
+                "SELECT * FROM ocr_queue WHERE status = ? "
+                "ORDER BY added_at, document_name, document_path LIMIT ? OFFSET ?",
+                (status, limit, offset),
+            ).fetchall()
+        return {"items": [dict(row) for row in rows], "total": total,
+                "offset": offset, "limit": limit}
+
     def get(self, document_path: str) -> dict | None:
         """Return one queue item without loading the complete OCR queue."""
         with self._connect() as connection:

@@ -450,6 +450,26 @@ def _maintenance_action(application, body: dict) -> dict:
     """Run an explicit maintenance action against the live services."""
     action = str(body.get("action", "") or "").strip()
     try:
+        if action == "ocr-list":
+            result = application.ocr_queue.repository.list_page(
+                str(body.get("status", "pending")),
+                int(body.get("offset", 0)),
+                int(body.get("limit", 50)),
+            )
+            return {"ok": True, **result}
+        if action == "ocr-start-selected":
+            paths = body.get("paths")
+            if not isinstance(paths, list) or not 1 <= len(paths) <= 100:
+                raise ValueError("Seleccioná entre 1 y 100 archivos OCR.")
+            started = application.ocr_queue.start_selected(paths=paths)
+            if not started:
+                raise ValueError("El OCR está ocupado. Esperá a que finalice antes de reintentar.")
+            return _record_maintenance_action(application, action, {
+                "ok": True, "action": action, "started": True,
+                "selected": len(set(paths)),
+                "message": f"OCR iniciado para {len(set(paths))} archivo(s) seleccionado(s).",
+                "state": application.ocr_queue.state(),
+            })
         if action == "autosync-config":
             mode = str(body.get("mode", "") or "").strip().lower()
             schedule_time = str(
