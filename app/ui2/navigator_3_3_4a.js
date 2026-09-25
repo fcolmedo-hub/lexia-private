@@ -566,12 +566,31 @@
       arrow.textContent=children.hidden?'▸':'▾';
     };
     selector.addEventListener('click',select);
-    name.addEventListener('click',browseAndToggle);
+    name.addEventListener('click',refreshLibraryRoot);
     arrow.addEventListener('click',browseAndToggle);
     row.append(arrow,selector,name,count);
     wrap.append(row,children);
     return {wrap,children};
   }
+
+  let rootRefresh=null;
+  function refreshLibraryRoot(){
+    if(rootRefresh)return rootRefresh;
+    state.browsed={category:'',folder:'',labels:['Biblioteca'],libraryRoot:true};
+    state.offset=0;
+    emptyPreview();
+    rootRefresh=buildTree().finally(()=>{rootRefresh=null;});
+    return rootRefresh;
+  }
+  // The legacy document-level router matches buttons by their visible text.
+  // Handle the navigator root before that router can interpret "Biblioteca".
+  window.addEventListener('click',event=>{
+    const root=event.target.closest?.('#lexiaNavigatorTree [data-library-root] .lexia-nav-tree-name');
+    if(!root)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    refreshLibraryRoot();
+  },true);
 
   async function buildTree(){
     const host=$('lexiaNavigatorTree');

@@ -94,7 +94,9 @@
   let notice='';
   let noticeError=false;
   let keepPollingUntil=0;
-  let ocrQueueFilter='';
+  let ocrQueueFilter='pending';
+  const scrollPositions=new Map();
+  let renderedTab='';
   const ocrSelection=new Set();
   let ocrList={items:[],total:0,offset:0,limit:50,loading:false,error:''};
   let ocrListRequest=0;
@@ -228,9 +230,37 @@
     return '<div class="maint-about">'+card('<p class="maint-eyebrow">PRODUCTO</p><h2>'+esc(p.product||'LexIA Platform')+'</h2><dl><dt>Versión</dt><dd>'+esc(p.version||'2.1.0-dev')+'</dd><dt>Build</dt><dd>'+esc(p.build||'2026.08.03.2101')+'</dd><dt>Canal</dt><dd>'+esc(p.channel||'DEV')+'</dd></dl>')+card('<h3>Componentes</h3><div class="maint-components">'+(componentRows||'<p class="maint-empty">Información de componentes no disponible.</p>')+'</div>')+card('<h3>Configuración activa</h3><dl><dt>Inicio</dt><dd>'+esc(settings.startup_mode||'watch_only')+'</dd><dt>Consultas máximas</dt><dd>'+esc(settings.max_queries||5)+'</dd><dt>Fuentes máximas operativas</dt><dd>'+esc(settings.max_sources||14)+'</dd><dt>Qdrant</dt><dd>'+esc(settings.qdrant_mode||'local_embedded')+'</dd></dl><p class="maint-note">Los componentes esenciales de Platform 2.1 están '+(p.healthy===false?'incompletos.':'disponibles.')+'</p>')+'</div>';
   }
 
+  function syncTabAppearance(){
+    if(typeof window.getComputedStyle!=='function')return;
+    const references=[...document.querySelectorAll('#searchpage .search-modes .mode')];
+    const active=references.find(button=>button.classList.contains('active'));
+    const idle=references.find(button=>!button.classList.contains('active'));
+    if(!active||!idle)return;
+    const properties=['font-family','font-size','font-style','font-weight','line-height','letter-spacing','text-transform','white-space','color','background-color','min-height','box-sizing'];
+    for(const side of ['top','right','bottom','left'])properties.push('padding-'+side,'border-'+side+'-width','border-'+side+'-style','border-'+side+'-color');
+    for(const corner of ['top-left','top-right','bottom-left','bottom-right'])properties.push('border-'+corner+'-radius');
+    page.querySelectorAll('.maint-tab').forEach(button=>{
+      const reference=window.getComputedStyle(button.classList.contains('active')?active:idle);
+      properties.forEach(property=>{const value=reference.getPropertyValue(property);if(value)button.style.setProperty(property,value,'important');});
+    });
+  }
+  window.addEventListener('load',syncTabAppearance,{once:true});
+  window.addEventListener('resize',syncTabAppearance,{passive:true});
+
+  function syncActivity(sync){
+    const done=Number(sync.processed||0),total=Number(sync.total||0);
+    const known=sync.progress_total_known===true||(sync.progress_total_known===undefined&&total>0);
+    const running=['waiting','scanning','indexing','knowledge'].includes(sync.phase);
+    const counter=known&&total?progress(done,total,sync.percentage):sync.phase==='waiting'?'<p class="maint-note">Esperando que terminen los cambios en las carpetas.</p>':running?'<p class="maint-note">'+esc(done.toLocaleString('es-AR'))+' archivos revisados · calculando el total…</p>':'';
+    const recent=Array.isArray(sync.recent_files)?sync.recent_files:[];
+    return '<div class="maint-sync-summary"><b>AutoSync · '+esc(sync.progress_label||sync.status||'Biblioteca al día')+'</b>'+counter+(sync.current_file?'<p class="maint-current-file" title="'+esc(sync.current_file)+'">'+esc(shortFileName(sync.current_file))+'</p>':'')+'</div>'+ (recent.length?'<p class="maint-note">Últimas '+recent.length+' operaciones sobre archivos · progreso por etapa</p><div class="maint-sync-files">'+recent.slice().reverse().map(item=>'<div class="maint-sync-file"><b title="'+esc(item.path)+'">'+esc(shortFileName(item.path))+'</b><span>'+esc(item.action)+' · '+esc(item.status)+'</span><small title="'+esc((item.source?item.source+' → ':'')+item.path)+'">'+esc((item.source?item.source+' → ':'')+item.path)+'</small></div>').join('')+'</div>':'<p class="maint-empty">Los archivos aparecerán aquí durante la próxima sincronización.</p>');
+  }
+
   function render(){
-    const scroll=page.querySelector('.maint-ocr-items')?.scrollTop||0;
-    const duplicateScroll=page.querySelector('.lexia-dup-list')?.scrollTop||0;
+    const scrollSelectors=['.maint-content','.maint-history','.maint-ocr-items','.lexia-dup-list','.maint-sync-files','#mTerminal','.maint-activity','.maint-autosync-card','.maint-ocr-card'];
+    if(renderedTab)scrollPositions.set(renderedTab,scrollSelectors.map(selector=>[selector,page.querySelector(selector)?.scrollTop||0]));
+    const scroll=scrollPositions.get(tab)||[];
+    const modeDraft=renderedTab===tab?{mode:page.querySelector('#mMode')?.value,time:page.querySelector('#mSchedule')?.value}:null;
     const focused=document.activeElement?.getAttribute('data-ocr-select');
     if(!state){
       page.innerHTML='<div class="maint-wrap"><div class="maint-loading"><span class="maint-spinner"></span>Leyendo estado operativo…</div></div>';
@@ -239,36 +269,18 @@
     const live=state.live||{},sync=live.autosync||{},ocr=live.ocr||{},catalog=live.catalog||{},config=state.autosync_config||{},items=state.problems||[],events=state.history||[],operation=state.operation||{};
     const attention=sync.phase==='error'||Number(ocr.error||0)>0;
     const activeOcr=Boolean(ocr.running);
-    const activeOperation=activeOcr?{
-      engine:'OCR',
-      function:ocr.stage||'ocr',
-      status:'Procesando OCR',
-      current_file:ocr.current_file||'',
-      document_name:ocr.document_name||'',
-      processed:Number(ocr.processed||0),
-      total:Number(ocr.total||0),
-      percentage:Number(ocr.total||0)?Math.round(100*Number(ocr.processed||0)/Number(ocr.total||0)):0,
-      queued:Number(ocr.pending||0),
-      current_page:Number(ocr.current_page||0),
-      total_pages:Number(ocr.total_pages||0),
-      page_percentage:Number(ocr.page_percentage||0)
-    }:operation;
-    const activePath=String(activeOperation.current_file||'');
-    const activeFile=String(activeOperation.document_name||shortFileName(activePath)||'');
-    const activeCurrentPage=Number(activeOperation.current_page||0);
-    const activeTotalPages=Number(activeOperation.total_pages||0);
-    const activePagePercentage=Number(activeOperation.page_percentage||0);
-    const currentActivitySummary='<div class="maint-current"><b>'+esc(activeOperation.engine||'LexIA')+' · '+esc(phaseLabel(activeOperation.function))+'</b><p>'+esc(activeOperation.status||'Biblioteca al día')+'</p>'+(activeFile?'<p class="maint-current-file" title="'+esc(activePath)+'">Archivo: <b>'+esc(activeFile)+'</b></p>':'')+(activeTotalPages?'<small class="maint-current-page">Página '+esc(activeCurrentPage)+' de '+esc(activeTotalPages)+' · '+esc(activePagePercentage)+'%</small>':'')+(Number(activeOperation.total||0)?progress(activeOperation.processed,activeOperation.total,activeOperation.percentage):'')+'<small>Cola: '+esc(activeOperation.queued||0)+' tarea(s)</small></div>';
     let body='';
     if(tab==='activity'){
-      body='<div class="maint-grid">'+card('<h3>Actividad actual</h3><div class="maint-row"><i class="maint-icon">↻</i><div><b>AutoSync</b><p>'+esc(sync.current_file||sync.status||'Biblioteca disponible')+'</p></div><span class="maint-tag">'+esc(phaseLabel(sync.phase))+'</span></div><div class="maint-row"><i class="maint-icon">O</i><div><b>OCR</b><p>'+esc(ocr.running?((ocr.document_name||'Procesando OCR')+(ocr.total_pages?' · página '+ocr.current_page+' de '+ocr.total_pages:'')):(String(ocr.pending||0)+' pendiente(s) en cola.'))+'</p></div><span class="maint-tag '+(ocr.error?'maint-bad':'maint-good')+'">'+(ocr.error?esc(String(ocr.error)+' error(es)'):'OK')+'</span></div>'+((ocr.running||ocr.document_name)?ocrDetails(ocr):'')+''+currentActivitySummary+'<div class="maint-actions">'+button('mScan','Buscar cambios ahora')+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Errores y recuperación</h3>'+problems(items))+card('<h3>Historial operativo</h3><p class="maint-note">Se muestran únicamente las últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
+      body='<div class="maint-grid maint-activity-grid">'+card('<h3>Actividad actual</h3>'+syncActivity(sync)+(activeOcr?'<div class="maint-ocr-summary"><b>OCR en ejecución</b>'+ocrDetails(ocr)+'</div>':'')+'<div class="maint-actions">'+button('mScan','Buscar cambios ahora','secondary',working)+(sync.phase==='indexing'?button('mStopIndex','Detener indexación'): '')+'</div>','maint-activity')+card('<h3>Incidencias</h3>'+problems(items),'maint-problems-card')+card('<h3>Historial operativo</h3><p class="maint-note">Últimas 8 acciones.</p>'+history(events),'maint-history-card')+'</div>';
     }else if(tab==='automation'){
-      body='<div class="maint-grid">'+card('<h3>AutoSync</h3><p class="maint-note">Elegí cómo LexIA detecta y procesa los cambios de la biblioteca.</p><div class="maint-form"><label>Modo<select id="mMode" class="maint-select"><option value="manual" '+(config.mode==='manual'?'selected':'')+'>Manual</option><option value="automatic" '+(config.mode==='automatic'?'selected':'')+'>Automático</option><option value="scheduled" '+(config.mode==='scheduled'?'selected':'')+'>Programado</option></select></label><label>Hora programada<input id="mSchedule" class="maint-time" type="time" value="'+esc(config.schedule_time||'03:00')+'" '+(config.mode==='scheduled'?'':'disabled')+'></label>'+button('mSaveMode','Guardar modo','primary',working)+'</div><div class="maint-actions">'+button('mScan','Ejecutar sincronización manual','secondary',working)+'</div>','maint-autosync-card')+card('<h3>OCR</h3><p class="maint-note">'+esc((state.ocr_policy||{}).description||'Los documentos escaneados se procesan desde la cola manual.')+'</p>'+ocrStatusButtons(ocr)+ocrQueuePanel(ocr)+ocrDetails(ocr)+progress(ocr.processed,ocr.total,0)+'<div class="maint-actions">'+button('mOcrStart','Procesar pendientes y errores OCR','primary',working||Boolean(ocr.running))+button('mOcrStop','Detener OCR','secondary',working||!ocr.running)+'</div>','maint-ocr-card')+'</div>';
+      body='<div class="maint-grid maint-autosync-grid">'+card('<h3>Configuración de AutoSync</h3><p class="maint-note">Elegí cómo LexIA detecta y procesa los cambios de la biblioteca.</p><div class="maint-form"><label>Modo<select id="mMode" class="maint-select"><option value="manual" '+(config.mode==='manual'?'selected':'')+'>Manual</option><option value="automatic" '+(config.mode==='automatic'?'selected':'')+'>Automático</option><option value="scheduled" '+(config.mode==='scheduled'?'selected':'')+'>Programado</option></select></label><label>Hora programada<input id="mSchedule" class="maint-time" type="time" value="'+esc(config.schedule_time||'03:00')+'" '+(config.mode==='scheduled'?'':'disabled')+'></label>'+button('mSaveMode','Guardar modo','primary',working)+'</div><div class="maint-actions">'+button('mScan','Ejecutar sincronización manual','secondary',working)+'</div>','maint-autosync-card')+card('<h3>Archivos y progreso</h3>'+syncActivity(sync),'maint-activity')+'</div>';
+    }else if(tab==='ocr'){
+      body=card('<h3>Archivos OCR</h3><p class="maint-note">Seleccioná archivos para abrirlos, reprocesarlos o eliminarlos.</p>'+ocrStatusButtons(ocr)+ocrQueuePanel(ocr)+(ocr.running?ocrDetails(ocr):'')+'<div class="maint-actions maint-ocr-global">'+button('mOcrStart','Procesar toda la cola','secondary',working||Boolean(ocr.running)||!(Number(ocr.pending||0)+Number(ocr.error||0)))+button('mOcrStop','Detener OCR','secondary',working||!ocr.running)+'</div>','maint-ocr-card');
     }else if(tab==='duplicates'){
       body='<section class="maint-card" id="lexiaMaintenanceDuplicatesPanel"><p class="maint-empty">Cargando revisión de duplicados…</p></section>';
     }else if(tab==='diagnosis'){
       const diagnostic=state.diagnostic||{};
-      body='<div class="maint-grid">'+card('<h3>Incidencias detectadas</h3>'+problems(items))+card('<h3>Diagnóstico bajo demanda</h3><p class="maint-note">Comprueba disco, catálogo, bases y componentes en segundo plano. La pantalla continúa respondiendo.</p><div class="maint-actions">'+button('mDiagnose',diagnostic.running?'Diagnóstico en ejecución':'Ejecutar diagnóstico','primary',working||diagnostic.running)+'</div>'+diagnosticPanel(diagnostic))+'</div>';
+      body='<div class="maint-grid">'+card('<h3>Diagnóstico bajo demanda</h3><p class="maint-note">Comprueba disco, catálogo, bases y componentes en segundo plano. La pantalla continúa respondiendo.</p><div class="maint-actions">'+button('mDiagnose',diagnostic.running?'Diagnóstico en ejecución':'Ejecutar diagnóstico','primary',working||diagnostic.running)+'</div>'+diagnosticPanel(diagnostic))+'</div>';
     }else if(tab==='backups'){
       const backups=state.backups||[],scope=state.backup_scope||{};
       body='<div class="maint-grid">'+card('<h3>Copias disponibles</h3>'+(backups.length?backups.map(item=>'<div class="maint-row"><i class="maint-icon">▣</i><div><b>'+esc(item.name)+'</b><p>Copia operativa de bases y configuración.</p></div><span class="maint-tag maint-good">Lista</span></div>').join(''):'<p class="maint-empty">Todavía no hay copias creadas desde Mantenimiento.</p>')+'<div class="maint-actions">'+button('mBackup','Crear copia operativa','primary',working)+'</div>')+card('<h3>Alcance de la copia</h3><p class="maint-note">'+esc(scope.note||'Incluye bases internas y configuración.')+'</p><p class="maint-note">Incluye: bases internas y Knowledge. No incluye: biblioteca física ni índice Qdrant.</p>')+'</div>';
@@ -279,14 +291,19 @@
       body=aboutPanel(state.platform||{});
     }
 
-    const tabs=[['activity','Estado y actividad'],['automation','Automatizaciones'],['duplicates','Duplicados'],['diagnosis','Diagnóstico'],['backups','Copias'],['monitor','Monitor técnico'],['about','Acerca de LexIA']].map(([id,label])=>'<button type="button" class="maint-tab '+(tab===id?'active':'')+'" data-maint-tab="'+id+'" aria-pressed="'+(tab===id)+'">'+label+'</button>').join('');
-    const header='<div class="maint-wrap"><div class="maint-head"><div><h1>Mantenimiento</h1><p>Operación real de AutoSync, OCR, diagnóstico y copias de LexIA.</p></div><div class="maint-actions">'+button('mRefresh',refreshing?'Actualizando…':'Actualizar','secondary',refreshing)+'</div></div><div class="maint-tabs">'+tabs+'</div><div class="maint-kpis">'+kpi('ESTADO GENERAL',attention?'Requiere atención':'Operativo',sync.status||'Biblioteca disponible','activity')+kpi('BIBLIOTECA',Number(catalog.documents||0).toLocaleString('es-AR'),'documentos activos','navigator')+kpi('OCR',String(ocr.pending||0)+' pendientes',String(ocr.error||0)+' con error','ocr')+kpi('AUTOSYNC',modes[config.mode]||'Automático',config.mode==='scheduled'?(config.schedule_time||'03:00'):(sync.last_sync||'sin registro'),'autosync')+'</div>'+body+'<p id="mToast" class="maint-toast '+(noticeError?'maint-toast-error':'')+'">'+esc(notice)+'</p></div>';
+    const advanced=['diagnosis','monitor','about'].includes(tab);
+    const tabButton=([id,label])=>'<button type="button" class="maint-tab mode '+((tab===id||(id==='advanced'&&advanced))?'active':'')+'" data-maint-tab="'+id+'" aria-pressed="'+(tab===id||(id==='advanced'&&advanced))+'">'+label+'</button>';
+    const tabs=[['activity','Estado y actividad'],['automation','AutoSync'],['ocr','OCR'],['duplicates','Duplicados'],['backups','Copias'],['advanced','Avanzado']].map(tabButton).join('');
+    const advancedTabs=advanced?'<div class="maint-tabs maint-subtabs" aria-label="Herramientas avanzadas">'+[['diagnosis','Diagnóstico'],['monitor','Monitor técnico'],['about','Acerca de LexIA']].map(tabButton).join('')+'</div>':'';
+    const header='<div class="maint-wrap"><div class="maint-head"><div><h1>Mantenimiento</h1><p>Estado de la biblioteca, archivos pendientes y herramientas de mantenimiento.</p></div><div class="maint-actions">'+button('mRefresh',refreshing?'Actualizando…':'Actualizar','secondary',refreshing)+'</div></div><div class="maint-tabs">'+tabs+'</div><div class="maint-kpis">'+kpi('ESTADO GENERAL',attention?'Requiere atención':'Operativo',sync.status||'Biblioteca disponible','activity')+kpi('BIBLIOTECA',Number(catalog.documents||0).toLocaleString('es-AR'),'documentos activos','navigator')+kpi('OCR',String(ocr.pending||0)+' pendientes',String(ocr.error||0)+' con error','ocr')+kpi('AUTOSYNC',modes[config.mode]||'Automático',config.mode==='scheduled'?(config.schedule_time||'03:00'):(sync.last_sync||'sin registro'),'autosync')+'</div>'+advancedTabs+'<div class="maint-content" data-maint-view="'+tab+'">'+body+'</div><p id="mToast" class="maint-toast '+(noticeError?'maint-toast-error':'')+'">'+esc(notice)+'</p></div>';
     page.innerHTML=header;
     bind();
-    const list=page.querySelector('.maint-ocr-items');if(list)list.scrollTop=scroll;
+    renderedTab=tab;
+    syncTabAppearance();
+    if(modeDraft?.mode){const mode=page.querySelector('#mMode'),time=page.querySelector('#mSchedule');if(mode)mode.value=modeDraft.mode;if(time){time.value=modeDraft.time;time.disabled=modeDraft.mode!=='scheduled';}}
     if(focused)Array.from(page.querySelectorAll('[data-ocr-select]')).find(element=>element.dataset.ocrSelect===focused)?.focus({preventScroll:true});
     window.dispatchEvent(new CustomEvent('lexia:maintenance-render',{detail:{tab}}));
-    const duplicateList=page.querySelector('.lexia-dup-list');if(duplicateList)duplicateList.scrollTop=duplicateScroll;
+    scroll.forEach(([selector,top])=>{const element=page.querySelector(selector);if(element)element.scrollTop=top;});
     updateSidebar();
   }
 
@@ -356,6 +373,14 @@
     set('liveOperationQueue','Cola: '+Number(op.queued||0)+' tarea(s)'+(Number(op.total||0)?' · '+Number(op.processed||0)+' de '+Number(op.total||0):''));
     const bar=document.getElementById('liveOperationProgress');
     if(bar)bar.style.width=percentage+'%';
+    if(!ocr.running&&['waiting','scanning','indexing','knowledge'].includes(sync.phase)){
+      const known=sync.progress_total_known===true||(sync.progress_total_known===undefined&&Number(sync.total)>0);
+      const done=Number(sync.processed||0),total=Number(sync.total||0);
+      set('liveOperationFunction','AutoSync · '+(sync.progress_label||phaseLabel(sync.phase)));
+      set('liveOperationProgressLabel',known&&total?done+' de '+total+' · '+Math.round(100*done/total)+'%':sync.phase==='waiting'?'Esperando cambios…':done.toLocaleString('es-AR')+' archivos revisados');
+      set('liveOperationQueue',known?'Progreso de esta etapa':'Calculando el total…');
+      if(bar){bar.style.width=known&&total?Math.min(100,100*done/total)+'%':'100%';bar.style.opacity=known?'1':'.35';}
+    }else if(bar){bar.style.opacity='1';}
     const title=document.querySelector('#globalSidebar .health h4');
     if(title){
       const healthy=sync.phase!=='error'&&Number(ocr.error||0)===0;
@@ -372,6 +397,7 @@
     const op={engine:activeOcr?'OCR':activeSync?'AutoSync':'LexIA',function:activeOcr?(ocr.stage||'ocr'):(autosync.phase||'idle'),status:activeOcr?'Procesando OCR':(autosync.status||'Biblioteca al día'),current_file:activeOcr?(ocr.current_file||''):(autosync.current_file||''),document_name:activeOcr?(ocr.document_name||''):'',processed,total,percentage:Number((activeOcr?0:autosync.percentage)||0)||(total?Math.round(100*processed/total):0),queued:activeOcr?Number(ocr.pending||0):Math.max(0,total-processed),current_page:Number(ocr.current_page||0),total_pages:Number(ocr.total_pages||0),page_percentage:Number(ocr.page_percentage||0)};
     state={...(state||{}),live:{...((state||{}).live||{}),autosync,ocr:{...state?.live?.ocr,...ocr}},operation:op};
     updateSidebar();
+    if(!pollTimer&&!refreshing&&(activeSync||activeOcr))schedulePoll();
   };
 
   function navigate(target){
@@ -390,13 +416,14 @@
     }
     if(target==='activity'){tab='activity';render();return;}
     if(target==='ocr'||target==='autosync'){
-      tab='automation';
+      tab=target==='ocr'?'ocr':'automation';
       render();
-      requestAnimationFrame(()=>document.querySelector(target==='ocr'?'.maint-ocr-card':'.maint-autosync-card')?.scrollIntoView({behavior:'smooth',block:'center'}));
+      if(tab==='ocr')loadOcrList();
+      schedulePoll();
     }
   }
   function bind(){
-    document.querySelectorAll('[data-maint-tab]').forEach(element=>element.onclick=()=>{tab=element.dataset.maintTab;render();if(tab==='automation'&&ocrQueueFilter)loadOcrList();schedulePoll();});
+    document.querySelectorAll('[data-maint-tab]').forEach(element=>element.onclick=()=>{tab=element.dataset.maintTab==='advanced'?'diagnosis':element.dataset.maintTab;render();if(tab==='ocr'&&ocrQueueFilter)loadOcrList();schedulePoll();});
     document.querySelectorAll('[data-maint-target]').forEach(element=>{
       const go=()=>navigate(element.dataset.maintTarget);
       element.onclick=go;
@@ -455,7 +482,7 @@
       state=payload;
       if(announce)notice='Estado actualizado a las '+new Date().toLocaleTimeString('es-AR')+'.';
       if(announce)noticeError=false;
-      if(tab==='automation'&&ocrQueueFilter)await loadOcrList();
+      if(tab==='ocr'&&ocrQueueFilter)await loadOcrList();
     }catch(error){
       notice=error.message||String(error);
       noticeError=true;
@@ -544,7 +571,13 @@
 
   ensureSidebar();
   refreshGlobalSidebar();
-  setInterval(refreshGlobalSidebar,60000);
+  async function pollSidebar(){
+    await refreshGlobalSidebar();
+    const live=state?.live||{};
+    const active=live.ocr?.running||['waiting','scanning','indexing','knowledge'].includes(live.autosync?.phase);
+    setTimeout(pollSidebar,active?2500:15000);
+  }
+  setTimeout(pollSidebar,15000);
   if(location.hash==='#maintenance')window.lexiaMaintenanceOpen();
 })();
 /* <<< LEXIA UI2 3.3.9 OCR OBSERVABLE */
