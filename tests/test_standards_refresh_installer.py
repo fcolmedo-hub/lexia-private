@@ -61,3 +61,19 @@ def test_local_conflict_blocks_every_file(installer, checkout):
     assert changed.read_bytes() == before
     assert not (destination / "services/standards_pipeline.py").exists()
     assert list((home / "Desktop").iterdir()) == []
+
+
+def test_upgrade_from_previously_installed_standards_refresh(installer, checkout, monkeypatch):
+    destination, home = checkout
+    latest = subprocess.check_output(["git", "rev-parse", "FETCH_HEAD"], cwd=destination).decode().strip()
+    first = subprocess.check_output([
+        "git", "log", "--diff-filter=A", "-1", "--format=%H", "--", "services/standards_pipeline.py"
+    ], cwd=ROOT).decode().strip()
+    monkeypatch.setattr(installer, "PREVIOUS", (first,))
+    subprocess.run(["git", "fetch", "origin", first], cwd=destination, check=True, capture_output=True)
+    installer.main([])
+    subprocess.run(["git", "fetch", "origin", latest], cwd=destination, check=True, capture_output=True)
+    installer.main(["--check"])
+    installer.main([])
+    assert installer.installed(destination)
+    assert len(list((home / "Desktop").glob("*/archivos-anteriores.tar.gz"))) == 2

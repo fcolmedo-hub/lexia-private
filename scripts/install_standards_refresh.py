@@ -12,6 +12,11 @@ import tempfile
 
 
 BASE = "29b1647f42e64bcfcd766864d01b043ad48074b9"
+PREVIOUS = (
+    "b1c98570dee6c805c4e74abecfd5754f8769eee0",
+    "565a5ed0880313c2a2efc911125da19c0147c7a1",
+    "a9197b6a8974b890ba7e16cd96fd03ef6415e8d7",
+)
 FILES = (
     "app/ui2/assets/shared_ui_consistency.css",
     "app/ui2/assets/standards_nav_fix.js",
@@ -53,6 +58,23 @@ def installed(root: Path) -> bool:
     return True
 
 
+def matches_revision(root: Path, revision: str) -> bool:
+    if git("cat-file", "-e", f"{revision}^{{commit}}", cwd=root).returncode:
+        return False
+    changed = git("diff", "--name-only", BASE, revision, "--", *FILES, cwd=root)
+    if changed.returncode or not changed.stdout.strip():
+        return False
+    for name in changed.stdout.decode().splitlines():
+        file = root / name
+        if not file.is_file():
+            return False
+        actual = git("hash-object", "--path", name, str(file), cwd=root)
+        expected = git("rev-parse", "--verify", f"{revision}:{name}", cwd=root)
+        if actual.returncode or expected.returncode or actual.stdout.strip() != expected.stdout.strip():
+            return False
+    return True
+
+
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Sólo comprobar; no modificar archivos")
@@ -63,12 +85,13 @@ def main(argv=None) -> None:
     root = Path(root_result.stdout.decode().strip())
     if git("merge-base", "--is-ancestor", BASE, "FETCH_HEAD", cwd=root).returncode:
         raise SystemExit("Primero ejecutá: git fetch origin fix/standards-ui-batch-refresh")
-    patch = git("diff", "--binary", BASE, "FETCH_HEAD", "--", *FILES, cwd=root)
-    if patch.returncode or not patch.stdout:
-        raise SystemExit("No se pudo leer la actualización desde Git.")
     if installed(root):
         print("Actualización ya instalada. No se modificó ningún archivo.")
         return
+    patch_base = next((revision for revision in PREVIOUS if matches_revision(root, revision)), BASE)
+    patch = git("diff", "--binary", patch_base, "FETCH_HEAD", "--", *FILES, cwd=root)
+    if patch.returncode or not patch.stdout:
+        raise SystemExit("No se pudo leer la actualización desde Git.")
 
     with tempfile.TemporaryDirectory(prefix="lexia-standards-preflight-") as temporary:
         simulation = Path(temporary)
