@@ -72,6 +72,11 @@ un lote en Mac no actualiza automáticamente la base de Windows. Para mantener
 un diccionario común, preparar y recoger ambos lotes contra una **única base
 maestra**, trasladando los resultados de la otra máquina para importarlos allí
 o copiando una instantánea SQLite cuando LexIA esté cerrado en ambos equipos.
+Para incorporar en Windows un lote ya validado en Mac sin reemplazar su base,
+copiar el directorio de la ejecución de Mac y ejecutar allí
+`python tools/importar_estandares_sqlite.py --fallos <run>/prepared_v5/fallos.jsonl --validated <run>/validated_v5 --run-id <id-unico-mac>`
+contra la base maestra de Windows; el importador actualiza la capa canónica.
+Revisar después las relaciones nuevas desde la base maestra antes de publicarlas.
 No se deben mezclar dos archivos SQLite editados en paralelo ni copiar sólo el
 archivo principal si hay datos pendientes en su WAL. La selección e importación
 de lotes nuevos reconocen el mismo PDF por `content_hash`; los históricos sin

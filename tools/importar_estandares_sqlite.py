@@ -107,6 +107,8 @@ def upsert_document(conn: sqlite3.Connection, doc: dict[str, Any], pilot_id: int
             except (TypeError, ValueError):
                 prior_metadata = {}
             known_paths = prior_metadata.get("_lexia_source_paths", []) if isinstance(prior_metadata, dict) else []
+            if not isinstance(known_paths, list):
+                known_paths = []
             paths = [path for path in [*known_paths, prior_path, document_path] if isinstance(path, str) and path]
             metadata["_lexia_source_paths"] = list(dict.fromkeys(paths))
             # Retain the path usable on this computer when importing results

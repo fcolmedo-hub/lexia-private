@@ -24,7 +24,7 @@ def checkout(tmp_path, monkeypatch, installer):
     # from the connector-published parent. CI uses the published parent.
     base = installer.BASE
     if subprocess.run(["git", "cat-file", "-e", f"{base}^{{commit}}"], cwd=ROOT).returncode:
-        base = subprocess.check_output(["git", "rev-parse", "HEAD^"], cwd=ROOT).decode().strip()
+        base = subprocess.check_output(["git", "rev-parse", "HEAD~2"], cwd=ROOT).decode().strip()
         monkeypatch.setattr(installer, "BASE", base)
     subprocess.run(["git", "clone", "--shared", "--no-checkout", str(ROOT), str(destination)], check=True, capture_output=True)
     subprocess.run(["git", "checkout", base], cwd=destination, check=True, capture_output=True)
