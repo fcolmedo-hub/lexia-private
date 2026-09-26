@@ -24,7 +24,8 @@ def temporary_checkout(tmp_path, monkeypatch, installer):
     subprocess.run(["git", "clone", "--shared", "--no-checkout", str(ROOT), str(checkout)], check=True, capture_output=True)
     subprocess.run(["git", "checkout", "400a1013e493438d6c898a9a55bb6861e97fd691"], cwd=checkout, check=True, capture_output=True)
     # FETCH_HEAD is the reviewed remote commit, not the in-progress local test commit.
-    subprocess.run(["git", "fetch", "origin", installer.TARGET], cwd=checkout, check=True, capture_output=True)
+    reviewed = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT).decode().strip()
+    subprocess.run(["git", "fetch", "origin", reviewed], cwd=checkout, check=True, capture_output=True)
     backup_home = tmp_path / "test-home"
     (backup_home / "Desktop").mkdir(parents=True)
     monkeypatch.setattr(Path, "home", lambda: backup_home)
@@ -40,7 +41,7 @@ def test_all_phases_are_checked_backed_up_and_repeatable(installer, temporary_ch
     assert list((backup_home / "Desktop").iterdir()) == []
 
     installer.main([])
-    assert installer.phase_installed(checkout, 2)
+    assert installer.phase_installed(checkout, 3)
     assert len(list((backup_home / "Desktop").glob("*/archivos-anteriores.tar.gz"))) == 1
     installer.main([])
     assert len(list((backup_home / "Desktop").iterdir())) == 1
@@ -56,7 +57,7 @@ def test_prior_update_and_conflict_never_overwrite_local_work(installer, tempora
     installer.main([])
     output = capsys.readouterr().out
     assert "ya instalada" in output and "pendiente" in output
-    assert installer.phase_installed(checkout, 2)
+    assert installer.phase_installed(checkout, 3)
 
     # A later local edit must block a repeat only if it overlaps the patch.
     altered = checkout / "app/ui2/assets/windows_maintenance_duplicates.js"
