@@ -180,7 +180,7 @@ test('Advanced tools stay accessible and AutoSync configuration is separate from
 
 test('Duplicate and original buttons open their own paths and cancelled deletion changes nothing',async()=>{
   const app=await setup();await app.click('[data-maint-tab="duplicates"]');
-  await app.click('[data-dup-open]');await app.click('[data-dup-open-original]');
+  await app.click('button[data-dup-open]');await app.click('button[data-dup-open-original]');
   assert.deepEqual(app.opened.map(args=>args[0]),['/library/copy.pdf','/library/original.pdf']);
   app.document.querySelector('.lexia-dup-list').scrollTop=135;
   await app.click('[data-dup-refresh]');
@@ -188,4 +188,17 @@ test('Duplicate and original buttons open their own paths and cancelled deletion
   await app.click('[data-dup-delete]');
   assert.match(app.confirmations[0],/documento original se conservará/);
   assert.equal(app.requests.some(r=>r.url.endsWith('/delete-duplicate')),false);
+});
+
+test('Duplicate names link to their own viewer and the two open actions have distinct styles',async()=>{
+  const app=await setup();await app.click('[data-maint-tab="duplicates"]');
+  const copy=app.document.querySelector('.lexia-dup-info .lexia-dup-file-link[data-dup-open]');
+  const original=app.document.querySelector('.lexia-dup-info .lexia-dup-original-link[data-dup-open-original]');
+  assert.ok(copy?.getAttribute('href').includes('copy.pdf'));
+  assert.ok(original?.getAttribute('href').includes('original.pdf'));
+  await app.click('.lexia-dup-info .lexia-dup-file-link[data-dup-open]');
+  await app.click('.lexia-dup-info .lexia-dup-original-link[data-dup-open-original]');
+  assert.deepEqual(app.opened.map(args=>args[0]),['/library/copy.pdf','/library/original.pdf']);
+  assert.ok(app.document.querySelector('.lexia-dup-actions .lexia-dup-open-copy'));
+  assert.ok(app.document.querySelector('.lexia-dup-actions .lexia-dup-open-original'));
 });
