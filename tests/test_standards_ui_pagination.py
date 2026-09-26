@@ -10,7 +10,10 @@ def test_standards_ui_uses_responsive_server_pagination():
 
     assert "pageSizeForViewport" in source
     assert "p.set('offset'" in source
-    assert "data-std-page" in source
+    assert 'function renderPager(' in source
+    assert 'aria-label="Página anterior"' in source
+    assert 'aria-label="Página siguiente"' in source
+    assert 'renderPager(pager,{page:requestedPage' in source
     assert "p.set('limit','200')" not in source
 
 
