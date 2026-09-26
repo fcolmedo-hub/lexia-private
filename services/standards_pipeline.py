@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 import uuid
 from argparse import Namespace
 from datetime import datetime, timezone
@@ -129,6 +130,7 @@ class StandardsPipeline:
         requested_paths, encoding = _load_requested_paths(paths_file)
         if not requested_paths:
             raise RuntimeError("La selección de fallos está vacía")
+        print(f"Leyendo {len(requested_paths)} fallo(s) del catálogo para preparar el lote…", file=sys.stderr, flush=True)
         documents, missing = export_documents(catalog_path, requested_paths)
         if missing:
             preview = "\n".join(f"- {path}" for path in missing[:20])
@@ -174,6 +176,8 @@ class StandardsPipeline:
         for row in source_rows:
             prepared, document_text = prepare_document_v5(row)
             prepared_rows.append(prepared)
+            if len(prepared_rows) == 1 or len(prepared_rows) % 10 == 0 or len(prepared_rows) == len(source_rows):
+                print(f"Preparados {len(prepared_rows)}/{len(source_rows)} fallo(s)…", file=sys.stderr, flush=True)
             units += sum(
                 len(fragment.get("units", []))
                 for fragment in prepared.get("fragments", [])
@@ -201,6 +205,7 @@ class StandardsPipeline:
             "units": units,
         }
         self._save_state(initial)
+        print("Generando el archivo local del batch; todavía no se envía a la API…", file=sys.stderr, flush=True)
 
         code = prepare_extraction_batch(Namespace(
             prompts=prepared_dir / "prompts.jsonl",

@@ -51,8 +51,6 @@ def candidates(catalog: Path, standards_db: Path, contains: str, limit: int) -> 
             f"""SELECT d.path, {hash_column} FROM documents d
                WHERE d.category='Jurisprudencia' AND COALESCE(d.is_deleted,0)=0
                  AND instr(lower(d.path),lower(?))>0
-                 AND EXISTS (SELECT 1 FROM fragments f
-                             WHERE f.document_path=d.path AND length(trim(f.text_content))>0)
                ORDER BY d.path COLLATE NOCASE""",
             (contains,),
         )
@@ -61,6 +59,14 @@ def candidates(catalog: Path, standards_db: Path, contains: str, limit: int) -> 
             digest = str(content_hash or "").casefold()
             if (str(path).casefold() in excluded or
                     digest and (digest in excluded_hashes or digest in selected_hashes)):
+                continue
+            # The fragment table can be very large. Check only the few
+            # candidate paths until the requested limit is reached.
+            if not connection.execute(
+                """SELECT 1 FROM fragments
+                   WHERE document_path=? AND length(trim(text_content))>0 LIMIT 1""",
+                (path,),
+            ).fetchone():
                 continue
             result.append(str(path))
             if digest:
@@ -82,6 +88,7 @@ def main() -> int:
         parser.error("Indicá una carpeta y un límite de 1 a 250 fallos.")
     if args.output.exists():
         parser.error(f"El archivo ya existe; no se sobrescribe: {args.output}")
+    print(f"Revisando Jurisprudencia indexada en {args.catalog}…", flush=True)
     try:
         paths = candidates(args.catalog, args.db, args.path_contains.strip(), args.limit)
     except (OSError, sqlite3.Error) as error:
