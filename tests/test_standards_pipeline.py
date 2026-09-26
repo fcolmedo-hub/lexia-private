@@ -90,3 +90,21 @@ def test_prepare_refuses_legacy_relations_without_decision_history(tmp_path):
             model="test-model",
             reasoning_effort="medium",
         )
+
+
+def test_prepare_refuses_already_imported_content_before_creating_run(tmp_path):
+    catalog, selection = make_catalog(tmp_path)
+    with sqlite3.connect(catalog) as connection:
+        connection.execute("ALTER TABLE documents ADD COLUMN content_hash TEXT")
+        connection.execute("UPDATE documents SET content_hash=?", ("a" * 64,))
+    db = tmp_path / "standards.sqlite3"
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE documents(document_path TEXT, source_key TEXT)")
+        connection.execute("INSERT INTO documents VALUES(?,?)", (
+            "/Volumes/otro/fallo.pdf", "sha256:" + "a" * 64
+        ))
+    pipeline = StandardsPipeline(repo_root=ROOT, db_path=db, runs_root=tmp_path / "runs", run_id="repeated")
+    with pytest.raises(RuntimeError, match="ya importados"):
+        pipeline.prepare(catalog_path=catalog, paths_file=selection,
+                         model="test-model", reasoning_effort="medium")
+    assert not pipeline.run_dir.exists()

@@ -110,3 +110,25 @@ def test_reimporting_same_result_is_idempotent(tmp_path):
     assert result["imported"]["superseded"] == 0
     assert con.execute("SELECT COUNT(*) FROM standards").fetchone()[0] == 1
     assert con.execute("SELECT publication_status FROM standards").fetchone()[0] == "ready"
+
+
+def test_same_pdf_from_mac_and_windows_has_one_document(tmp_path):
+    db = tmp_path / "standards.sqlite3"
+    fallos, validated = write_run(tmp_path / "mac", "Regla estable")
+    row = json.loads(fallos.read_text(encoding="utf-8"))
+    row["document_path"] = "/Volumes/biblioteca/a.pdf"
+    row["content_hash"] = "a" * 64
+    fallos.write_text(json.dumps(row), encoding="utf-8")
+    import_validated_run(validated_dir=validated, fallos_path=fallos, db_path=db,
+                         schema_path=ROOT / "standards" / "schema.sql", run_id="mac")
+    row["document_path"] = "D:/biblioteca/a.pdf"
+    fallos.write_text(json.dumps(row), encoding="utf-8")
+    import_validated_run(validated_dir=validated, fallos_path=fallos, db_path=db,
+                         schema_path=ROOT / "standards" / "schema.sql", run_id="windows")
+    with sqlite3.connect(db) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM standards").fetchone()[0] == 1
+        assert connection.execute("SELECT source_key FROM documents").fetchone()[0] == "sha256:" + "a" * 64
+        assert json.loads(connection.execute("SELECT metadata_json FROM documents").fetchone()[0])[
+            "_lexia_source_paths"
+        ] == ["/Volumes/biblioteca/a.pdf", "D:/biblioteca/a.pdf"]

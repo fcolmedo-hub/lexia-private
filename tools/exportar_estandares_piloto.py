@@ -30,6 +30,7 @@ class ExportedDocument:
     metadata: dict
     total_pages: int | None
     fragments: list[dict]
+    content_hash: str = ""
 
 
 def _load_metadata(raw: str | None) -> dict:
@@ -97,9 +98,12 @@ def _select_documents(
         return []
 
     placeholders = ",".join("?" for _ in requested_paths)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(documents)")}
+    content_hash = "d.content_hash" if "content_hash" in columns else "''"
     rows = connection.execute(
         f"""
         SELECT d.path, d.name, d.metadata_json, d.total_pages,
+               {content_hash} AS content_hash,
                COUNT(f.fragment_index) AS fragment_count
         FROM documents d
         JOIN fragments f ON f.document_path = d.path
@@ -176,6 +180,7 @@ def export_documents(
                         else None
                     ),
                     fragments=_load_fragments(connection, path),
+                    content_hash=str(row["content_hash"] or ""),
                 )
             )
 
@@ -246,6 +251,7 @@ def write_export(
                 "document_name": document.name,
                 "total_pages": document.total_pages,
                 "metadata": document.metadata,
+                "content_hash": document.content_hash,
                 "fragments": document.fragments,
             }
         )

@@ -115,6 +115,7 @@ def prepare_document_v5(row: dict[str, Any]) -> tuple[dict[str, Any], str]:
         "document_name": row.get("document_name"),
         "total_pages": total_pages,
         "metadata": row.get("metadata") if isinstance(row.get("metadata"), dict) else {},
+        "content_hash": row.get("content_hash") or "",
         "fragments": mapped_fragments,
     }
     return prepared, "\n".join(rendered).strip() + "\n"

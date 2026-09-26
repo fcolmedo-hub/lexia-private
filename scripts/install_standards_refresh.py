@@ -22,6 +22,7 @@ FILES = (
     "tools/actualizar_diccionario_estandares.py",
     "tools/aplicar_relaciones_estandares.py",
     "tools/exportar_estandares_piloto.py",
+    "tools/importar_estandares_sqlite.py",
     "tools/preparar_canonicalizacion_estandares.py",
     "tools/preparar_estandares_v2.py",
     "tools/preparar_estandares_v5.py",

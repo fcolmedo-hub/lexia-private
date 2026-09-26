@@ -54,6 +54,9 @@ def first_metadata(metadata: dict[str, Any], keys: tuple[str, ...]) -> str | Non
 
 
 def document_source_key(doc: dict[str, Any], pilot_id: int) -> str:
+    content_hash = str(doc.get("content_hash") or "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", content_hash):
+        return f"sha256:{content_hash}"
     path = str(doc.get("document_path") or "").strip()
     if path:
         return path
@@ -89,8 +92,27 @@ def ensure_schema(conn: sqlite3.Connection, schema_path: Path) -> None:
 
 
 def upsert_document(conn: sqlite3.Connection, doc: dict[str, Any], pilot_id: int) -> tuple[int, str]:
-    metadata = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
+    metadata = dict(doc.get("metadata")) if isinstance(doc.get("metadata"), dict) else {}
     source_key = document_source_key(doc, pilot_id)
+    document_path = str(doc.get("document_path") or "")
+    if source_key.startswith("sha256:"):
+        metadata["_lexia_content_hash"] = source_key.removeprefix("sha256:")
+        previous = conn.execute(
+            "SELECT document_path, metadata_json FROM documents WHERE source_key=?", (source_key,)
+        ).fetchone()
+        if previous:
+            prior_path = str(previous[0] or "")
+            try:
+                prior_metadata = json.loads(previous[1] or "{}")
+            except (TypeError, ValueError):
+                prior_metadata = {}
+            known_paths = prior_metadata.get("_lexia_source_paths", []) if isinstance(prior_metadata, dict) else []
+            paths = [path for path in [*known_paths, prior_path, document_path] if isinstance(path, str) and path]
+            metadata["_lexia_source_paths"] = list(dict.fromkeys(paths))
+            # Retain the path usable on this computer when importing results
+            # prepared on the other platform; never discard alternate paths.
+            if prior_path and (Path(prior_path).is_file() or not Path(document_path).is_file()):
+                document_path = prior_path
     document_name = str(doc.get("document_name") or Path(str(doc.get("document_path") or "")).name or f"pilot-{pilot_id:03d}")
     court = first_metadata(metadata, ("court", "tribunal"))
     judgment_date = first_metadata(metadata, ("date", "fecha"))
@@ -110,7 +132,7 @@ def upsert_document(conn: sqlite3.Connection, doc: dict[str, Any], pilot_id: int
         (
             source_key,
             document_name,
-            doc.get("document_path"),
+            document_path,
             pilot_id,
             court,
             judgment_date,

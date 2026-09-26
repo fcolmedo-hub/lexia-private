@@ -13,6 +13,7 @@ from tools.exportar_estandares_piloto import (
     _load_requested_paths,
     export_documents,
 )
+from tools.preseleccionar_fallos_estandares import imported_documents
 from tools.importar_estandares_sqlite import import_validated_run
 from tools.preparar_canonicalizacion_estandares import build_candidates
 from tools.preparar_estandares_v2 import dump_jsonl
@@ -135,6 +136,16 @@ class StandardsPipeline:
                 "Hay fallos no indexados como Jurisprudencia o sin fragmentos:\n" + preview
             )
 
+        imported_paths, imported_hashes = imported_documents(self.db_path)
+        repeated = [document.path for document in documents
+                    if document.path.casefold() in imported_paths
+                    or (document.content_hash and document.content_hash.casefold() in imported_hashes)]
+        if repeated:
+            raise RuntimeError(
+                "Fallos ya importados en el diccionario (por ruta o contenido):\n"
+                + "\n".join(f"- {path}" for path in repeated[:20])
+            )
+
         source_dir = self.run_dir / "source"
         prepared_dir = self.run_dir / "prepared_v5"
         extraction_dir = self.run_dir / "extraction_batch"
@@ -149,6 +160,7 @@ class StandardsPipeline:
                 "document_name": document.name,
                 "total_pages": document.total_pages,
                 "metadata": document.metadata,
+                "content_hash": document.content_hash,
                 "fragments": document.fragments,
             })
         dump_jsonl(source_dir / "fallos.jsonl", source_rows)

@@ -13,27 +13,42 @@ if str(REPO_ROOT) not in sys.path:
 from config.settings import SETTINGS
 
 
+def imported_documents(standards_db: Path) -> tuple[set[str], set[str]]:
+    paths: set[str] = set()
+    hashes: set[str] = set()
+    if not standards_db.is_file():
+        return paths, hashes
+    with sqlite3.connect(f"file:{standards_db.resolve()}?mode=ro", uri=True) as connection:
+        if not connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='documents'"
+        ).fetchone():
+            return paths, hashes
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(documents)")}
+        fields = ["document_path"]
+        if "source_key" in columns:
+            fields.append("source_key")
+        if "metadata_json" in columns:
+            fields.append("metadata_json")
+        for row in connection.execute(f"SELECT {', '.join(fields)} FROM documents"):
+            if row[0]:
+                paths.add(str(row[0]).casefold())
+            if "source_key" in columns and str(row[fields.index("source_key")] or "").startswith("sha256:"):
+                hashes.add(str(row[fields.index("source_key")])[7:].casefold())
+    return paths, hashes
+
+
 def candidates(catalog: Path, standards_db: Path, contains: str, limit: int) -> list[str]:
     if not catalog.is_file():
         raise FileNotFoundError(f"No existe el catálogo: {catalog}")
-    excluded: set[str] = set()
-    if standards_db.is_file():
-        with sqlite3.connect(standards_db) as connection:
-            if connection.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='documents'"
-            ).fetchone():
-                excluded = {
-                    str(row[0]).casefold()
-                    for row in connection.execute(
-                        "SELECT document_path FROM documents WHERE document_path IS NOT NULL"
-                    )
-                }
+    excluded, excluded_hashes = imported_documents(standards_db)
 
     result: list[str] = []
     with sqlite3.connect(f"file:{catalog.resolve()}?mode=ro", uri=True) as connection:
         connection.execute("PRAGMA query_only=ON")
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(documents)")}
+        hash_column = "d.content_hash" if "content_hash" in columns else "''"
         rows = connection.execute(
-            """SELECT d.path FROM documents d
+            f"""SELECT d.path, {hash_column} FROM documents d
                WHERE d.category='Jurisprudencia' AND COALESCE(d.is_deleted,0)=0
                  AND instr(lower(d.path),lower(?))>0
                  AND EXISTS (SELECT 1 FROM fragments f
@@ -41,10 +56,15 @@ def candidates(catalog: Path, standards_db: Path, contains: str, limit: int) -> 
                ORDER BY d.path COLLATE NOCASE""",
             (contains,),
         )
-        for (path,) in rows:
-            if str(path).casefold() in excluded:
+        selected_hashes: set[str] = set()
+        for path, content_hash in rows:
+            digest = str(content_hash or "").casefold()
+            if (str(path).casefold() in excluded or
+                    digest and (digest in excluded_hashes or digest in selected_hashes)):
                 continue
             result.append(str(path))
+            if digest:
+                selected_hashes.add(digest)
             if len(result) >= limit:
                 break
     return result
