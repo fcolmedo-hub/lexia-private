@@ -17,10 +17,22 @@ python tools/aplicar_relaciones_estandares.py --apply
 
 ## Nueva incorporación
 
+Si aún no hay una selección, se puede generar un TXT revisable de hasta 250
+fallos de una carpeta. Sólo incluye Jurisprudencia indexada con texto y excluye
+los documentos ya presentes en el diccionario. Para lotes nuevos, usa la
+huella SHA-256 del PDF indexado para reconocer una copia en Mac y Windows,
+aunque las rutas sean distintas. También evita dos copias idénticas dentro de
+la misma selección. Se ordena por ruta y no se
+envía nada a la API; revisá el archivo antes de preparar el lote:
+
+```text
+python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --limit 250 --output seleccion-estandares.txt
+```
+
 1. Preparar localmente los fallos seleccionados y el lote V5:
 
    ```text
-   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion.txt
+   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt
    ```
 
 2. Enviar explícitamente la extracción y anotar el `run_id` informado:
@@ -51,6 +63,25 @@ Las relaciones positivas ingresan como `proposed`; las decisiones `none`
 también se guardan para evitar reprocesarlas. Si un fallo se reextrae, las
 reglas automáticas obsoletas quedan `hidden`, sin eliminar historial ni cargas
 manuales.
+
+## Lotes de Mac y Windows
+
+El código funciona en ambos sistemas. Cada instalación tiene su catálogo y
+su propia base de estándares en `runtime/standards/standards.sqlite3`: ejecutar
+un lote en Mac no actualiza automáticamente la base de Windows. Para mantener
+un diccionario común, preparar y recoger ambos lotes contra una **única base
+maestra**, trasladando los resultados de la otra máquina para importarlos allí
+o copiando una instantánea SQLite cuando LexIA esté cerrado en ambos equipos.
+Para incorporar en Windows un lote ya validado en Mac sin reemplazar su base,
+copiar el directorio de la ejecución de Mac y ejecutar allí
+`python tools/importar_estandares_sqlite.py --fallos <run>/prepared_v5/fallos.jsonl --validated <run>/validated_v5 --run-id <id-unico-mac>`
+contra la base maestra de Windows; el importador actualiza la capa canónica.
+Revisar después las relaciones nuevas desde la base maestra antes de publicarlas.
+No se deben mezclar dos archivos SQLite editados en paralelo ni copiar sólo el
+archivo principal si hay datos pendientes en su WAL. La selección e importación
+de lotes nuevos reconocen el mismo PDF por `content_hash`; los históricos sin
+huella siguen reconociéndose por su ruta. Una ruta del otro sistema no puede
+abrirse en el visor local hasta que se vincule su archivo equivalente.
 
 ## Regla canónica, apariciones y fallos
 

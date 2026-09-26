@@ -10,7 +10,10 @@ def test_standards_ui_uses_responsive_server_pagination():
 
     assert "pageSizeForViewport" in source
     assert "p.set('offset'" in source
-    assert "data-std-page" in source
+    assert 'function renderPager(' in source
+    assert 'aria-label="Página anterior"' in source
+    assert 'aria-label="Página siguiente"' in source
+    assert 'renderPager(pager,{page:requestedPage' in source
     assert "p.set('limit','200')" not in source
 
 
@@ -48,7 +51,7 @@ def test_standards_ui_has_one_scroll_and_safe_responsive_stack():
     assert "document.documentElement.classList.add('lexia-standards-open')" in source
     assert "document.documentElement.classList.remove('lexia-standards-open')" in source
     assert ".std-search{height:auto!important" in nav_source
-    assert "grid-template-rows:repeat(2,40px)!important" in nav_source
+    assert "grid-template-rows:repeat(2,36px)!important" in nav_source
     assert "@media(max-width:1199px)" in nav_source
     assert ".std-head{padding-left:58px!important}" in nav_source
 

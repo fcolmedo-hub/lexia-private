@@ -43,6 +43,11 @@ html body #lexiaStandardsShell .std-wrap {
   padding-top:20px!important;
 }
 
+/* El selector de consultas debe respirar antes de los desplegables siguientes. */
+html body #contextpage #researchPanel .research-history-row {
+  margin-bottom:10px!important;
+}
+
 /* Acciones principales de Investigación: mismo violeta en reposo. */
 html body #contextpage #newContext,
 html body #contextpage #startContext:not(.research-pause-control) {

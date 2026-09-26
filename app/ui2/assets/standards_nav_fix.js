@@ -18,12 +18,28 @@
     style.id='lexiaStandardsNativeVisualFix';
     style.textContent=`
       #lexiaStandardsShell .std-kicker{display:none!important}
+      #lexiaStandardsShell{background:#f9faff!important}
       #lexiaStandardsShell .std-wrap{max-width:none!important;margin:0!important;padding:22px 18px 38px!important}
       #lexiaStandardsShell .std-head{margin-bottom:14px!important}
-      #lexiaStandardsShell .std-title{margin-top:0!important}
+      #lexiaStandardsShell .std-title{margin-top:0!important;font-size:24px!important;line-height:1.2!important}
+      #lexiaStandardsShell .std-sub{font-size:12px!important;line-height:1.45!important;margin-top:4px!important}
+      #lexiaStandardsShell .std-inventory{font-size:11px!important;margin-top:8px!important}
+      #lexiaStandardsShell .std-panel{border-radius:12px!important;box-shadow:0 3px 12px rgba(39,45,90,.035)!important}
+      #lexiaStandardsShell .std-search{padding:14px!important;margin-bottom:12px!important}
+      #lexiaStandardsShell .std-list,#lexiaStandardsShell .std-detail{padding:14px!important}
+      #lexiaStandardsShell .std-layout{gap:12px!important}
+      #lexiaStandardsShell .std-input,#lexiaStandardsShell .std-select,#lexiaStandardsShell .std-btn{height:36px!important;font-size:12px!important}
+      #lexiaStandardsShell .std-btn.small{height:30px!important;font-size:11px!important}
+      #lexiaStandardsShell .std-item{padding:10px!important;gap:9px!important}
+      #lexiaStandardsShell .std-statement{font-size:12.5px!important;line-height:1.45!important}
+      #lexiaStandardsShell .std-meta,#lexiaStandardsShell .std-wording,#lexiaStandardsShell .std-quote{font-size:11.5px!important;line-height:1.45!important}
+      #lexiaStandardsShell .std-detail h2{font-size:17px!important;line-height:1.4!important}
+      #lexiaStandardsShell .std-detail h3{font-size:11px!important;margin:16px 0 8px!important}
+      #lexiaStandardsShell .std-summary-title{font-size:13px!important}
+      #lexiaStandardsShell .std-occurrence{padding:11px!important}
       #lexiaStandardsShell .std-search{height:auto!important;min-height:0!important;overflow:visible!important}
       #lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:minmax(280px,1fr) auto auto auto!important}
-      #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(6,minmax(110px,1fr))!important;grid-template-rows:40px!important;grid-auto-flow:row!important;height:auto!important;min-height:40px!important;margin-top:10px!important}
+      #lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(6,minmax(110px,1fr))!important;grid-template-rows:36px!important;grid-auto-flow:row!important;height:auto!important;min-height:36px!important;margin-top:9px!important}
       #lexiaStandardsShell #stdSummary:empty{display:none}
       #lexiaStandardsShell .std-query-wrap{position:relative;min-width:0}
       #lexiaStandardsShell .std-query-wrap #stdQ{padding-right:38px}
@@ -36,19 +52,35 @@
       #lexiaStandardsShell .std-history-empty{padding:9px 10px;color:#7b829b;font-size:12px}
       #lexiaStandardsShell .std-detail-actions{display:flex;justify-content:flex-end;margin-bottom:10px}
       #lexiaStandardsShell .std-notice[data-lexia-strong-relations]{display:none!important}
+      @media(min-width:1101px) and (min-height:600px){
+        #lexiaStandardsShell{overflow:hidden!important}
+        #lexiaStandardsShell .std-wrap{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:16px!important}
+        #lexiaStandardsShell .std-head,#lexiaStandardsShell .std-search{flex:0 0 auto}
+        #lexiaStandardsShell .std-layout.has-results{display:grid!important;flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch!important}
+        #lexiaStandardsShell .std-list{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+        #lexiaStandardsShell #stdSummary,#lexiaStandardsShell #stdPager{flex:0 0 auto}
+        #lexiaStandardsShell #stdResults{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+        #lexiaStandardsShell .std-detail{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+      }
+      #lexiaStandardsManualModal{position:fixed;inset:0;z-index:11000;display:grid;place-items:center;padding:16px;background:rgba(20,25,55,.35)}
+      #lexiaStandardsManualModal .std-modal{width:min(700px,100%);max-height:calc(100vh - 32px);overflow:auto;border:1px solid #e4e3f3;border-radius:13px;background:#fff;box-shadow:0 20px 60px rgba(20,25,55,.22);color:#202a48}
+      #lexiaStandardsManualModal .std-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #e9eaf4}
+      #lexiaStandardsManualModal .std-modal-head h2{margin:0;font-size:17px;line-height:1.25}
+      #lexiaStandardsManualModal .std-modal-close{border:0;border-radius:7px;background:#f0efff;color:#5146f6;padding:6px 9px;cursor:pointer}
       #lexiaStandardsManualModal .std-manual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:16px}
       #lexiaStandardsManualModal .std-manual-field{display:grid;gap:5px}
       #lexiaStandardsManualModal .std-manual-field.wide{grid-column:1/-1}
       #lexiaStandardsManualModal label{font-size:10px;font-weight:850;color:#687492;text-transform:uppercase;letter-spacing:.04em}
-      #lexiaStandardsManualModal input,#lexiaStandardsManualModal select,#lexiaStandardsManualModal textarea{box-sizing:border-box;width:100%;border:1px solid #d8d7e9;border-radius:9px;padding:9px 10px;font:inherit;color:#1a2140;background:#fff}
-      #lexiaStandardsManualModal textarea{min-height:100px;resize:vertical}
+      #lexiaStandardsManualModal input,#lexiaStandardsManualModal select,#lexiaStandardsManualModal textarea{box-sizing:border-box;width:100%;min-height:35px;border:1px solid #d8d7e9;border-radius:8px;padding:8px 10px;font-family:inherit;font-size:12px;line-height:1.4;color:#1a2140;background:#fff}
+      #lexiaStandardsManualModal textarea{min-height:76px;resize:vertical}
+      #lexiaStandardsManualModal .std-btn{height:36px;font-size:12px}
       #lexiaStandardsManualModal .std-manual-actions{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px}
       #lexiaStandardsManualModal .std-manual-status{margin:0 16px 12px;padding:9px 10px;border-radius:9px;background:#f7f5ff;color:#625c7b;font-size:11px;display:none}
       [data-lexia-standards-home]{cursor:pointer!important}
       [data-lexia-standards-home]:hover{transform:translateY(-2px);border-color:#d8d3ff!important;box-shadow:0 10px 24px rgba(81,70,246,.12)!important}
       @media(max-width:1199px){#lexiaStandardsShell .std-head{padding-left:58px!important}}
-      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,40px)!important;min-height:90px!important}}
-      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}#lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:repeat(3,1fr)!important}#lexiaStandardsShell .std-grid.std-primary-row .std-query-wrap{grid-column:1/-1}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:1fr!important;grid-template-rows:repeat(6,40px)!important;min-height:290px!important}}
+      @media(max-width:1100px){#lexiaStandardsShell .std-wrap{padding:18px 14px!important}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,36px)!important;min-height:80px!important}}
+      @media(max-width:680px){#lexiaStandardsShell .std-wrap{padding:12px!important}#lexiaStandardsShell .std-grid.std-primary-row{grid-template-columns:repeat(3,1fr)!important}#lexiaStandardsShell .std-grid.std-primary-row .std-query-wrap{grid-column:1/-1}#lexiaStandardsShell .std-grid.secondary{grid-template-columns:1fr!important;grid-template-rows:repeat(6,36px)!important;min-height:260px!important}#lexiaStandardsManualModal .std-manual-grid{grid-template-columns:1fr!important}}
     `;
     document.head.appendChild(style);
   }
