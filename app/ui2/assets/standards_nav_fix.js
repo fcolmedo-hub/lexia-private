@@ -52,6 +52,16 @@
       #lexiaStandardsShell .std-history-empty{padding:9px 10px;color:#7b829b;font-size:12px}
       #lexiaStandardsShell .std-detail-actions{display:flex;justify-content:flex-end;margin-bottom:10px}
       #lexiaStandardsShell .std-notice[data-lexia-strong-relations]{display:none!important}
+      @media(min-width:1101px) and (min-height:600px){
+        #lexiaStandardsShell{overflow:hidden!important}
+        #lexiaStandardsShell .std-wrap{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:16px!important}
+        #lexiaStandardsShell .std-head,#lexiaStandardsShell .std-search{flex:0 0 auto}
+        #lexiaStandardsShell .std-layout.has-results{display:grid!important;flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch!important}
+        #lexiaStandardsShell .std-list{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+        #lexiaStandardsShell #stdSummary,#lexiaStandardsShell #stdPager{flex:0 0 auto}
+        #lexiaStandardsShell #stdResults{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+        #lexiaStandardsShell .std-detail{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+      }
       #lexiaStandardsManualModal{position:fixed;inset:0;z-index:11000;display:grid;place-items:center;padding:16px;background:rgba(20,25,55,.35)}
       #lexiaStandardsManualModal .std-modal{width:min(700px,100%);max-height:calc(100vh - 32px);overflow:auto;border:1px solid #e4e3f3;border-radius:13px;background:#fff;box-shadow:0 20px 60px rgba(20,25,55,.22);color:#202a48}
       #lexiaStandardsManualModal .std-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #e9eaf4}
