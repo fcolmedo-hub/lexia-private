@@ -263,7 +263,13 @@
     const modeDraft=renderedTab===tab?{mode:page.querySelector('#mMode')?.value,time:page.querySelector('#mSchedule')?.value}:null;
     const focused=document.activeElement?.getAttribute('data-ocr-select');
     if(!state){
-      page.innerHTML='<div class="maint-wrap"><div class="maint-loading"><span class="maint-spinner"></span>Leyendo estado operativo…</div></div>';
+      const tabButton=([id,label])=>'<button type="button" class="maint-tab mode '+(tab===id?'active':'')+'" data-maint-tab="'+id+'" aria-pressed="'+(tab===id)+'">'+label+'</button>';
+      const tabs=[['activity','Estado y actividad'],['automation','AutoSync'],['ocr','OCR'],['duplicates','Duplicados'],['backups','Copias'],['advanced','Avanzado']].map(tabButton).join('');
+      const status=noticeError?'<p class="maint-toast maint-toast-error" role="alert">'+esc(notice)+'</p>':'<div class="maint-loading" role="status"><span class="maint-spinner"></span>Leyendo estado operativo…</div>';
+      page.innerHTML='<div class="maint-wrap"><div class="maint-head"><div><h1>Mantenimiento</h1><p>Estado de la biblioteca, archivos pendientes y herramientas de mantenimiento.</p></div><div class="maint-actions">'+button('mRefresh',refreshing?'Actualizando…':'Reintentar','secondary',refreshing)+'</div></div><div class="maint-tabs">'+tabs+'</div><div class="maint-content"><div class="maint-card">'+status+'</div></div></div>';
+      renderedTab=tab;
+      syncTabAppearance();
+      bind();
       return;
     }
     const live=state.live||{},sync=live.autosync||{},ocr=live.ocr||{},catalog=live.catalog||{},config=state.autosync_config||{},items=state.problems||[],events=state.history||[],operation=state.operation||{};

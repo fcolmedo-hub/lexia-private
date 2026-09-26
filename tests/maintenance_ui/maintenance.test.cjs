@@ -7,7 +7,7 @@ const {parseHTML}=require('linkedom');
 const assets=path.resolve(__dirname,'../../app/ui2/assets');
 const tick=async()=>{for(let i=0;i<12;i++)await new Promise(resolve=>setImmediate(resolve));};
 
-async function setup(){
+async function setup({deferMaintenance=false}={}){
   const {window,document}=parseHTML('<html><head></head><body><div class="app"><section id="maintenance"></section></div></body></html>');
   const requests=[],opened=[],confirmations=[];
   let approve=false,duplicateError=false;
@@ -17,12 +17,16 @@ async function setup(){
     {document_path:'/library/error.pdf',document_name:'error.pdf',status:'error',error:'Unreadable'}];
   const duplicates=[{path:'/library/copy.pdf',name:'copy.pdf',duplicate_of:'/library/original.pdf',original_name:'original.pdf'}];
   let deleted='';
+  let releaseMaintenance;
   const snapshot=()=>({ok:true,live:{autosync:sync,ocr:{running:false,pending:2,error:1},catalog:{documents:4}},autosync_config:{mode:'manual'},history:Array.from({length:8},(_,i)=>({action:'autosync-scan',message:'Scan '+i,created_at:'2026-09-25'}))});
   const fetch=async(url,options={})=>{
     const body=options.body?JSON.parse(options.body):null;
     requests.push({url,body});
     let payload={ok:true},status=200;
-    if(url==='/api/maintenance')payload=snapshot();
+    if(url==='/api/maintenance'){
+      if(deferMaintenance)await new Promise(resolve=>{releaseMaintenance=resolve;});
+      payload=snapshot();
+    }
     else if(url==='/api/maintenance-live')payload={ok:true,...snapshot().live};
     else if(url.endsWith('/duplicates')){
       if(duplicateError){payload={ok:false,error:'Service unavailable'};status=503;}
@@ -53,8 +57,19 @@ async function setup(){
   const click=async selector=>{const element=document.querySelector(selector);assert.ok(element,selector);element.click();await tick();};
   const select=async file=>{const element=[...document.querySelectorAll('[data-ocr-select]')].find(e=>e.dataset.ocrSelect===file);assert.ok(element);element.checked=true;element.dispatchEvent(new window.Event('change',{bubbles:true}));await tick();};
   return {window,document,requests,opened,confirmations,click,select,
+    releaseMaintenance:()=>releaseMaintenance?.(),
     approve:()=>approve=true,failDuplicates:()=>duplicateError=true,setRows:value=>rows=value,setSync:value=>sync=value};
 }
+
+test('Maintenance navigation paints its heading and tabs before services answer',async()=>{
+  const app=await setup({deferMaintenance:true});
+  assert.equal(app.document.querySelector('#maintenance').style.display,'block');
+  assert.equal(app.document.querySelector('#maintenance h1').textContent,'Mantenimiento');
+  assert.equal(app.document.querySelectorAll('#maintenance [data-maint-tab]').length,6);
+  assert.match(app.document.querySelector('#maintenance .maint-content').textContent,/Leyendo estado operativo/);
+  app.releaseMaintenance();await tick();
+  assert.ok(app.document.querySelector('#maintenance .maint-kpis'));
+});
 
 test('Duplicates remains a single active native tab across repeated status renders',async()=>{
   const app=await setup();

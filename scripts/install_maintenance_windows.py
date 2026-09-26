@@ -44,6 +44,12 @@ PHASES = (
         TARGET,
         ("app/ui2/assets/windows_maintenance_duplicates.js",),
     ),
+    (
+        "Pantalla de Mantenimiento disponible al instante",
+        TARGET,
+        "FETCH_HEAD",
+        ("app/ui2/assets/maintenance.js",),
+    ),
 )
 
 
@@ -89,7 +95,7 @@ def main(argv=None):
     remote = git("rev-parse", "--verify", "FETCH_HEAD", cwd=project)
     ancestor = git("merge-base", "--is-ancestor", TARGET, "FETCH_HEAD", cwd=project)
     if remote.returncode or ancestor.returncode:
-        raise SystemExit("Primero ejecutá: git fetch origin fix/maintenance-duplicates-layout")
+        raise SystemExit("Primero ejecutá: git fetch origin fix/windows-maintenance-first-paint")
     files = sorted({name for _, _, _, names in PHASES for name in names})
     patches = []
     for label, before, after, names in PHASES:
