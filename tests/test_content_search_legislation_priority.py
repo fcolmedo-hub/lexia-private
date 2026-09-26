@@ -1,6 +1,7 @@
 import sqlite3
 import sys
 from pathlib import Path
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,7 +145,141 @@ def test_explicit_non_legislation_filter_is_respected(
     assert [row["category"] for row in result["results"]] == ["Jurisprudencia"]
     assert result["legal_citation"]["prioritized_category"] is None
 
-    ordinary = server._content_search_v2("multa", limit=2)
+    ordinary = server._content_search_v2("tribunal", limit=2)
     assert ordinary["search_strategy"] == "fts5_match_centered_hybrid"
     assert "legal_citation" not in ordinary
     assert "legislation_priority" not in ordinary["results"][0]
+
+
+@pytest.mark.parametrize("query,article,suffix,law", [
+    ("art. 5 de la ley N°7055", "5", "", "7055"),
+    ("Artículo 5º de la Ley Nº 7.055", "5", "", "7055"),
+    ("art. 5° bis ley n.º24.240", "5", "bis", "24240"),
+    ("art. 1.001 de la ley 48", "1001", "", "48"),
+])
+def test_number_labels_and_ordinals(query, article, suffix, law):
+    intent = server._legal_citation_intent(query)
+    assert intent is not None
+    assert (intent["article"], intent["suffix"], intent["law_number"]) == (article, suffix, law)
+
+
+@pytest.mark.parametrize("text", [
+    "ARTÍCULO 50. Otro artículo.", "Art. 5 bis. Otro artículo.",
+    "Art. 5º bis. Otro artículo.", "Art. 5 ter. Otro artículo.",
+    "Art. 5.1. Otro artículo.",
+])
+def test_article_five_does_not_match_a_different_provision(text):
+    intent = server._legal_citation_intent("art. 5 ley 7055")
+    assert server._legal_citation_fragment_signals(text, intent)[0] is False
+    assert server._legal_article_excerpt(text, intent) == ""
+
+
+def test_excerpt_prefers_heading_over_an_earlier_cross_reference():
+    intent = server._legal_citation_intent("art. 5 ley 7055")
+    text = ("Art. 2. Se aplica el art. 5 de esta ley.\n"
+            "ARTÍCULO 5º. Este es el contenido solicitado.\n"
+            "ARTÍCULO 6. Otra disposición.")
+    assert server._legal_article_excerpt(text, intent) == (
+        "ARTÍCULO 5º. Este es el contenido solicitado."
+    )
+
+
+def test_direct_law_lookup_survives_missing_fts_article_number(tmp_path, monkeypatch):
+    _catalog(tmp_path / "lexia_catalog.sqlite3")
+    monkeypatch.setattr(server, "RUNTIME_ROOT", tmp_path)
+    with sqlite3.connect(tmp_path / "lexia_catalog.sqlite3") as con:
+        con.execute("UPDATE fragments_fts SET text_content=? WHERE category='Legislación'", (
+            "ARTÍCULO 5º. Texto solicitado sin número de ley en el cuerpo.\n"
+            "ARTÍCULO 6º. Disposición siguiente.",
+        ))
+    result = server._content_search_v2("art. 5 ley 7055", limit=1)
+    first = result["results"][0]
+    assert first["document_name"] == "Ley 7055.pdf"
+    assert first["text"].startswith("ARTÍCULO 5º.")
+    assert "6º" not in first["text"]
+
+
+def test_other_law_quoting_requested_law_is_not_the_primary_source(tmp_path, monkeypatch):
+    _catalog(tmp_path / "lexia_catalog.sqlite3")
+    monkeypatch.setattr(server, "RUNTIME_ROOT", tmp_path)
+    with sqlite3.connect(tmp_path / "lexia_catalog.sqlite3") as con:
+        path = "D:/Biblioteca/Legislación/Ley 9999.pdf"
+        con.execute("INSERT INTO documents VALUES(?,?,?,0)", (path, "Ley 9999.pdf", "Legislación"))
+        con.execute("INSERT INTO fragments VALUES(?,0,1,1)", (path,))
+        con.execute("INSERT INTO fragments_fts VALUES(?,0,?,?,?)", (
+            path, "Legislación", "Ley 9999.pdf",
+            "Art. 5. Se modifica el art. 5 ley 7055, art. 5 ley 7055.",
+        ))
+    result = server._content_search_v2("art. 5 ley 7055", limit=1)
+    assert result["results"][0]["document_name"] == "Ley 7055.pdf"
+
+
+def test_law_number_is_not_a_substring_or_unrelated_number():
+    intent = server._legal_citation_intent("art. 5 ley 7055")
+    assert not server._legal_citation_fragment_signals("Ley 70550", intent)[1]
+    assert not server._legal_citation_fragment_signals("Ley 1234, expediente 7055", intent)[1]
+
+
+def test_bis_is_separate_from_article_without_suffix():
+    intent = server._legal_citation_intent("art. 5 bis ley 7055")
+    text = "Art. 5. Disposición general.\nArt. 5º bis. Regla especial.\nArt. 6. Otra."
+    assert server._legal_article_excerpt(text, intent) == "Art. 5º bis. Regla especial."
+
+
+def test_pdf_locator_skips_cross_references_and_contents(tmp_path, monkeypatch):
+    import fitz
+    path = tmp_path / "Ley 7055.pdf"
+    with fitz.open() as pdf:
+        for text in (
+            "El art. 5 de la ley 7055 se menciona en este prologo.",
+            "INDICE\nArticulo 5 .............. 4",
+            "Articulo 5 bis. Una regla distinta.",
+            "Articulo 5. Este es el contenido solicitado.\nArticulo 6. Otra regla.",
+        ):
+            page = pdf.new_page()
+            page.insert_text((72, 180), text)
+        pdf.save(path)
+    monkeypatch.setattr(server, "_resolve_catalog_document", lambda **kwargs: str(path))
+    result = server._legal_article_location(
+        str(path), "Articulo 5. Este es el contenido solicitado.", fallback_page=1,
+    )
+    assert result["found"] is True
+    assert result["page"] == 4
+    assert result["page_count"] == 4
+    assert 140 < result["top"] < 180
+
+
+def test_pdf_locator_does_not_claim_found_when_pdf_has_only_a_mention(tmp_path, monkeypatch):
+    import fitz
+    path = tmp_path / "Ley 7055.pdf"
+    with fitz.open() as pdf:
+        pdf.new_page().insert_text((72, 72), "Esta disposicion remite al art. 5 de la ley.")
+        pdf.save(path)
+    monkeypatch.setattr(server, "_resolve_catalog_document", lambda **kwargs: str(path))
+    assert server._legal_article_location(str(path), "Articulo 5. Texto solicitado.")["found"] is False
+
+
+def test_category_accent_alias_and_explicit_folder_are_preserved(tmp_path, monkeypatch):
+    _catalog(tmp_path / "lexia_catalog.sqlite3")
+    monkeypatch.setattr(server, "RUNTIME_ROOT", tmp_path)
+    monkeypatch.setattr(server, "_validated_filter_folder", lambda category, folder: folder or "")
+    result = server._content_search_v2("art. 5 ley 7055", category="Legislacion", limit=1)
+    assert result["results"][0]["document_name"] == "Ley 7055.pdf"
+    result = server._content_search_v2(
+        "art. 5 ley 7055", category="Legislación", folder="D:/Biblioteca/Legislación/Otra provincia",
+    )
+    assert result["results"] == []
+
+
+def test_direct_lookup_reads_catalogued_fragments_even_when_fts_is_stale(tmp_path, monkeypatch):
+    _catalog(tmp_path / "lexia_catalog.sqlite3")
+    monkeypatch.setattr(server, "RUNTIME_ROOT", tmp_path)
+    with sqlite3.connect(tmp_path / "lexia_catalog.sqlite3") as con:
+        con.execute("ALTER TABLE fragments ADD COLUMN text_content TEXT")
+        con.execute("UPDATE fragments SET text_content=? WHERE document_path LIKE '%7055%'", (
+            "ARTICULO 5º. El artículo está en el catálogo aunque FTS esté desactualizado.",
+        ))
+        con.execute("UPDATE fragments_fts SET text_content='Texto anterior' WHERE category='Legislación'")
+    result = server._content_search_v2("art. 5 ley 7055", limit=1)
+    assert result["results"][0]["document_name"] == "Ley 7055.pdf"
+    assert "desactualizado" in result["results"][0]["text"]

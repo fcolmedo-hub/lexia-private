@@ -33,6 +33,10 @@ from backend import LiveReadOnlyAdapter
 from search_runtime import SearchRuntime
 from search.boolean_query import parse_boolean_query, BooleanQuerySyntaxError
 from search.boolean_document_search import search_boolean_documents
+from legal_citations import (
+    article_reference, law_number as legal_law_number, article_matches,
+    article_excerpt, instrument_in_text, instrument_in_filename,
+)
 
 LIVE = LiveReadOnlyAdapter()
 CASES = CaseRepository(SETTINGS.cases_path)
@@ -467,6 +471,50 @@ def _preview_page_png(requested_path, page=1, office=False, snippet="", locate=F
         return pixmap.tobytes("png"), selected, total
     finally:
         document.close()
+
+
+def _legal_article_location(requested_path, snippet, fallback_page=1):
+    """Locate the heading in the real PDF, not the fragment's page range."""
+    import re
+    import fitz
+
+    intent = article_reference(snippet)
+    if not intent:
+        return {"ok": True, "found": False}
+    source = Path(_resolve_catalog_document(requested_path=requested_path))
+    if source.suffix.lower() != ".pdf":
+        return {"ok": True, "found": False}
+    snippet_words = set(_normalize_preview_locator_text(snippet).split())
+    best = None
+    with fitz.open(str(source)) as document:
+        for number, page in enumerate(document, 1):
+            lines, offsets, offset = [], [], 0
+            # Scanned PDFs may carry large page images; only text is needed.
+            flags = fitz.TEXTFLAGS_DICT & ~fitz.TEXT_PRESERVE_IMAGES
+            for block in page.get_text("dict", flags=flags).get("blocks", []):
+                for line in block.get("lines", []):
+                    text = "".join(span.get("text", "") for span in line.get("spans", []))
+                    lines.append(text + "\n")
+                    offsets.append((offset, line["bbox"]))
+                    offset += len(text) + 1
+            text = "".join(lines)
+            for match, _ in article_matches(text, intent, headings_only=True):
+                excerpt = article_excerpt(text[match.start():], intent)
+                words = set(_normalize_preview_locator_text(excerpt).split())
+                overlap = len(words & snippet_words) / max(1, len(snippet_words))
+                bounds = next((box for start, box in reversed(offsets) if start <= match.start()), None)
+                if bounds is None:
+                    continue
+                score = (overlap, -abs(number - int(fallback_page or 1)), -number)
+                if best is None or score > best[0]:
+                    best = (score, {
+                        "ok": True, "found": True, "page": number,
+                        "page_count": document.page_count,
+                        "top": max(0, round(float(bounds[1]) - 12, 1)),
+                        "page_height": page.rect.height,
+                        "heading": re.sub(r"\s+", " ", match.group()).strip(),
+                    })
+    return best[1] if best else {"ok": True, "found": False}
 
 def _lexia321_norm(value):
     import re as _re
@@ -2550,28 +2598,18 @@ def _legal_citation_intent(query):
     import re as _re
 
     normalized = _content_norm(query)
-    article = _re.search(
-        r"\b(?:art(?:iculo)?s?)\.?\s*"
-        r"(?:n(?:ro|umero)?\.?\s*)?"
-        r"(?P<number>\d+(?:[.\s]\d+)?)"
-        r"(?:\s*(?P<suffix>bis|ter|quater|quinquies))?\b",
-        normalized,
-    )
+    article = article_reference(query)
     if not article:
         return None
 
-    article_number = _re.sub(r"\D", "", article.group("number") or "")
+    article_number = article["article"]
     if not article_number:
         return None
-    article_suffix = str(article.group("suffix") or "").strip()
+    article_suffix = article["suffix"]
 
-    law = _re.search(
-        r"\bley(?:\s+(?:n|no|nro|numero)[°º.\s]*)?\s+"
-        r"(?P<number>\d{1,3}(?:\.\d{3})+|\d{3,6})\b",
-        normalized,
-    )
+    law = legal_law_number(query)
     if law:
-        law_number = _re.sub(r"\D", "", law.group("number") or "")
+        law_number = law
         return {
             "article": article_number,
             "suffix": article_suffix,
@@ -2614,42 +2652,9 @@ def _legal_citation_intent(query):
 
 def _legal_citation_fragment_signals(text, intent):
     """Return exact article/instrument matches for a candidate fragment."""
-    import re as _re
-
     if not intent:
         return False, False
-    normalized = _content_norm(text)
-    compact_numbers = _re.sub(r"(?<=\d)[.\s](?=\d)", "", normalized)
-    article = _re.escape(str(intent["article"]))
-    suffix = _re.escape(str(intent.get("suffix") or ""))
-    article_pattern = (
-        r"\b(?:art(?:iculo)?s?|artyculo|art═culo)\.?\s*"
-        r"(?:n(?:ro|umero)?\.?\s*)?" + article
-    )
-    if suffix:
-        article_pattern += r"\s*" + suffix
-    article_pattern += r"\b"
-    article_match = bool(_re.search(article_pattern, compact_numbers))
-
-    if intent.get("instrument_kind") == "law":
-        law_number = _re.escape(str(intent.get("law_number") or ""))
-        instrument_match = bool(
-            law_number
-            and _re.search(r"\bley\b.{0,36}\b" + law_number + r"\b", compact_numbers)
-        )
-    else:
-        code_name = str(intent.get("code_name") or "")
-        code_terms = [
-            word for word in code_name.split()
-            if word not in {"de", "del", "la", "las", "los", "y"}
-        ]
-        code_window = _re.search(r"\bcodigo\b.{0,100}", normalized)
-        instrument_match = bool(
-            code_terms
-            and code_window
-            and all(word in code_window.group(0) for word in code_terms)
-        )
-    return article_match, instrument_match
+    return bool(article_matches(text, intent)), instrument_in_text(text, intent)
 
 
 def _legal_citation_fts_query(intent):
@@ -2705,43 +2710,72 @@ def _legal_citation_document_pattern(intent):
 
 def _legal_article_excerpt(text, intent, max_chars=520):
     """Return an excerpt anchored at the exact requested article heading."""
-    import re as _re
+    return article_excerpt(text, intent, max_chars) if intent else ""
 
-    raw = str(text or "")
-    if not raw or not intent:
-        return ""
-    digits = str(intent.get("article") or "")
-    if not digits:
-        return ""
-    number_pattern = r"[.\s]*".join(_re.escape(char) for char in digits)
-    suffix = _re.escape(str(intent.get("suffix") or ""))
-    pattern = (
-        r"\b(?:art(?:[íi]culo)?s?|art[yý]culo|art═culo)\.?\s*"
-        r"(?:n(?:ro|úmero|umero)?\.?\s*)?" + number_pattern
+
+def _legal_direct_candidates(con, intent, category, folder):
+    """Find the requested instrument even if its heading isn't an FTS token.
+
+    Only read fragments of matching files. Do not scan/open the PDF library or
+    mutate the catalogue as a side effect of a content search.
+    """
+    if not intent:
+        return {}
+    params = [_legal_citation_document_pattern(intent)] * 2
+    sql = (
+        "SELECT path,name,category FROM documents WHERE COALESCE(is_deleted,0)=0 "
+        "AND (REPLACE(LOWER(name),'.','') LIKE ? "
+        "OR REPLACE(LOWER(path),'.','') LIKE ?)"
     )
-    if suffix:
-        pattern += r"\s*" + suffix
-    pattern += r"\b"
-    match = _re.search(pattern, raw, flags=_re.IGNORECASE)
-    if not match:
-        return ""
-
-    start = match.start()
-    end = min(len(raw), start + max(120, int(max_chars or 520)))
-    following = raw[match.end():end]
-    next_article = _re.search(
-        r"(?:\r?\n|\f)\s*"
-        r"(?:art(?:[íi]culo)?s?|art[yý]culo|art═culo)\.?\s*\d+",
-        following,
-        flags=_re.IGNORECASE,
-    )
-    if next_article:
-        end = match.end() + next_article.start()
-
-    excerpt = _re.sub(r"\s+", " ", raw[start:end]).strip()
-    if end < len(raw) and excerpt:
-        excerpt = excerpt.rstrip(" .…") + " …"
-    return excerpt
+    if category:
+        if _filter_category_key(category) == "legislacion":
+            sql += " AND category COLLATE NOCASE IN ('Legislación','Legislacion')"
+        else:
+            sql += " AND category = ? COLLATE NOCASE"
+            params.append(category)
+    else:
+        sql += " AND (category COLLATE NOCASE IN ('Legislación','Legislacion') "
+        sql += "OR REPLACE(LOWER(path),'\\','/') LIKE '%/legislacion/%' "
+        sql += "OR REPLACE(LOWER(path),'\\','/') LIKE '%/legislación/%')"
+    if folder:
+        sql += " AND REPLACE(path,'\\','/') LIKE ? COLLATE NOCASE ESCAPE '!'"
+        params.append(_filter_like_pattern(folder))
+    candidates = {}
+    fragment_columns = {row[1] for row in con.execute("PRAGMA table_info(fragments)")}
+    for document in con.execute(sql, params):
+        path, name = document["path"], document["name"]
+        if not instrument_in_filename(name, path, intent):
+            continue
+        if "text_content" in fragment_columns:
+            rows = con.execute(
+                "SELECT fragment_index,text_content,page_start,page_end FROM fragments "
+                "WHERE document_path=? ORDER BY fragment_index", (path,),
+            )
+        else:
+            rows = con.execute(
+                "SELECT f.fragment_index,f.text_content,fr.page_start,fr.page_end "
+                "FROM fragments_fts f LEFT JOIN fragments fr "
+                "ON fr.document_path=f.document_path "
+                "AND fr.fragment_index=CAST(f.fragment_index AS INTEGER) "
+                "WHERE f.document_path=? ORDER BY CAST(f.fragment_index AS INTEGER)",
+                (path,),
+            )
+        for row in rows:
+            text = article_excerpt(row["text_content"], intent, headings_only=True)
+            if not text:
+                continue
+            index = int(row["fragment_index"] or 0)
+            candidates[(path, index)] = {
+                "document_path": path, "document_name": name,
+                "category": document["category"], "text": text,
+                "page_start": row["page_start"], "page_end": row["page_end"],
+                "fragment_index": index, "lexical_rank": 1, "semantic_rank": None,
+                "_rank_score": 100000.0, "_source": "fts5",
+                "legal_article_match": True, "legal_instrument_match": True,
+                "article_focused": True,
+                "legislation_priority": not category,
+            }
+    return candidates
 
 
 def _content_search_v2(
@@ -2883,6 +2917,8 @@ def _content_search_v2(
         ).fetchone()
         if not fts_exists:
             raise RuntimeError("El índice FTS5 fragments_fts no existe.")
+
+        candidates.update(_legal_direct_candidates(con, legal_intent, category, folder))
 
         for stage_index, (stage_name, match_query) in enumerate(stages):
             params = [match_query]
@@ -4134,6 +4170,21 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json({"ok": True, "path": resolved})
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 409)
+
+        if path == "/api/legal-article-location":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                if length > 16384:
+                    return self._json({"ok": False, "error": "Solicitud demasiado grande"}, 400)
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                return self._json(_legal_article_location(
+                    str(body.get("path") or ""), str(body.get("snippet") or "")[:4000],
+                    max(1, int(body.get("page") or 1)),
+                ))
+            except (ValueError, FileNotFoundError, PermissionError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 409)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
 
         if path == "/api/file-details":
             try:
