@@ -17,10 +17,19 @@ python tools/aplicar_relaciones_estandares.py --apply
 
 ## Nueva incorporación
 
+Si aún no hay una selección, se puede generar un TXT revisable de hasta 250
+fallos de una carpeta. Sólo incluye Jurisprudencia indexada con texto y excluye
+los documentos ya presentes en el diccionario. Se ordena por ruta y no se
+envía nada a la API; revisá el archivo antes de preparar el lote:
+
+```text
+python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --limit 250 --output seleccion-estandares.txt
+```
+
 1. Preparar localmente los fallos seleccionados y el lote V5:
 
    ```text
-   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion.txt
+   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt
    ```
 
 2. Enviar explícitamente la extracción y anotar el `run_id` informado:

@@ -37,6 +37,14 @@
       html body #maintenance #${PANEL_ID} .lexia-dup-info{grid-column:1}
       html body #maintenance #${PANEL_ID} .lexia-dup-actions{grid-column:2;grid-row:1}
       #${PANEL_ID} .lexia-dup-info small{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+      #${PANEL_ID} .lexia-dup-file-link{color:#4338cb;text-decoration:underline;text-underline-offset:2px;font:inherit;font-weight:750}
+      #${PANEL_ID} .lexia-dup-file-link:hover,#${PANEL_ID} .lexia-dup-file-link:focus-visible{color:#2e249f}
+      #${PANEL_ID} .lexia-dup-original-link{color:#168451}
+      #${PANEL_ID} .lexia-dup-original-link:hover,#${PANEL_ID} .lexia-dup-original-link:focus-visible{color:#0d6840}
+      #${PANEL_ID} .lexia-dup-actions .lexia-dup-open-copy{color:#4338cb;border-color:#ccc5ff;background:#f3f1ff}
+      #${PANEL_ID} .lexia-dup-actions .lexia-dup-open-copy:hover{background:#e8e4ff}
+      #${PANEL_ID} .lexia-dup-actions .lexia-dup-open-original{color:#137246;border-color:#b8dec9;background:#eaf8f0}
+      #${PANEL_ID} .lexia-dup-actions .lexia-dup-open-original:hover{background:#d9f1e4}
       #${PANEL_ID} .lexia-dup-empty{padding:16px 0;color:#66708f;font-size:12px}
       @media(max-width:840px){
         html body #maintenance #${PANEL_ID} .lexia-dup-row{grid-template-columns:minmax(0,1fr)}
@@ -65,14 +73,14 @@
     const rows=duplicates.map((item,index)=>`
       <div class="maint-ocr-queue-item lexia-dup-row">
         <div class="maint-ocr-item-info lexia-dup-info">
-          <strong title="${esc(item.name||shortName(item.path)||'Documento')}">${esc(item.name||shortName(item.path)||'Documento')}</strong>
+          <strong><a class="lexia-dup-file-link" href="/api/file-preview?path=${esc(encodeURIComponent(item.path||''))}" target="_blank" rel="noopener" title="Abrir duplicado: ${esc(item.path)}" data-dup-open="${index}">${esc(item.name||shortName(item.path)||'Documento')}</a></strong>
           <span title="${esc(item.path)}">${esc(item.path)}</span>
           <small>${esc(item.category||'Sin categoría')} · ${esc(bytes(item.size))}</small>
-          <span title="${esc(item.duplicate_of||'')}">Original: ${esc(item.original_name||shortName(item.duplicate_of)||'Documento original')} · ${esc(item.duplicate_of||'')}</span>
+          <span title="${esc(item.duplicate_of||'')}">Original: ${item.duplicate_of?`<a class="lexia-dup-file-link lexia-dup-original-link" href="/api/file-preview?path=${esc(encodeURIComponent(item.duplicate_of))}" target="_blank" rel="noopener" data-dup-open-original="${index}">${esc(item.original_name||shortName(item.duplicate_of)||'Documento original')}</a>`:esc(item.original_name||'Documento original')} · ${esc(item.duplicate_of||'')}</span>
         </div>
         <div class="maint-ocr-item-actions lexia-dup-actions">
-          <button type="button" class="maint-btn" data-dup-open="${index}">Abrir duplicado</button>
-          <button type="button" class="maint-btn" data-dup-open-original="${index}" ${item.duplicate_of?'':'disabled'}>Abrir original</button>
+          <button type="button" class="maint-btn lexia-dup-open-copy" data-dup-open="${index}">Abrir duplicado</button>
+          <button type="button" class="maint-btn lexia-dup-open-original" data-dup-open-original="${index}" ${item.duplicate_of?'':'disabled'}>Abrir original</button>
           <button type="button" class="maint-btn danger" data-dup-delete="${index}" ${loading||deleting?'disabled':''}>Eliminar de LexIA</button>
         </div>
       </div>`).join('');
@@ -131,8 +139,8 @@
     const target=event.target instanceof Element?event.target:null;if(!target)return;
     if(target.closest('[data-dup-refresh]')){load();return;}
     const remove=target.closest('[data-dup-delete]');if(remove){deleteDuplicate(Number(remove.dataset.dupDelete),remove);return;}
-    const open=target.closest('[data-dup-open]');if(open){openDuplicate(Number(open.dataset.dupOpen));return;}
-    const original=target.closest('[data-dup-open-original]');if(original){openOriginal(Number(original.dataset.dupOpenOriginal));return;}
+    const open=target.closest('[data-dup-open]');if(open){event.preventDefault();openDuplicate(Number(open.dataset.dupOpen));return;}
+    const original=target.closest('[data-dup-open-original]');if(original){event.preventDefault();openOriginal(Number(original.dataset.dupOpenOriginal));return;}
   },true);
   function activate(){
     if(!ensure())return;
