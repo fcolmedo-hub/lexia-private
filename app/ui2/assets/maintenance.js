@@ -253,7 +253,9 @@
     const running=['waiting','scanning','indexing','knowledge'].includes(sync.phase);
     const counter=known&&total?progress(done,total,sync.percentage):sync.phase==='waiting'?'<p class="maint-note">Esperando que terminen los cambios en las carpetas.</p>':running?'<p class="maint-note">'+esc(done.toLocaleString('es-AR'))+' archivos revisados · calculando el total…</p>':'';
     const recent=Array.isArray(sync.recent_files)?sync.recent_files:[];
-    return '<div class="maint-sync-summary"><b>AutoSync · '+esc(sync.progress_label||sync.status||'Biblioteca al día')+'</b>'+counter+(sync.current_file?'<p class="maint-current-file" title="'+esc(sync.current_file)+'">'+esc(shortFileName(sync.current_file))+'</p>':'')+'</div>'+ (recent.length?'<p class="maint-note">Últimas '+recent.length+' operaciones sobre archivos · progreso por etapa</p><div class="maint-sync-files">'+recent.slice().reverse().map(item=>'<div class="maint-sync-file"><b title="'+esc(item.path)+'">'+esc(shortFileName(item.path))+'</b><span>'+esc(item.action)+' · '+esc(item.status)+'</span><small title="'+esc((item.source?item.source+' → ':'')+item.path)+'">'+esc((item.source?item.source+' → ':'')+item.path)+'</small></div>').join('')+'</div>':'<p class="maint-empty">Los archivos aparecerán aquí durante la próxima sincronización.</p>');
+    const timings=Object.entries(sync.stage_timings||{}).filter(([,value])=>Number.isFinite(Number(value))&&Number(value)>0);
+    const details='<div class="maint-ocr-details"><div><span>Etapa</span><b>'+esc(phaseLabel(sync.phase))+'</b></div><div><span>Archivos revisados</span><b>'+esc(done.toLocaleString('es-AR'))+(known&&total?' de '+esc(total.toLocaleString('es-AR')):' · total en cálculo')+'</b></div><div><span>Archivos detectados</span><b>'+esc(Number(sync.snapshot_files||0).toLocaleString('es-AR'))+'</b></div><div><span>Última sincronización</span><b>'+esc(sync.last_sync||'Sin registro')+'</b></div></div>';
+    return '<div class="maint-sync-summary"><b>AutoSync · '+esc(sync.progress_label||sync.status||'Biblioteca al día')+'</b>'+counter+details+(sync.current_file?'<p class="maint-current-file" title="'+esc(sync.current_file)+'">Archivo actual: '+esc(sync.current_file)+'</p>':'')+(timings.length?'<p class="maint-note">Etapas completadas: '+timings.map(([name,seconds])=>esc(name)+' '+esc(seconds)+' s').join(' · ')+'</p>':'')+'</div>'+ (recent.length?'<p class="maint-note">Últimas '+recent.length+' operaciones sobre archivos</p><div class="maint-sync-files">'+recent.slice().reverse().map(item=>'<div class="maint-sync-file"><b title="'+esc(item.path)+'">'+esc(shortFileName(item.path))+'</b><span>'+esc(item.action)+' · '+esc(item.status)+'</span><small title="'+esc((item.source?item.source+' → ':'')+item.path)+'">'+esc((item.source?item.source+' → ':'')+item.path)+'</small></div>').join('')+'</div>':'<p class="maint-empty">Los archivos aparecerán aquí durante la próxima sincronización.</p>');
   }
 
   function render(){
@@ -538,6 +540,7 @@
     document.getElementById('lexiaStandardsShell')?.classList.remove('open');
     document.documentElement.classList.remove('lexia-standards-open');
     hideOtherPages();
+    tab='activity';
     page.style.display='block';
     const routeNav=document.querySelector('#globalSidebar .nav');
     if(routeNav){
@@ -551,7 +554,7 @@
         maintenanceButton.setAttribute('aria-current','page');
       }
     }
-    if(!state)render();
+    render();
     refresh(true,false);
   };
 
