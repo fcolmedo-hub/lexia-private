@@ -112,40 +112,31 @@ Las importaciones V5 y la aplicación de nuevas decisiones de relaciones
 actualizan esta capa automáticamente. El proceso es idempotente y no modifica
 ni elimina las apariciones originales.
 
-## Revisión de estándares reservados
+## Evidencia incompleta
 
-Una aparición está almacenada pero reservada cuando todavía no cumple
-`review_status=validated` y `publication_status=ready|published`. La interfaz
-muestra el inventario completo y permite abrir una bandeja de revisión con el
-fallo, la cita, la página, la voz y el tratamiento.
-
-Las decisiones disponibles son:
-
-- `publish`: valida la aparición y la deja lista para el diccionario;
-- `reserve`: conserva sus estados actuales y registra que fue revisada;
-- `reject`: la excluye del producto sin borrar el registro ni su trazabilidad.
-
-Cada decisión queda en `standard_publication_decisions`. Después de publicar o
-rechazar se reconstruye la capa canónica dentro de la misma transacción; no se
-realiza ninguna llamada a la API ni se reextrae el fallo.
-
-La publicación exige al menos una cita literal no vacía y una página positiva.
-La bandeja permite agregar o corregir esa evidencia sin sobrescribir la cita
-extraída por V5: la versión humana se guarda como `manual_review` y la edición
-queda auditada en `standard_citation_decisions`.
+Las apariciones extraídas y las cargas manuales se muestran en el diccionario
+aunque falte una cita literal o su página. Las rechazadas y las versiones
+automáticas reemplazadas permanecen ocultas. La interfaz indica qué evidencia
+falta en cada aparición y ofrece una lista de casos incompletos. El usuario
+puede abrir el fallo, completar la cita o excluir la aparición del diccionario.
+La cita agregada se registra como `manual_review` con auditoría en
+`standard_citation_decisions`; una exclusión se registra en
+`standard_publication_decisions`. El estado histórico `needs_review/blocked`
+permanece en SQLite para preservar su procedencia, sin bloquear la lectura.
+No se inventan citas ni números de página.
 
 ## Formas de ingresar estándares
 
 Hay dos vías complementarias:
 
 1. **Carga manual inmediata.** «Nuevo estándar» recibe la regla, el fallo, la
-   voz, el tratamiento y la evidencia. Con cita y página queda visible; si la
-   evidencia está incompleta se almacena como reservado. Esta vía no consume
+   voz, el tratamiento y la evidencia. Si falta cita o página queda visible
+   con una advertencia de evidencia incompleta. Esta vía no consume
    API.
 2. **Extracción por lotes V5.** Cada fallo puede producir cero, una o varias
    apariciones. Los fallos nuevos se acumulan en una cola y se preparan juntos
    cuando alcanzan el umbral operativo; el envío a la API siempre requiere una
-   acción explícita. Después de validar citas, las apariciones se comparan con
+   acción explícita. Después de recoger la extracción, las apariciones se comparan con
    el diccionario y sólo los pares candidatos pasan al clasificador de
    relaciones, evitando comparaciones de todos contra todos.
 
