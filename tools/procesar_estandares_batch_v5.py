@@ -204,6 +204,11 @@ def load_state(workdir: Path) -> dict[str, Any]:
 
 
 def cmd_submit(args: argparse.Namespace) -> int:
+    # If the API accepted an earlier attempt but the caller did not record its
+    # stage transition, resume with the recorded batch instead of paying twice.
+    if (args.workdir / "batch_state.json").is_file():
+        print(json.dumps(load_state(args.workdir), ensure_ascii=False, indent=2))
+        return 0
     client = require_sdk()
     request_path = args.workdir / "batch_input.jsonl"
     if not request_path.exists():
