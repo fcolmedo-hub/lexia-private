@@ -97,7 +97,7 @@ def test_inventory_distinguishes_stored_and_published_standards(tmp_path):
         'occurrences_total': 4,
         'visible_occurrences': 4,
         'reserved_occurrences': 0,
-        'incomplete_evidence_occurrences': 3,
+        'evidence_attention_occurrences': 3,
         'rejected_occurrences': 0,
     }
 
@@ -129,6 +129,16 @@ def test_evidence_queue_identifies_missing_page_and_excludes_rejected(tmp_path):
     assert {item['standard_uid'] for item in items} == {'STD-C', 'STD-D'}
     assert next(item for item in items if item['standard_uid']=='STD-C')['reserve_reason'] == 'Falta la página de la cita'
     assert service.get_standard('STD-B') is None
+
+
+def test_complete_quote_with_extraction_incidence_still_has_a_warning(tmp_path):
+    db = make_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute("INSERT INTO quotes(standard_uid,evidence_index,quote_text,page_start) VALUES('STD-C',1,'Pasaje literal',7)")
+    service = StandardsService(db)
+    assert service.inventory()['evidence_attention_occurrences'] == 3
+    item = next(row for row in service.reserved_standards()['items'] if row['standard_uid']=='STD-C')
+    assert item['reserve_reason'] == 'Revisá la incidencia de la extracción'
 
 
 def test_detail_quotes_and_publication_policy(tmp_path):
