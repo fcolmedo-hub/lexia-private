@@ -13,6 +13,23 @@ DEFAULT_WORKDIR = REPO_ROOT / "runtime" / "standards_pilot" / "batch_luna_v5"
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
+        "document_metadata": {
+            "type": "object",
+            "properties": {
+                name: {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": ["string", "null"]},
+                        "unit_ids": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["value", "unit_ids"],
+                    "additionalProperties": False,
+                }
+                for name in ("court", "chamber", "judgment_date", "case_number")
+            },
+            "required": ["court", "chamber", "judgment_date", "case_number"],
+            "additionalProperties": False,
+        },
         "standards": {
             "type": "array",
             "items": {
@@ -43,7 +60,7 @@ SCHEMA: dict[str, Any] = {
             },
         }
     },
-    "required": ["standards"],
+    "required": ["document_metadata", "standards"],
     "additionalProperties": False,
 }
 
