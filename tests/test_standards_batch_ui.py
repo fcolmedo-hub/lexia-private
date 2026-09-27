@@ -27,19 +27,25 @@ def test_tree_keeps_full_windows_paths_and_lists_nested_folders(tmp_path, monkey
     assert batch.folder_tree(branches[0]["path"])[0]["count"] == 2
 
 
-def test_court_suggestions_include_folders_and_catalogued_courts(tmp_path, monkeypatch):
+def test_court_suggestions_combine_folder_hierarchy_and_catalogued_courts(tmp_path, monkeypatch):
     monkeypatch.setattr(batch, "CATALOG", tmp_path / "catalog.sqlite3")
     monkeypatch.setattr(batch, "DB", tmp_path / "standards.sqlite3")
     with sqlite3.connect(batch.CATALOG) as connection:
         connection.execute("CREATE TABLE documents(path TEXT, category TEXT, is_deleted INTEGER)")
-        connection.execute("INSERT INTO documents VALUES(?,?,0)",
-                           (r"D:\LexIA\Jurisprudencia\Civil\Cámara A\fallo.pdf", "Jurisprudencia"))
+        connection.executemany("INSERT INTO documents VALUES(?,?,0)", [
+            (r"D:\LexIA\Jurisprudencia\Santa Fe\Rosario\Civil y Comercial\Primera Instancia\Nominacion\1º\fallo.pdf", "Jurisprudencia"),
+            (r"D:\LexIA\Jurisprudencia\Civil\Cámara A\fallo.pdf", "Jurisprudencia"),
+        ])
     with sqlite3.connect(batch.DB) as connection:
         connection.execute("CREATE TABLE documents(court TEXT)")
         connection.execute("INSERT INTO documents VALUES('CSJN')")
     batch._TREE_CACHE.clear()
     result = batch.court_suggestions()
-    assert "Cámara A" in result["branches"]
+    court = next(item for item in result["courts"] if item["label"].endswith("Nominación 1º"))
+    assert "Santa Fe › Rosario › Civil y Comercial › Primera Instancia" in court["label"]
+    assert court["suggested"] == "Juzgado de Primera Instancia en lo Civil y Comercial de 1ª Nominación de Rosario"
+    assert "Cámara A" in [item["label"].split(" › ")[-1] for item in result["courts"]]
+    assert "Santa Fe" not in [item["label"] for item in result["courts"]]
     assert result["catalogued"] == ["CSJN"]
 
 

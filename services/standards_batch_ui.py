@@ -6,6 +6,7 @@ import json
 import math
 import ntpath
 import posixpath
+import re
 import sqlite3
 import threading
 import time
@@ -83,8 +84,32 @@ def folder_tree(parent: str = "") -> list[dict[str, Any]]:
 
 def court_suggestions() -> dict[str, list[str]]:
     index = _folder_index()
-    branches = {ntpath.basename(path.rstrip("\\/")) if "\\" in path else posixpath.basename(path.rstrip("/"))
-                for parent, paths in index["children"].items() if parent for path in paths}
+    courts: dict[str, dict[str, str]] = {}
+    for path in index["counts"]:
+        if index["children"].get(path):
+            continue
+        _, parts, _ = _path_parts(path + ("\\_fallo.pdf" if "\\" in path else "/_fallo.pdf"))
+        if not parts:
+            continue
+        segments = [part.strip() for part in parts if part.strip()]
+        # A denomination on its own (for example "1º") is meaningful only
+        # together with its Civil/Comercial and Primera Instancia ancestors.
+        if not (re.search(r"juzgad|tribunal|c[aá]mara|corte|nominaci[oó]n|\bsala\b", segments[-1], re.I)
+                or re.fullmatch(r"\d{1,2}\s*[ªº°a]?", segments[-1], re.I)
+                and any(re.search(r"nominaci[oó]n|instancia|juzgad", part, re.I) for part in segments[:-1])):
+            continue
+        label = " › ".join(segments)
+        last = segments[-1]
+        if re.fullmatch(r"\d{1,2}\s*[ªº°a]?", last, re.I) and len(segments) > 1:
+            label = " › ".join(segments[:-1] + ["Nominación " + last])
+        subject = next((part for part in segments if re.search(r"civil|comercial|laboral|penal|familia|contencioso", part, re.I)), "")
+        number = re.search(r"(\d{1,2})\s*[ªº°a]?", last) if re.search(r"nominaci[oó]n", last, re.I) or re.fullmatch(r"\d{1,2}\s*[ªº°a]?", last, re.I) else None
+        suggested = ""
+        if number and subject and any(re.search(r"primera instancia|juzgad", part, re.I) for part in segments):
+            suggested = f"Juzgado de Primera Instancia en lo {subject} de {number.group(1)}ª Nominación"
+            if any(part.casefold() == "rosario" for part in segments):
+                suggested += " de Rosario"
+        courts[label.casefold()] = {"label": label, "path": path, "suggested": suggested}
     catalogued: set[str] = set()
     if DB.is_file():
         with sqlite3.connect(f"file:{DB.resolve()}?mode=ro", uri=True) as connection:
@@ -92,7 +117,7 @@ def court_suggestions() -> dict[str, list[str]]:
                 catalogued = {str(row[0]).strip() for row in connection.execute(
                     "SELECT DISTINCT court FROM documents WHERE court IS NOT NULL AND TRIM(court)<>''"
                 )}
-    return {"branches": sorted(branches, key=str.casefold),
+    return {"courts": sorted(courts.values(), key=lambda item: item["label"].casefold()),
             "catalogued": sorted(catalogued, key=str.casefold)}
 
 
