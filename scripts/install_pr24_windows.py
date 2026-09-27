@@ -16,6 +16,7 @@ import tempfile
 
 BASE = "400a1013e493438d6c898a9a55bb6861e97fd691"
 PREVIOUS = "bb95aeed9b2fa4de224fe3a6f184e507f6975494"
+PREVIOUS_FEATURE = "6b22864e45505b4bda1e106f23790c053d70243a"
 TARGET = "FETCH_HEAD"
 
 
@@ -90,7 +91,7 @@ def merge(current: bytes, before: bytes, after: bytes) -> bytes:
     return encode("".join(merged), bom, crlf)
 
 
-def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS) -> dict[str, bytes]:
+def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS, previous_feature: str = PREVIOUS_FEATURE) -> dict[str, bytes]:
     # A shallow Windows checkout can have both objects but no complete parent
     # chain for merge-base. The three-way comparison only needs those objects.
     git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
@@ -115,11 +116,16 @@ def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = 
             elif current is None:
                 planned[name] = target_content
             else:
-                try:
-                    # The user's earlier installer may already have placed a
-                    # PR 22 file in the working tree, without committing it.
-                    candidate = merge(current, git(root, "show", f"{previous}:{name}"), target_content)
-                except (RuntimeError, UnicodeError, ValueError) as error:
+                # Earlier installers may have added this path to the working
+                # tree without a commit. Try their exact published versions.
+                error = None
+                for reference in (previous, previous_feature):
+                    try:
+                        candidate = merge(current, git(root, "show", f"{reference}:{name}"), target_content)
+                        break
+                    except (RuntimeError, UnicodeError, ValueError) as caught:
+                        error = caught
+                else:
                     conflicts.append(name + " (" + str(error) + ")")
                     continue
                 if candidate != current:
@@ -128,14 +134,16 @@ def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = 
             if current is None:
                 conflicts.append(name + " (falta el archivo local)")
                 continue
-            try:
-                candidate = merge(current, git(root, "show", f"{base}:{name}"), target_content)
-            except (UnicodeError, ValueError):
+            error = None
+            for reference in (base, previous, previous_feature):
                 try:
-                    candidate = merge(current, git(root, "show", f"{previous}:{name}"), target_content)
-                except (RuntimeError, UnicodeError, ValueError) as error:
-                    conflicts.append(name + " (" + str(error) + ")")
-                    continue
+                    candidate = merge(current, git(root, "show", f"{reference}:{name}"), target_content)
+                    break
+                except (RuntimeError, UnicodeError, ValueError) as caught:
+                    error = caught
+            else:
+                conflicts.append(name + " (" + str(error) + ")")
+                continue
             if candidate != current:
                 planned[name] = candidate
     if conflicts:
