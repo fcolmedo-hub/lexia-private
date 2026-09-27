@@ -4,7 +4,7 @@
 
   const API_PORT=(window.LEXIA_STANDARDS_PORT||'8515');
   const API=`http://127.0.0.1:${API_PORT}`;
-  const state={installed:false,open:false,filtersLoaded:false,currentUid:null,page:1,pageSize:0,total:0,searched:false,searchRequest:0,mode:'search'};
+  const state={installed:false,open:false,filtersLoaded:false,currentUid:null,page:1,pageSize:0,total:0,searched:false,searchRequest:0};
   const RECENT_KEY='lexia_standards_recent_searches_v1';
   let recentMemory=[];
   let recentStorageAvailable=true;
@@ -29,7 +29,7 @@
       .std-pagination{display:flex;align-items:center;gap:5px;padding:8px 0 0;border-top:1px solid #ecebf5;margin-top:4px}.std-page-info{margin-right:auto;font-size:11px;font-weight:700;color:#626b88;white-space:nowrap}.std-page-button{display:grid;place-items:center;width:29px;height:29px;border:1px solid #d8d3ff;border-radius:8px;padding:0;background:#fff;color:#5146f6;font-family:inherit;font-size:19px;font-weight:700;line-height:1;cursor:pointer}.std-page-button:hover:not(:disabled){background:var(--std-lav)}.std-page-button:focus-visible{outline:2px solid #5146f6;outline-offset:2px}.std-page-button:disabled{opacity:.38;cursor:default}
       .std-empty{padding:30px 10px;text-align:center;color:var(--std-muted)}.std-detail h2{font-size:20px;line-height:1.38;margin:2px 0 8px}.std-detail h3{font-size:13px;text-transform:uppercase;letter-spacing:.055em;color:#555e7d;margin:20px 0 8px}.std-badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.std-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#f1f0fb;color:#4f478f;font-size:11px;font-weight:750}.std-badge.proposed{background:#f5f2ff;color:#6b5bcc;border:1px solid #ded8ff}.std-badge.confirmed{background:#edf1ff;color:#4056ae}.std-badge.rel-contradicts{background:#eeeaff;color:#4d3ac3}.std-badge.rel-specializes{background:#edf2ff;color:#3958b7}.std-badge.rel-exception_to{background:#f4efff;color:#6a45a9}.std-badge.rel-supports{background:#eef5ff;color:#4770aa}.std-badge.rel-related_to{background:#f5f3fb;color:#77708f}
       .std-quote{margin:9px 0;padding:12px 13px;border-left:4px solid #8d83ff;border-radius:8px;background:#faf9ff;font-size:13px;line-height:1.48}.std-relation{padding:10px 0;border-bottom:1px solid #eeedf6}.std-rel-title{font-size:13px;line-height:1.4;margin-top:5px;cursor:pointer}.std-rel-title:hover{color:var(--std-brand)}.std-doc{padding:10px 12px;border-radius:10px;background:#fafaff;border:1px solid #eceaff;font-size:12px;line-height:1.5}.std-doc-link{appearance:none;border:0;background:none;padding:0;color:#5146f6;text-decoration:underline;font:inherit;font-weight:800;cursor:pointer;text-align:left}.std-notice{padding:10px 12px;border-radius:10px;background:#f7f5ff;color:#625c7b;font-size:12px;border:1px solid #e9e5ff;margin-bottom:12px}.std-error{padding:18px;color:#7d2a56;background:#fff4f8;border:1px solid #f0dce6;border-radius:12px}
-      .std-occurrences{display:grid;gap:10px}.std-occurrence{padding:12px;border:1px solid #e7e5f3;border-radius:12px;background:#fcfcff}.std-occurrence-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.std-wording{margin:9px 0 2px;font-size:12.5px;line-height:1.45;color:#353d5d}.std-wording b{color:#202846}.std-source-count{white-space:nowrap;background:#edf1ff;color:#4056ae;border-radius:999px;padding:4px 8px;font-size:10.5px;font-weight:800}.std-suggestion{padding:11px 12px;margin-top:8px;border:1px dashed #cfc8ff;border-radius:11px;background:#faf8ff}.std-suggestion .std-rel-title{font-weight:700}.std-citation-editor{display:grid;gap:9px;padding:12px;border:1px solid #e1def7;border-radius:12px;background:#faf9ff}.std-citation-editor label{display:grid;gap:5px;font-size:11px;font-weight:800;color:#555e7d}.std-citation-editor textarea,.std-citation-editor input{box-sizing:border-box;width:100%;border:1px solid #d8d7e9;border-radius:9px;padding:9px 10px;font:inherit;color:#1a2140;background:#fff}.std-citation-editor textarea{min-height:92px;resize:vertical}.std-citation-pages{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+      .std-occurrences{display:grid;gap:10px}.std-occurrence{padding:12px;border:1px solid #e7e5f3;border-radius:12px;background:#fcfcff}.std-occurrence-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.std-wording{margin:9px 0 2px;font-size:12.5px;line-height:1.45;color:#353d5d}.std-wording b{color:#202846}.std-source-count{white-space:nowrap;background:#edf1ff;color:#4056ae;border-radius:999px;padding:4px 8px;font-size:10.5px;font-weight:800}.std-suggestion{padding:11px 12px;margin-top:8px;border:1px dashed #cfc8ff;border-radius:11px;background:#faf8ff}.std-suggestion .std-rel-title{font-weight:700}.std-citation-editor{display:grid;gap:9px;padding:12px;border:1px solid #e1def7;border-radius:12px;background:#faf9ff}.std-citation-editor label{display:grid;gap:5px;font-size:11px;font-weight:800;color:#555e7d}.std-citation-editor textarea,.std-citation-editor input{box-sizing:border-box;width:100%;border:1px solid #d8d7e9;border-radius:9px;padding:9px 10px;font:inherit;color:#1a2140;background:#fff}.std-citation-editor textarea{min-height:92px;resize:vertical}.std-citation-pages{display:grid;grid-template-columns:1fr 1fr;gap:9px}.std-evidence-actions{margin-top:10px}.std-evidence-actions summary{color:#5146f6;font-size:12px;font-weight:800;cursor:pointer}.std-evidence-actions .std-citation-editor{margin-top:9px}.std-evidence-actions .std-badges{margin-bottom:0}
       @media(max-width:1100px){#lexiaStandardsShell{left:0;top:54px}.std-layout{grid-template-columns:1fr}.std-grid{grid-template-columns:1fr 1fr}.std-grid.secondary{grid-template-columns:1fr 1fr}.std-wrap{padding:18px}}@media(max-width:680px){.std-grid,.std-grid.secondary{grid-template-columns:1fr}.std-title{font-size:23px}.std-wrap{padding:12px}.std-list,.std-detail,.std-search{padding:12px}}
     `;
     document.head.appendChild(style);
@@ -77,10 +77,9 @@
     const target=document.getElementById('stdInventory');if(!target)return;
     try{
       const data=await api('/api/stats');
-      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.evidence_attention_occurrences??0),rejected=Number(data.rejected_occurrences??0);
+      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),rejected=Number(data.rejected_occurrences??0);
       const base=`${visible} ${visible===1?'regla en el diccionario':'reglas en el diccionario'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
-      target.innerHTML=(reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">${reserved} con evidencia por comprobar</button>`:esc(base))+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
-      target.querySelector('#stdReservedBtn')?.addEventListener('click',()=>reservedQueue({page:1}));
+      target.textContent=base+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
     }catch(_){target.textContent='Inventario no disponible.';}
   }
 
@@ -140,7 +139,6 @@
   }
 
   async function search(options={}){
-    state.mode='search';
     const node=shell(),p=new URLSearchParams(),requestedPage=Math.max(1,Number(options.page||1)),pageSize=pageSizeForViewport();
     const criteria=readCriteria();for(const [key,value] of Object.entries(criteria))p.set(key,value);
     p.set('limit',String(pageSize));p.set('offset',String((requestedPage-1)*pageSize));
@@ -164,78 +162,55 @@
     }catch(error){if(status){status.hidden=false;status.classList.add('error');status.textContent='No fue posible consultar el diccionario. '+String(error.message||error);}}
   }
 
-  async function reservedQueue(options={}){
-    state.mode='reserved';
-    const node=shell(),requestedPage=Math.max(1,Number(options.page||1)),pageSize=pageSizeForViewport(),p=new URLSearchParams({limit:String(pageSize),offset:String((requestedPage-1)*pageSize)});
-    const request=++state.searchRequest,layout=node.querySelector('#stdLayout'),status=node.querySelector('#stdSearchStatus'),results=node.querySelector('#stdResults'),pager=node.querySelector('#stdPager'),summary=node.querySelector('#stdSummary'),target=node.querySelector('#stdDetail');
-    results.replaceChildren();pager?.replaceChildren();summary?.replaceChildren();layout?.classList.add('has-results');layout?.style.setProperty('display','grid','important');
-    if(status){status.hidden=true;status.classList.remove('error');status.textContent='';}
-    if(target)target.innerHTML='<div class="std-notice">Estos estándares ya aparecen en el diccionario. Podés completar su evidencia o excluirlos.</div>';
-    try{
-      const data=await api('/api/reserved?'+p.toString()),items=Array.isArray(data.items)?data.items:[],total=Number(data.total||0);
-      if(request!==state.searchRequest)return;
-      const pageCount=Math.max(1,Math.ceil(total/pageSize));if(total>0&&requestedPage>pageCount)return reservedQueue({page:pageCount});
-      state.page=requestedPage;state.pageSize=pageSize;state.total=total;state.searched=true;
-      if(summary)summary.innerHTML=`<div><div class="std-summary-title">Evidencia por comprobar</div><div class="std-meta">Página ${requestedPage} de ${pageCount}</div></div><span class="std-summary-count">${total} ${total===1?'estándar':'estándares'}</span>`;
-      if(!items.length){results.innerHTML='<div class="std-empty">No quedan estándares con evidencia incompleta.</div>';return;}
-      const offset=(requestedPage-1)*pageSize;
-      results.innerHTML=items.map((item,index)=>`<article class="std-item" data-reserved-uid="${esc(item.standard_uid)}"><div class="std-number">${offset+index+1}</div><div><div class="std-statement">${esc(item.statement)}</div><div class="std-meta"><span>${esc(item.document_name||'Documento no informado')}</span><span>· ${esc(item.reserve_reason||'Pendiente')}</span></div><div class="std-uid">${esc(item.standard_uid)}</div></div></article>`).join('');
-      results.querySelectorAll('[data-reserved-uid]').forEach(item=>item.addEventListener('click',()=>reservedDetail(item.dataset.reservedUid)));
-      renderPager(pager,{page:requestedPage,pageCount,offset,count:items.length,total,onPage:page=>reservedQueue({page})});
-    }catch(error){results.innerHTML=`<div class="std-error">No fue posible abrir la lista. ${esc(error.message)}</div>`;}
-  }
+  async function openDocument(uid){try{await api('/api/open-document?uid='+encodeURIComponent(uid));}catch(error){alert(error.message==='document_not_found'?'No se encontró el archivo fuente en esta computadora.':'No fue posible abrir el documento fuente: '+error.message);}}
 
-  async function reservedDetail(uid){
-    state.currentUid=uid;document.querySelectorAll('.std-item').forEach(item=>item.classList.toggle('active',item.dataset.reservedUid===uid));
-    const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando evidencia…</div>';
-    try{
-      const data=await api('/api/reserved-standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">La evidencia ya fue completada. Buscá el estándar en el diccionario.</div>';return;}
-      const quoteRows=Array.isArray(data.quotes)?data.quotes:[],publishable=quoteRows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),draft=[...quoteRows].reverse().find(q=>q.validation==='manual_review')||quoteRows[0]||{};
-      const quotes=quoteRows.map(q=>`<div class="std-quote">${esc(q.quote_text||'Sin cita literal')}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-error">Falta una cita literal y su página.</div>';
-      const publicationWarning='<div class="std-error">'+(publishable?'La extracción marcó una incidencia en la evidencia.':quoteRows.some(q=>String(q.quote_text||'').trim())?'Falta la página de la cita.':'Falta una cita literal y su página.')+' El estándar ya es visible; comprobá la evidencia en el fallo.</div>';
-      target.innerHTML=`<div class="std-notice">${esc(data.reserve_reason||'Evidencia por comprobar')} · Visible en el diccionario</div><h2>${esc(data.statement)}</h2><div class="std-badges">${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-doc"><button class="std-doc-link" data-open-reserved="${esc(data.standard_uid)}">${esc(data.document_name||'Documento fuente')}</button><div class="std-meta">${esc(data.court||'Tribunal no informado')}${data.judgment_date?' · '+esc(data.judgment_date):''} · ${esc(data.speaker||'')} · ${esc(data.treatment||'')}</div></div><h3>Evidencia registrada</h3>${quotes}<h3>Completar o corregir cita</h3><div class="std-citation-editor"><label>Cita literal<textarea id="stdReviewQuote">${esc(draft.quote_text||'')}</textarea></label><div class="std-citation-pages"><label>Página inicial<input id="stdReviewPageStart" type="number" min="1" value="${esc(draft.page_start||'')}"></label><label>Página final (opcional)<input id="stdReviewPageEnd" type="number" min="1" value="${esc(draft.page_end||'')}"></label></div><div><button class="std-btn secondary small" data-save-citation>Guardar cita</button></div></div>${publicationWarning}<div class="std-badges">${publishable&&data.publication_status==='blocked'?'<button class="std-btn small" data-publication="publish">Confirmar evidencia</button>':''}<button class="std-btn danger small" data-publication="reject">Excluir del diccionario</button></div>`;
-      target.querySelector('[data-open-reserved]')?.addEventListener('click',()=>openDocument(uid));
-      target.querySelector('[data-save-citation]')?.addEventListener('click',()=>saveReservedCitation(uid));
-      target.querySelectorAll('[data-publication]').forEach(button=>button.addEventListener('click',()=>publicationDecision(uid,button.dataset.publication)));
-    }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir la evidencia. ${esc(error.message)}</div>`;}
-  }
-
-  async function saveReservedCitation(uid){
-    const quote=document.getElementById('stdReviewQuote')?.value.trim()||'',pageStart=document.getElementById('stdReviewPageStart')?.value.trim()||'',pageEnd=document.getElementById('stdReviewPageEnd')?.value.trim()||'',button=document.querySelector('[data-save-citation]');
+  async function saveOccurrenceCitation(button,canonicalUid){
+    const card=button.closest('.std-occurrence'),uid=card?.dataset.standardUid;
+    const quote=card?.querySelector('[data-evidence-quote]')?.value.trim()||'',pageStart=card?.querySelector('[data-evidence-page-start]')?.value.trim()||'',pageEnd=card?.querySelector('[data-evidence-page-end]')?.value.trim()||'';
     if(!quote||!pageStart){alert('Completá la cita literal y la página inicial.');return;}
-    if(button)button.disabled=true;
+    button.disabled=true;
     try{
       await api('/api/standard-citation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,quote,page_start:pageStart,page_end:pageEnd})});
-      await loadInventory();await reservedQueue({page:state.page});
+      await detail(canonicalUid);
     }catch(error){alert('No fue posible guardar la cita: '+error.message);}
-    finally{if(button&&button.isConnected)button.disabled=false;}
+    finally{if(button.isConnected)button.disabled=false;}
   }
 
-  async function publicationDecision(uid,decision){
-    const messages={publish:'¿Confirmar que verificaste la evidencia en el fallo?',reject:'¿Excluir este estándar del diccionario? Se conservará su trazabilidad.'};
-    if(messages[decision]&&!window.confirm(messages[decision]))return;
+  async function decideOccurrence(button,canonicalUid,decision){
+    const uid=button.closest('.std-occurrence')?.dataset.standardUid;
+    const message=decision==='publish'?'¿Confirmar que verificaste la evidencia en el fallo?':'¿Excluir esta aparición del diccionario? Se conservará su trazabilidad.';
+    if(!window.confirm(message))return;
+    button.disabled=true;
     try{
       await api('/api/publication-decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,decision})});
       await loadInventory();
-      await reservedQueue({page:state.page});
-    }catch(error){alert('No fue posible registrar la revisión: '+error.message);}
+      if(decision==='reject')await search({page:state.page,remember:false});
+      else await detail(canonicalUid);
+    }catch(error){alert('No fue posible registrar la decisión: '+error.message);}
+    finally{if(button.isConnected)button.disabled=false;}
   }
-
-  async function openDocument(uid){try{await api('/api/open-document?uid='+encodeURIComponent(uid));}catch(error){alert(error.message==='document_not_found'?'No se encontró el archivo fuente en esta computadora.':'No fue posible abrir el documento fuente: '+error.message);}}
 
   async function detail(uid){
     state.currentUid=uid;document.querySelectorAll('.std-item').forEach(item=>item.classList.toggle('active',item.dataset.uid===uid));
     const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando estándar…</div>';
     try{
       const data=await api('/api/standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">Estándar no encontrado.</div>';return;}
-      const renderQuotes=(quotes,reviewStatus)=>{const rows=quotes||[],complete=rows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),warning=complete?(reviewStatus==='needs_review'?'<div class="std-error">La extracción marcó una incidencia; comprobá la evidencia en el fallo.</div>':''):`<div class="std-error">${rows.some(q=>String(q.quote_text||'').trim())?'Falta la página de la cita.':'Falta una cita literal y su página.'} Comprobá la evidencia en el fallo.</div>`;return warning+rows.map(q=>`<div class="std-quote">${esc(q.quote_text||'Sin cita literal')}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('');};
-      const occurrences=(data.occurrences||[data]).map((occ,index)=>{const different=norm(occ.statement)!==norm(data.statement);return `<article class="std-occurrence"><div class="std-occurrence-head"><div><button class="std-doc-link" data-open-occurrence="${esc(occ.standard_uid)}">${esc(occ.document_name||'Documento fuente')}</button><div class="std-meta">${esc(occ.court||'Tribunal no informado')}${occ.judgment_date?' · '+esc(occ.judgment_date):''} · ${esc(occ.speaker||'')} · ${esc(occ.treatment||'')}</div></div><span class="std-source-count">Fuente ${index+1}</span></div>${different?`<div class="std-wording"><b>Formulación del fallo:</b> ${esc(occ.statement)}</div>`:''}${renderQuotes(occ.quotes,occ.review_status)}</article>`;}).join('');
+      const renderQuotes=(quotes,reviewStatus,publicationStatus)=>{const rows=quotes||[],complete=rows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),warning=complete?(reviewStatus==='needs_review'||publicationStatus==='blocked'?'<div class="std-error">La extracción marcó una incidencia; comprobá la evidencia en el fallo.</div>':''):`<div class="std-error">${rows.some(q=>String(q.quote_text||'').trim())?'Falta la página de la cita.':'Falta una cita literal y su página.'} Comprobá la evidencia en el fallo.</div>`;return warning+rows.map(q=>`<div class="std-quote">${esc(q.quote_text||'Sin cita literal')}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('');};
+      const occurrences=(data.occurrences||[data]).map((occ,index)=>{
+        const different=norm(occ.statement)!==norm(data.statement),quotes=occ.quotes||[],complete=quotes.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0);
+        const attention=!complete||occ.review_status==='needs_review'||occ.publication_status==='blocked';
+        const draft=[...quotes].reverse().find(q=>q.validation==='manual_review')||quotes[0]||{};
+        const editor=attention?`<details class="std-evidence-actions"><summary>Completar evidencia o excluir</summary><div class="std-citation-editor"><label>Cita literal<textarea data-evidence-quote>${esc(draft.quote_text||'')}</textarea></label><div class="std-citation-pages"><label>Página inicial<input data-evidence-page-start type="number" min="1" value="${esc(draft.page_start||'')}"></label><label>Página final (opcional)<input data-evidence-page-end type="number" min="1" value="${esc(draft.page_end||'')}"></label></div><div class="std-badges"><button class="std-btn secondary small" type="button" data-save-occurrence>Guardar cita</button>${complete?'<button class="std-btn small" type="button" data-decide-occurrence="publish">Confirmar evidencia</button>':''}<button class="std-btn danger small" type="button" data-decide-occurrence="reject">Excluir esta aparición</button></div></div></details>`:'';
+        return `<article class="std-occurrence" data-standard-uid="${esc(occ.standard_uid)}"><div class="std-occurrence-head"><div><button class="std-doc-link" data-open-occurrence="${esc(occ.standard_uid)}">${esc(occ.document_name||'Documento fuente')}</button><div class="std-meta">${esc(occ.court||'Tribunal no informado')}${occ.judgment_date?' · '+esc(occ.judgment_date):''} · ${esc(occ.speaker||'')} · ${esc(occ.treatment||'')}</div></div><span class="std-source-count">Fuente ${index+1}</span></div>${different?`<div class="std-wording"><b>Formulación del fallo:</b> ${esc(occ.statement)}</div>`:''}${renderQuotes(quotes,occ.review_status,occ.publication_status)}${editor}</article>`;
+      }).join('');
       const relations=(data.relations||[]).map(rel=>{const count=Number(rel.other?.document_count||0);return `<div class="std-relation"><div><span class="std-badge rel-${esc(rel.relation_type)}">${esc(relLabels[rel.relation_type]||rel.relation_type)}</span><span class="std-badge ${esc(rel.status)}">${esc(rel.status)}</span></div><div class="std-rel-title" data-related-uid="${esc(rel.other?.standard_uid||'')}">${esc(rel.other?.statement||'')}</div><div class="std-meta">${count>1?count+' fallos':esc(rel.other?.document_name||'')} · ${esc(rel.other?.speaker||'')}</div></div>`;}).join('')||'<div class="std-empty">Sin relaciones visibles.</div>';
       const suggestions=(data.canonical_suggestions||[]).map(item=>`<div class="std-suggestion"><div><span class="std-badge proposed">Posible misma regla</span>${item.confidence?`<span class="std-badge">Confianza ${esc(item.confidence)}</span>`:''}</div><div class="std-rel-title" data-related-uid="${esc(item.other?.standard_uid||'')}">${esc(item.other?.statement||'')}</div><div class="std-meta">Requiere confirmación antes de consolidarse.</div><div class="std-badges"><button class="std-btn small" data-confirm-relation="${esc(item.relation_id)}">Confirmar</button><button class="std-btn ghost small" data-reject-relation="${esc(item.relation_id)}">Rechazar</button></div></div>`).join('');
       const occurrenceCount=Number(data.occurrence_count||1),documentCount=Number(data.document_count||1);const notice=occurrenceCount>1?`Estándar canónico: ${occurrenceCount} apariciones en ${documentCount} fallos, conservadas con su propia redacción y evidencia.`:'Estándar canónico con una aparición. Las nuevas equivalencias se agregarán sin perder su fallo ni su redacción.';
       target.innerHTML=`<div class="std-notice">${esc(notice)}</div><h2>${esc(data.statement)}</h2><div class="std-badges"><span class="std-badge confirmed">Canónico confirmado</span><span class="std-badge">${documentCount} ${documentCount===1?'fallo':'fallos'}</span>${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-uid">${esc(data.canonical_uid||data.standard_uid)}</div><h3>Fallos, formulaciones y citas</h3><div class="std-occurrences">${occurrences}</div>${suggestions?`<h3>Equivalencias pendientes</h3>${suggestions}`:''}<h3>Relaciones directas</h3>${relations}`;
       target.querySelectorAll('[data-related-uid]').forEach(node=>node.addEventListener('click',()=>detail(node.dataset.relatedUid)));
       target.querySelectorAll('[data-open-occurrence]').forEach(node=>node.addEventListener('click',()=>openDocument(node.dataset.openOccurrence)));
+      target.querySelectorAll('[data-save-occurrence]').forEach(node=>node.addEventListener('click',()=>saveOccurrenceCitation(node,uid)));
+      target.querySelectorAll('[data-decide-occurrence]').forEach(node=>node.addEventListener('click',()=>decideOccurrence(node,uid,node.dataset.decideOccurrence)));
       target.querySelectorAll('[data-confirm-relation]').forEach(node=>node.addEventListener('click',event=>{event.stopPropagation();canonicalDecision(node.dataset.confirmRelation,'confirm',uid);}));
       target.querySelectorAll('[data-reject-relation]').forEach(node=>node.addEventListener('click',event=>{event.stopPropagation();canonicalDecision(node.dataset.rejectRelation,'reject',uid);}));
     }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir el estándar. ${esc(error.message)}</div>`;}
@@ -244,11 +219,11 @@
   function findMaintenanceNav(){const candidates=[...document.querySelectorAll('button,a,[role="button"],li,div')];return candidates.find(node=>norm(node.textContent)==='mantenimiento'&&node.children.length<8)||null;}
   function installNav(){if(document.querySelector('[data-lexia-standards-nav="1"]'))return true;const maintenance=findMaintenanceNav();if(!maintenance)return false;const button=maintenance.cloneNode(true);button.dataset.lexiaStandardsNav='1';button.removeAttribute('id');button.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));const walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);let textNode=null;while(walker.nextNode()){if(norm(walker.currentNode.nodeValue)==='mantenimiento'){textNode=walker.currentNode;break;}}if(textNode)textNode.nodeValue=textNode.nodeValue.replace(/Mantenimiento/i,'Estándares');else button.textContent='Estándares';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();open();},true);maintenance.parentNode.insertBefore(button,maintenance);return true;}
   function setNavActive(active){const nav=document.querySelector('[data-lexia-standards-nav="1"]');if(!nav)return;nav.classList.toggle('active',active);nav.setAttribute('aria-current',active?'page':'false');}
-  function watchViewport(){let timer=0;window.addEventListener('resize',()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>{const next=pageSizeForViewport();if(!state.open||!state.searched||!state.pageSize||next===state.pageSize)return;const first=(state.page-1)*state.pageSize,page=Math.floor(first/next)+1;if(state.mode==='reserved')reservedQueue({page});else search({page,remember:false});},180);});}
+  function watchViewport(){let timer=0;window.addEventListener('resize',()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>{const next=pageSizeForViewport();if(!state.open||!state.searched||!state.pageSize||next===state.pageSize)return;const first=(state.page-1)*state.pageSize,page=Math.floor(first/next)+1;search({page,remember:false});},180);});}
   function open(){state.open=true;setNavActive(true);document.documentElement.classList.add('lexia-standards-open');shell().classList.add('open');loadInventory();}
   function close(){if(!state.open)return;state.open=false;setNavActive(false);document.documentElement.classList.remove('lexia-standards-open');document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}
   function boot(){installStyles();shell();installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;watchViewport();const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
-  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;window.lexiaStandardsLoadInventory=loadInventory;window.lexiaStandardsOpenReserved=()=>reservedQueue({page:1});
+  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;window.lexiaStandardsLoadInventory=loadInventory;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
