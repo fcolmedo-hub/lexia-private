@@ -19,7 +19,8 @@ python tools/aplicar_relaciones_estandares.py --apply
 
 Si aún no hay una selección, se puede generar un TXT revisable de hasta 250
 fallos de una carpeta. Sólo incluye Jurisprudencia indexada con texto y excluye
-los documentos ya presentes en el diccionario. Para lotes nuevos, usa la
+los documentos ya presentes en el diccionario y los fallos de lotes preparados
+o enviados cuya extracción aún no se importó. Para lotes nuevos, usa la
 huella SHA-256 del PDF indexado para reconocer una copia en Mac y Windows,
 aunque las rutas sean distintas. También evita dos copias idénticas dentro de
 la misma selección. Se ordena por ruta y no se
@@ -52,6 +53,16 @@ python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --li
    ```text
    python tools/actualizar_diccionario_estandares.py submit-extraction --run-id <run-id>
    ```
+
+   Si el lote ya tiene un `batch_id` registrado localmente, repetir este
+   comando continúa con el mismo lote y no crea otro envío. Antes de enviar,
+   LexIA comprueba además los fallos de otros lotes pendientes por ruta o
+   huella del contenido.
+
+   Esta prevención consulta la base y los registros locales de la instalación.
+   Un envío hecho en otra computadora sólo se detecta si se trasladó su base o
+   el registro del lote a esta instalación. Si el catálogo no tiene huella,
+   la comparación se hace únicamente por ruta.
 
 3. Consultar el lote y, cuando termine, recogerlo. La recolección valida la
    evidencia por `unit_ids`, importa los estándares y prepara únicamente las
