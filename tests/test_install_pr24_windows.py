@@ -125,3 +125,38 @@ def test_preflight_accepts_installed_previous_feature_and_keeps_local_edits(tmp_
 
     assert planned["ui.txt"] == b"new header\nmain list\nlocal footer changed\n"
     assert path.read_text() == "new header\nprevious queue\nlocal footer changed\n"
+
+
+def test_preflight_upgrades_installed_pr24_files_added_after_early_feature(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    (root / "pipeline.txt").write_text("old extraction\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    previous = base
+    (root / "pipeline.txt").write_text("feature extraction\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "feature")
+    feature = _git(root, "rev-parse", "HEAD")
+    (root / "pipeline.txt").write_text("installed extraction\nlocal footer\n")
+    (root / "new_test.txt").write_text("installed test\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "installed")
+    installed = _git(root, "rev-parse", "HEAD")
+    (root / "pipeline.txt").write_text("current extraction\nlocal footer\n")
+    (root / "new_test.txt").write_text("current test\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "target")
+    target = _git(root, "rev-parse", "HEAD")
+    (root / "pipeline.txt").write_text("installed extraction\nlocal footer changed\n")
+    (root / "new_test.txt").write_text("installed test\n")
+
+    planned = changes(root, base, target, previous, feature, installed)
+
+    assert planned["pipeline.txt"] == b"current extraction\nlocal footer changed\n"
+    assert planned["new_test.txt"] == b"current test\n"
+    assert (root / "pipeline.txt").read_text() == "installed extraction\nlocal footer changed\n"
