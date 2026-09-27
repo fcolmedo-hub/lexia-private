@@ -41,7 +41,7 @@ def test_all_phases_are_checked_backed_up_and_repeatable(installer, temporary_ch
     assert list((backup_home / "Desktop").iterdir()) == []
 
     installer.main([])
-    assert installer.phase_installed(checkout, 3)
+    assert installer.phase_installed(checkout, 4)
     assert len(list((backup_home / "Desktop").glob("*/archivos-anteriores.tar.gz"))) == 1
     installer.main([])
     assert len(list((backup_home / "Desktop").iterdir())) == 1
@@ -57,7 +57,7 @@ def test_prior_update_and_conflict_never_overwrite_local_work(installer, tempora
     installer.main([])
     output = capsys.readouterr().out
     assert "ya instalada" in output and "pendiente" in output
-    assert installer.phase_installed(checkout, 3)
+    assert installer.phase_installed(checkout, 4)
 
     # A later local edit must block a repeat only if it overlaps the patch.
     altered = checkout / "app/ui2/assets/windows_maintenance_duplicates.js"
