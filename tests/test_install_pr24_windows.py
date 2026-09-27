@@ -61,3 +61,36 @@ def test_preflight_is_atomic_when_another_file_conflicts(tmp_path):
     assert planned["one.txt"] == b"first\nsecond changed\nthird local\n"
     assert planned["two.txt"] == b"alpha new\nbeta\n"
     assert planned["new.txt"] == b"new file\n"
+
+
+def test_previous_pr_files_merge_without_overwriting_local_edits(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    (root / "ui.txt").write_text("old UI\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    (root / "ui.txt").write_text("previous UI\n")
+    (root / "pipeline.txt").write_text("first\nsecond\n")
+    (root / "selector.txt").write_text("first\nsecond\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "previous")
+    previous = _git(root, "rev-parse", "HEAD")
+    (root / "ui.txt").write_text("new UI\n")
+    (root / "selector.txt").write_text("new first\nsecond\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "target")
+    target = _git(root, "rev-parse", "HEAD")
+    (root / "ui.txt").write_bytes(b"previous UI\r\n")
+    (root / "pipeline.txt").write_text("first\nsecond local\n")
+    (root / "selector.txt").write_text("first\nsecond local\n")
+
+    planned = changes(root, base, target, previous)
+
+    assert planned["ui.txt"] == b"new UI\r\n"
+    assert planned["selector.txt"] == b"new first\nsecond local\n"
+    assert "pipeline.txt" not in planned
+    assert (root / "ui.txt").read_bytes() == b"previous UI\r\n"
