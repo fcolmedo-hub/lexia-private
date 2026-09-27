@@ -182,7 +182,7 @@ def _manual_standard(payload: dict) -> dict:
         "message": (
             "Estándar almacenado y listo para publicarse. La vinculación automática por IA queda pendiente."
             if citation_complete
-            else "Estándar almacenado como reservado. Completá una cita literal con página antes de publicarlo."
+            else "Estándar incorporado con evidencia incompleta. Podés completar la cita literal y la página desde el diccionario."
         ),
     }
 
@@ -381,8 +381,8 @@ def _publication_decision(payload: dict) -> dict:
     decision = str(payload.get("decision") or "").strip().lower()
     if not standard_uid:
         raise ValueError("El estándar reservado es inválido.")
-    if decision not in {"publish", "reserve", "reject"}:
-        raise ValueError("La decisión debe ser publish, reserve o reject.")
+    if decision not in {"publish", "reject"}:
+        raise ValueError("La decisión debe ser publish o reject.")
 
     con = sqlite3.connect(SERVICE.db_path, timeout=5)
     try:
@@ -400,13 +400,9 @@ def _publication_decision(payload: dict) -> dict:
             raise ValueError("El estándar ya fue rechazado.")
 
         if decision == "publish":
-            if not _has_publishable_citation(con, standard_uid):
-                raise ValueError("No se puede publicar: falta una cita literal con página.")
             new_review, new_publication = "validated", "ready"
         elif decision == "reject":
             new_review, new_publication = "rejected", "hidden"
-        else:
-            new_review, new_publication = previous_review, previous_publication
 
         _ensure_publication_decisions_schema(con)
         con.execute(
