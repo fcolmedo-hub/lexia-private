@@ -41,5 +41,8 @@ Reglas estrictas para unit_ids:
 
 No copies citas literales, no generes anclas, páginas ni identifier. Python resolverá los unit_ids contra el texto original y construirá la cita literal exacta.
 
+DATOS DEL FALLO
+En document_metadata extrae court (tribunal que dicta ESTE fallo), chamber (sala), judgment_date (fecha en la forma literal en que aparece) y case_number (número de expediente o causa). No confundas el tribunal que decide con tribunales anteriores, citas jurisprudenciales, encabezados editoriales ni el nombre del archivo. Para cada valor, indica los unit_ids mínimos del texto donde aparece literalmente. Si no figura de modo inequívoco en el texto suministrado, devuelve value=null y unit_ids=[]. No infieras ni inventes datos. Los metadatos externos que puedan figurar en META son contexto y no sustituyen una referencia al texto del fallo. Si court fue informado expresamente al preparar el lote, ese dato tendrá prioridad en LexIA.
+
 SALIDA
-La salida será forzada por JSON Schema. Completa todos los campos requeridos. Si no existe ningún estándar generalizable, devuelve standards=[] .
+La salida será forzada por JSON Schema. Completa todos los campos requeridos. Extrae document_metadata incluso si no existe ningún estándar generalizable; en ese caso devuelve standards=[] .
