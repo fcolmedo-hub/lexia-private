@@ -188,6 +188,12 @@
   }
 
   function installLiveSearchBadgeRemoval(){
+    if(window.__lexiaWindowsFastStartupV1){
+      // La insignia es estática en Windows. No recorrer el DOM durante las
+      // actualizaciones de Investigación y Mantenimiento.
+      document.getElementById('liveBadge')?.remove();
+      return;
+    }
     removeLiveSearchBadge();
     if(window.__lexiaAppLiveBadgeObserverInstalled)return;
     window.__lexiaAppLiveBadgeObserverInstalled=true;
