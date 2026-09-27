@@ -32,8 +32,19 @@ python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --li
 1. Preparar localmente los fallos seleccionados y el lote V5:
 
    ```text
-   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt
+   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt --court "Cámara de Apelaciones en lo Civil y Comercial de Santa Fe, Sala I"
    ```
+
+   `--court` (también `--tribunal`) es obligatorio si todos los fallos del lote
+   corresponden al mismo tribunal. Escribí el nombre completo, incluida la sala
+   cuando corresponda. Si el lote mezcla tribunales, usá `--courts-file
+   tribunales.csv` en lugar de `--court`: el CSV en UTF-8 lleva encabezado
+   `document_path,court` y una fila por cada ruta exacta de la selección.
+   `prepare` rechaza rutas adicionales, repetidas, sin tribunal o ausentes.
+   El tribunal informado reemplaza el del catálogo en este lote, se incluye
+   en los metadatos enviados a la extracción y queda guardado para la
+   importación. Se puede revisar en `prepared_v5/fallos.jsonl` y en
+   `state.json` antes de ejecutar `submit-extraction`.
 
 2. Enviar explícitamente la extracción y anotar el `run_id` informado:
 
