@@ -15,6 +15,7 @@ import tempfile
 
 
 BASE = "400a1013e493438d6c898a9a55bb6861e97fd691"
+PREVIOUS = "bb95aeed9b2fa4de224fe3a6f184e507f6975494"
 TARGET = "FETCH_HEAD"
 
 
@@ -89,7 +90,7 @@ def merge(current: bytes, before: bytes, after: bytes) -> bytes:
     return encode("".join(merged), bom, crlf)
 
 
-def changes(root: Path, base: str = BASE, target: str = TARGET) -> dict[str, bytes]:
+def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS) -> dict[str, bytes]:
     # A shallow Windows checkout can have both objects but no complete parent
     # chain for merge-base. The three-way comparison only needs those objects.
     git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
@@ -105,21 +106,37 @@ def changes(root: Path, base: str = BASE, target: str = TARGET) -> dict[str, byt
             raise RuntimeError("La actualización intenta modificar index.html; se detuvo.")
         path = root / name
         target_content = git(root, "show", f"{target}:{name}")
+        current = path.read_bytes() if path.is_file() else None
+        if current is not None and decode(current)[0] == decode(target_content)[0]:
+            continue
         if status == "A":
-            if path.exists() and path.read_bytes() != target_content:
-                conflicts.append(name + " (ya existe con otro contenido)")
-            elif not path.exists():
+            if current is None and path.exists():
+                conflicts.append(name + " (la ruta local no es un archivo)")
+            elif current is None:
                 planned[name] = target_content
+            else:
+                try:
+                    # The user's earlier installer may already have placed a
+                    # PR 22 file in the working tree, without committing it.
+                    candidate = merge(current, git(root, "show", f"{previous}:{name}"), target_content)
+                except (RuntimeError, UnicodeError, ValueError) as error:
+                    conflicts.append(name + " (" + str(error) + ")")
+                    continue
+                if candidate != current:
+                    planned[name] = candidate
         else:
-            if not path.is_file():
+            if current is None:
                 conflicts.append(name + " (falta el archivo local)")
                 continue
             try:
-                candidate = merge(path.read_bytes(), git(root, "show", f"{base}:{name}"), target_content)
-            except (UnicodeError, ValueError) as error:
-                conflicts.append(name + " (" + str(error) + ")")
-                continue
-            if candidate != path.read_bytes():
+                candidate = merge(current, git(root, "show", f"{base}:{name}"), target_content)
+            except (UnicodeError, ValueError):
+                try:
+                    candidate = merge(current, git(root, "show", f"{previous}:{name}"), target_content)
+                except (RuntimeError, UnicodeError, ValueError) as error:
+                    conflicts.append(name + " (" + str(error) + ")")
+                    continue
+            if candidate != current:
                 planned[name] = candidate
     if conflicts:
         raise ValueError("Conflictos detectados:\n- " + "\n- ".join(conflicts) + "\nNo se modificó tu instalación.")
