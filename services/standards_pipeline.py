@@ -166,7 +166,7 @@ class StandardsPipeline:
                 "document_path": document.path,
                 "document_name": document.name,
                 "total_pages": document.total_pages,
-                "metadata": metadata_with_court(document.metadata, courts_by_path[document.path.casefold()]),
+                "metadata": metadata_with_court(document.metadata, courts_by_path.get(document.path.casefold())),
                 "content_hash": document.content_hash,
                 "fragments": document.fragments,
             })
@@ -203,7 +203,7 @@ class StandardsPipeline:
             "catalog_path": str(catalog_path.resolve()),
             "paths_file": str(paths_file.resolve()),
             "selection_encoding": encoding,
-            "court_source": "courts_file" if courts_file is not None else "court",
+            "court_source": "courts_file" if courts_file is not None else "court" if court is not None else "api",
             "courts_file": str(courts_file.resolve()) if courts_file is not None else None,
             "courts": sorted(set(courts.values())),
             "model": model,
@@ -279,6 +279,8 @@ class StandardsPipeline:
             "invalid_evidence": 0,
             "needs_review": 0,
             "format_errors": 0,
+            "metadata_issues": 0,
+            "courts_from_api": 0,
         }
         for response_path in sorted(responses_dir.glob("*_respuesta.txt")):
             pilot_id = int(response_path.name.split("_", 1)[0])
@@ -289,6 +291,19 @@ class StandardsPipeline:
             except Exception:
                 validation["format_errors"] += 1
                 continue
+            document = by_id[pilot_id]
+            metadata = document["metadata"]
+            proposals = result.get("document_metadata", {})
+            for key, value in proposals.items():
+                if key == "court" and metadata.get("_lexia_court_source") == "batch_input":
+                    continue
+                stored_key = "date" if key == "judgment_date" else key
+                metadata[stored_key] = value
+                metadata[f"_lexia_{key}_source"] = "api_with_unit_ids"
+                metadata[f"_lexia_{key}_evidence"] = result["document_metadata_evidence"][key]
+                if key == "court":
+                    validation["courts_from_api"] += 1
+            validation["metadata_issues"] += len(result.get("document_metadata_issues", []))
             (validated_dir / f"{pilot_id:03d}_validado.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
@@ -304,6 +319,12 @@ class StandardsPipeline:
             raise RuntimeError(
                 f"Hay {validation['format_errors']} respuestas con formato inválido; no se importó el lote"
             )
+
+        # La importación lee fallos.jsonl. Se guardan aquí los datos validados,
+        # para que una reanudación use exactamente la misma atribución.
+        updated_path = prepared_path.with_suffix(".jsonl.tmp")
+        dump_jsonl(updated_path, documents)
+        updated_path.replace(prepared_path)
 
         state = self.load_state()
         imported = import_validated_run(
