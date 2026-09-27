@@ -35,16 +35,17 @@ python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --li
    python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt --court "Cámara de Apelaciones en lo Civil y Comercial de Santa Fe, Sala I"
    ```
 
-   `--court` (también `--tribunal`) es obligatorio si todos los fallos del lote
-   corresponden al mismo tribunal. Escribí el nombre completo, incluida la sala
-   cuando corresponda. Si el lote mezcla tribunales, usá `--courts-file
+   `--court` (también `--tribunal`) fija el tribunal de todos los fallos del lote.
+   Escribí el nombre completo, incluida la sala cuando corresponda. Si el lote
+   mezcla tribunales, podés usar `--courts-file
    tribunales.csv` en lugar de `--court`: el CSV en UTF-8 lleva encabezado
    `document_path,court` y una fila por cada ruta exacta de la selección.
    `prepare` rechaza rutas adicionales, repetidas, sin tribunal o ausentes.
-   El tribunal informado reemplaza el del catálogo en este lote, se incluye
-   en los metadatos enviados a la extracción y queda guardado para la
-   importación. Se puede revisar en `prepared_v5/fallos.jsonl` y en
-   `state.json` antes de ejecutar `submit-extraction`.
+   También podés omitir ambos parámetros: la API propondrá el tribunal en la
+   misma extracción de estándares. El tribunal informado manualmente tiene
+   prioridad. El tribunal del catálogo se omite porque puede ser incorrecto.
+   Los datos informados quedan en `prepared_v5/fallos.jsonl` y `state.json`
+   antes de ejecutar `submit-extraction`.
 
 2. Enviar explícitamente la extracción y anotar el `run_id` informado:
 
@@ -60,6 +61,14 @@ python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --li
    python tools/actualizar_diccionario_estandares.py batch-status --run-id <run-id>
    python tools/actualizar_diccionario_estandares.py collect-extraction --run-id <run-id>
    ```
+
+   La misma respuesta de la API propone tribunal, sala, fecha del fallo y
+   número de expediente, cada uno con `unit_ids` que señalan el texto fuente.
+   LexIA guarda sólo los valores que aparecen literalmente en esas unidades;
+   normaliza fechas reconocidas a `AAAA-MM-DD`. Un dato ausente, ambiguo o sin
+   respaldo queda vacío. Las propuestas, unidades y problemas detectados se
+   conservan en `validated_v5/*_validado.json`; los valores aceptados y su
+   procedencia se guardan en `prepared_v5/fallos.jsonl` antes de importar.
 
 4. Si existen relaciones nuevas, enviarlas y recogerlas:
 
