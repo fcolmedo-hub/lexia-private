@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from tools.preseleccionar_fallos_estandares import candidates
+from tools.preseleccionar_fallos_estandares import candidates, within_folder
 
 
 def test_selection_uses_indexed_judgments_in_folder_and_skips_imported(tmp_path: Path):
@@ -60,3 +60,24 @@ def test_selection_excludes_same_pdf_imported_on_other_platform(tmp_path: Path):
             "/Volumes/Jurisprudencia/duplicado.pdf", f"sha256:{digest}", "{}"
         ))
     assert candidates(catalog, db, "Jurisprudencia", 250) == ["D:/Jurisprudencia/copia.pdf"]
+
+
+def test_exact_folder_includes_children_but_not_similarly_named_siblings(tmp_path: Path):
+    catalog = tmp_path / "catalog.sqlite3"
+    with sqlite3.connect(catalog) as connection:
+        connection.executescript("""
+            CREATE TABLE documents(path TEXT,category TEXT,is_deleted INTEGER);
+            CREATE TABLE fragments(document_path TEXT,text_content TEXT);
+            INSERT INTO documents VALUES('/library/Jurisprudencia/Santa Fe/a.pdf','Jurisprudencia',0);
+            INSERT INTO documents VALUES('/library/Jurisprudencia/Santa Fe/Sala 1/b.pdf','Jurisprudencia',0);
+            INSERT INTO documents VALUES('/library/Jurisprudencia/Santa Fe II/c.pdf','Jurisprudencia',0);
+            INSERT INTO fragments VALUES('/library/Jurisprudencia/Santa Fe/a.pdf','fallo');
+            INSERT INTO fragments VALUES('/library/Jurisprudencia/Santa Fe/Sala 1/b.pdf','fallo');
+            INSERT INTO fragments VALUES('/library/Jurisprudencia/Santa Fe II/c.pdf','fallo');
+        """)
+    assert candidates(catalog, tmp_path / "missing.sqlite3", "Santa Fe", 250, folder="/library/Jurisprudencia/Santa Fe") == [
+        "/library/Jurisprudencia/Santa Fe/a.pdf",
+        "/library/Jurisprudencia/Santa Fe/Sala 1/b.pdf",
+    ]
+    assert within_folder(r"D:\LexIA\Jurisprudencia\Santa Fe\fallo.pdf", "d:/lexia/Jurisprudencia/Santa Fe")
+    assert not within_folder(r"D:\LexIA\Jurisprudencia\Santa Fe II\fallo.pdf", "d:/lexia/Jurisprudencia/Santa Fe")
