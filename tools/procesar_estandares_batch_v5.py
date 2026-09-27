@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +86,10 @@ def require_sdk():
     try:
         from openai import OpenAI
     except ImportError as exc:
-        raise RuntimeError("Falta el SDK oficial: python -m pip install --upgrade openai") from exc
+        raise RuntimeError(
+            f"Falta el SDK oficial en el Python de LexIA ({sys.executable}). "
+            f"Instalalo con: \"{sys.executable}\" -m pip install openai"
+        ) from exc
     return OpenAI()
 
 
