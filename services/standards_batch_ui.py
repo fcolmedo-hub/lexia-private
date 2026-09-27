@@ -160,6 +160,14 @@ def _job_dir(job_id: str) -> Path:
     return RUNS / "ui_jobs" / job_id
 
 
+def selected_document_path(job_id: str, path: str) -> str:
+    """Allow opening only a document in this batch's saved selection."""
+    selection = _job_dir(job_id) / "selection.txt"
+    if not selection.is_file() or not path or path not in selection.read_text(encoding="utf-8").splitlines():
+        raise ValueError("El fallo no pertenece a este lote.")
+    return path
+
+
 def _write(job: dict[str, Any]) -> None:
     directory = _job_dir(job["job_id"])
     directory.mkdir(parents=True, exist_ok=True)

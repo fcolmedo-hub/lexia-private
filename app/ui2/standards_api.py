@@ -510,9 +510,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"items": batch_ui.folder_tree(_one(qs, "parent"))})
                 if parsed.path == "/api/batch-courts":
                     return self._json(batch_ui.court_suggestions())
-                if parsed.path == "/api/batch-status":
-                    return self._json(batch_ui.status(_one(qs, "job_id")))
-                if parsed.path == "/api/batch-recent":
+            if parsed.path == "/api/batch-status":
+                return self._json(batch_ui.status(_one(qs, "job_id")))
+            if parsed.path == "/api/batch-open-document":
+                path = batch_ui.selected_document_path(_one(qs, "job_id"), _one(qs, "path"))
+                resolved = _resolve_document_path({"document_path": path})
+                if resolved is None:
+                    return self._json({"ok": False, "error": "document_not_found"}, 404)
+                _open_document(resolved)
+                return self._json({"ok": True})
+            if parsed.path == "/api/batch-recent":
                     return self._json({"items": batch_ui.recent()})
             if parsed.path == "/api/health":
                 return self._json({
@@ -584,6 +591,8 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 })
             return self._json({"ok": False, "error": "not_found"}, 404)
+        except ValueError as exc:
+            return self._json({"ok": False, "error": str(exc)}, 400)
         except Exception as exc:
             return self._json({"ok": False, "error": str(exc)}, 500)
 

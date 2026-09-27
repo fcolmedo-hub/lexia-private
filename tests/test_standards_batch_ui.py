@@ -129,3 +129,18 @@ def test_status_counts_only_parts_that_would_be_sent_to_api(tmp_path, monkeypatc
     batch._write({"job_id": "std-ui-cost", "phase": "error", "run_ids": [sent, waiting],
                   "chunks": 2, "error_action": "send"})
     assert batch.status("std-ui-cost")["api_parts_pending"] == 1
+
+
+def test_batch_document_link_only_opens_saved_selection(tmp_path, monkeypatch):
+    monkeypatch.setattr(batch, "RUNS", tmp_path / "runs")
+    directory = batch._job_dir("std-ui-documents")
+    directory.mkdir(parents=True)
+    path = str(tmp_path / "sin-estandar.pdf")
+    (directory / "selection.txt").write_text(path + "\n", encoding="utf-8")
+    assert batch.selected_document_path("std-ui-documents", path) == path
+    try:
+        batch.selected_document_path("std-ui-documents", str(tmp_path / "otro.pdf"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("An unrelated path must not be opened")
