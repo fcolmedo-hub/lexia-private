@@ -14,7 +14,7 @@ from tools.exportar_estandares_piloto import (
     _load_requested_paths,
     export_documents,
 )
-from tools.preseleccionar_fallos_estandares import imported_documents
+from tools.preseleccionar_fallos_estandares import imported_documents, pending_documents
 from tools.tribunales_estandares import load_courts, metadata_with_court
 from tools.importar_estandares_sqlite import import_validated_run
 from tools.preparar_canonicalizacion_estandares import build_candidates
@@ -152,6 +152,13 @@ class StandardsPipeline:
                 "Fallos ya importados en el diccionario (por ruta o contenido):\n"
                 + "\n".join(f"- {path}" for path in repeated[:20])
             )
+        pending_paths, pending_hashes = pending_documents(self.runs_root, exclude_run_id=self.run_id)
+        pending = [document.path for document in documents
+                   if document.path.casefold() in pending_paths
+                   or (document.content_hash and document.content_hash.casefold() in pending_hashes)]
+        if pending:
+            raise RuntimeError("Fallos ya preparados o enviados a la API en otro lote:\n"
+                               + "\n".join(f"- {path}" for path in pending[:20]))
 
         source_dir = self.run_dir / "source"
         prepared_dir = self.run_dir / "prepared_v5"
@@ -233,6 +240,14 @@ class StandardsPipeline:
         state = self.load_state()
         if state.get("stage") != "extraction_ready_to_submit":
             raise RuntimeError("La extracción no está lista para enviar")
+        pending_paths, pending_hashes = pending_documents(self.runs_root, exclude_run_id=self.run_id, submitted_only=True)
+        source_rows = load_jsonl(self.run_dir / "source" / "fallos.jsonl")
+        repeated = [str(row["document_path"]) for row in source_rows
+                    if str(row["document_path"]).casefold() in pending_paths
+                    or (row.get("content_hash") and str(row["content_hash"]).casefold() in pending_hashes)]
+        if repeated:
+            raise RuntimeError("Estos fallos ya fueron enviados a la API en otro lote:\n"
+                               + "\n".join(f"- {path}" for path in repeated[:20]))
         code = submit_extraction_batch(Namespace(workdir=self.run_dir / "extraction_batch"))
         if code != 0:
             raise RuntimeError("No se pudo enviar el lote de extracción")
