@@ -21,7 +21,8 @@ TARGET = "FETCH_HEAD"
 def git(root: Path, *args: str) -> bytes:
     result = subprocess.run(["git", *args], cwd=root, capture_output=True)
     if result.returncode:
-        raise RuntimeError(result.stderr.decode("utf-8", errors="replace").strip())
+        detail = (result.stderr or result.stdout).decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"Falló git {' '.join(args)} (código {result.returncode}). {detail}".strip())
     return result.stdout
 
 
@@ -86,7 +87,10 @@ def merge(current: bytes, before: bytes, after: bytes) -> bytes:
 
 
 def changes(root: Path, base: str = BASE, target: str = TARGET) -> dict[str, bytes]:
-    git(root, "merge-base", "--is-ancestor", base, target)
+    # A shallow Windows checkout can have both objects but no complete parent
+    # chain for merge-base. The three-way comparison only needs those objects.
+    git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
+    git(root, "rev-parse", "--verify", f"{target}^{{commit}}")
     raw = git(root, "diff", "--name-status", "-z", "--diff-filter=AM", base, target, "--")
     fields = raw.decode("utf-8").split("\0")
     planned: dict[str, bytes] = {}
