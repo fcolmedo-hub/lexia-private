@@ -7,7 +7,7 @@ import uuid
 from argparse import Namespace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from services.standards_relation_engine import apply_relation_decisions, load_jsonl
 from tools.exportar_estandares_piloto import (
@@ -49,6 +49,7 @@ class StandardsPipeline:
         db_path: Path,
         runs_root: Path,
         run_id: str | None = None,
+        progress: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.db_path = db_path.resolve()
@@ -56,6 +57,11 @@ class StandardsPipeline:
         self.run_id = run_id or self._new_run_id()
         self.run_dir = self.runs_root / self.run_id
         self.state_path = self.run_dir / "state.json"
+        self.progress = progress
+
+    def _progress(self, **values: Any) -> None:
+        if self.progress is not None:
+            self.progress(values)
 
     @staticmethod
     def _new_run_id() -> str:
@@ -168,6 +174,8 @@ class StandardsPipeline:
 
         source_rows: list[dict[str, Any]] = []
         for pilot_id, document in enumerate(documents, start=1):
+            self._progress(stage="export", current=pilot_id, total=len(documents), file=document.name,
+                           standards=0)
             source_rows.append({
                 "pilot_id": pilot_id,
                 "document_path": document.path,
@@ -186,6 +194,8 @@ class StandardsPipeline:
         prompt_rows: list[dict[str, Any]] = []
         units = 0
         for row in source_rows:
+            self._progress(stage="prepare", current=len(prepared_rows)+1, total=len(source_rows),
+                           file=row["document_name"], standards=0)
             prepared, document_text = prepare_document_v5(row)
             prepared_rows.append(prepared)
             if len(prepared_rows) == 1 or len(prepared_rows) % 10 == 0 or len(prepared_rows) == len(source_rows):
@@ -200,6 +210,8 @@ class StandardsPipeline:
                 "document_name": prepared["document_name"],
                 "prompt": prompt_template + "\n\n" + document_text,
             })
+            self._progress(stage="prepare", current=len(prepared_rows), total=len(source_rows),
+                           file=row["document_name"], standards=0)
         dump_jsonl(prepared_dir / "fallos.jsonl", prepared_rows)
         dump_jsonl(prepared_dir / "prompts.jsonl", prompt_rows)
 
@@ -266,7 +278,7 @@ class StandardsPipeline:
             raise RuntimeError("No se pudo consultar el estado del lote")
         return self.load_state()
 
-    def collect_extraction(self) -> dict[str, Any]:
+    def collect_extraction(self, *, prepare_relations: bool = True) -> dict[str, Any]:
         state = self.load_state()
         if state.get("stage") != "extraction_submitted":
             raise RuntimeError("No hay una extracción enviada pendiente de recoger")
@@ -277,9 +289,9 @@ class StandardsPipeline:
         if code != 0:
             raise RuntimeError("El lote de extracción contiene respuestas fallidas o inválidas")
         self._transition("extraction_collected")
-        return self._validate_import_and_prepare_relations()
+        return self._validate_import_and_prepare_relations(prepare_relations=prepare_relations)
 
-    def _validate_import_and_prepare_relations(self) -> dict[str, Any]:
+    def _validate_import_and_prepare_relations(self, *, prepare_relations: bool = True) -> dict[str, Any]:
         prepared_path = self.run_dir / "prepared_v5" / "fallos.jsonl"
         documents = load_jsonl(prepared_path)
         by_id = {int(row["pilot_id"]): row for row in documents}
@@ -297,8 +309,15 @@ class StandardsPipeline:
             "metadata_issues": 0,
             "courts_from_api": 0,
         }
-        for response_path in sorted(responses_dir.glob("*_respuesta.txt")):
+        response_paths = sorted(responses_dir.glob("*_respuesta.txt"))
+        for position, response_path in enumerate(response_paths, start=1):
             pilot_id = int(response_path.name.split("_", 1)[0])
+            document = by_id.get(pilot_id)
+            if document is None:
+                validation["format_errors"] += 1
+                continue
+            self._progress(stage="validate", current=position, total=len(response_paths),
+                           file=document["document_name"], standards=validation["standards"])
             try:
                 result = validate_result(
                     by_id[pilot_id], response_path.read_text(encoding="utf-8")
@@ -330,6 +349,9 @@ class StandardsPipeline:
             validation["evidence_resolved"] += int(values["evidence_resolved"])
             validation["invalid_evidence"] += int(values["invalid_evidence"])
             validation["needs_review"] += int(bool(values["needs_review"]))
+            self._progress(stage="validate", current=position, total=len(response_paths),
+                           file=document["document_name"], standards=validation["standards"],
+                           file_standards=int(values["standards_count"]))
         if validation["format_errors"]:
             raise RuntimeError(
                 f"Hay {validation['format_errors']} respuestas con formato inválido; no se importó el lote"
@@ -342,6 +364,8 @@ class StandardsPipeline:
         updated_path.replace(prepared_path)
 
         state = self.load_state()
+        self._progress(stage="import", current=0, total=len(documents), file="Importando estándares",
+                       standards=validation["standards"])
         imported = import_validated_run(
             validated_dir=validated_dir,
             fallos_path=prepared_path,
@@ -352,7 +376,9 @@ class StandardsPipeline:
             reasoning_effort=str(state.get("reasoning_effort") or "medium"),
         )
         self._transition("standards_imported", validation=validation, import_result=imported)
-        return self.prepare_relations()
+        self._progress(stage="import", current=len(documents), total=len(documents), file="Importación completa",
+                       standards=validation["standards"])
+        return self.prepare_relations() if prepare_relations else self.load_state()
 
     def prepare_relations(self) -> dict[str, Any]:
         state = self.load_state()

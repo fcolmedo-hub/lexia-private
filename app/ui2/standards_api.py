@@ -465,6 +465,14 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or "0")
             raw = self.rfile.read(length) if length > 0 else b"{}"
             payload = json.loads(raw.decode("utf-8"))
+            if parsed.path.startswith("/api/batch-"):
+                from services import standards_batch_ui as batch_ui
+                if parsed.path == "/api/batch-preview":
+                    return self._json(batch_ui.preview(str(payload.get("folder") or "")))
+                if parsed.path == "/api/batch-prepare":
+                    return self._json(batch_ui.prepare(payload))
+                if parsed.path == "/api/batch-action":
+                    return self._json(batch_ui.act(str(payload.get("job_id") or ""), str(payload.get("action") or "")))
             if parsed.path == "/api/manual-standard":
                 return self._json(_manual_standard(payload))
             if parsed.path == "/api/canonical-decision":
@@ -483,6 +491,14 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         try:
+            if parsed.path.startswith("/api/batch-"):
+                from services import standards_batch_ui as batch_ui
+                if parsed.path == "/api/batch-folders":
+                    return self._json({"items": batch_ui.folders(_one(qs, "q"))})
+                if parsed.path == "/api/batch-status":
+                    return self._json(batch_ui.status(_one(qs, "job_id")))
+                if parsed.path == "/api/batch-recent":
+                    return self._json({"items": batch_ui.recent()})
             if parsed.path == "/api/health":
                 return self._json({
                     "ok": True,
