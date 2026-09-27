@@ -440,6 +440,13 @@ def _publication_decision(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _batch_origin_allowed(self) -> bool:
+        origin = self.headers.get("Origin", "")
+        if not origin or origin == "null":  # Desktop WebView/file origin.
+            return True
+        parsed = urlparse(origin)
+        return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}
+
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -462,6 +469,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         try:
+            if parsed.path.startswith("/api/batch-") and not self._batch_origin_allowed():
+                return self._json({"ok": False, "error": "origin_not_allowed"}, 403)
             length = int(self.headers.get("Content-Length") or "0")
             raw = self.rfile.read(length) if length > 0 else b"{}"
             payload = json.loads(raw.decode("utf-8"))
@@ -491,6 +500,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         try:
+            if parsed.path.startswith("/api/batch-") and not self._batch_origin_allowed():
+                return self._json({"ok": False, "error": "origin_not_allowed"}, 403)
             if parsed.path.startswith("/api/batch-"):
                 from services import standards_batch_ui as batch_ui
                 if parsed.path == "/api/batch-folders":
