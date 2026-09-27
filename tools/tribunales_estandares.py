@@ -7,8 +7,10 @@ from pathlib import Path
 
 
 def load_courts(paths: list[str], *, court: str | None = None, courts_file: Path | None = None) -> dict[str, str]:
-    if bool(court is not None) == bool(courts_file is not None):
-        raise ValueError("Indicá --court o --courts-file para el lote.")
+    if court is not None and courts_file is not None:
+        raise ValueError("Indicá --court o --courts-file, no ambos.")
+    if court is None and courts_file is None:
+        return {}
     selected = {path.casefold(): path for path in paths}
     if court is not None:
         value = court.strip()
@@ -39,9 +41,10 @@ def load_courts(paths: list[str], *, court: str | None = None, courts_file: Path
     return {path: assigned[path.casefold()] for path in paths}
 
 
-def metadata_with_court(original: dict, court: str) -> dict:
+def metadata_with_court(original: dict, court: str | None) -> dict:
     metadata = {key: value for key, value in original.items()
-                if str(key).casefold() not in {"court", "tribunal"}}
-    metadata["court"] = court
-    metadata["_lexia_court_source"] = "batch_input"
+                if str(key).casefold() not in {"court", "tribunal", "date", "fecha", "chamber", "sala", "case_number"}}
+    if court:
+        metadata["court"] = court
+        metadata["_lexia_court_source"] = "batch_input"
     return metadata
