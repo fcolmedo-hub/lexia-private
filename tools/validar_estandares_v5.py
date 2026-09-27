@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import unicodedata
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +15,81 @@ except ImportError:  # ejecución directa desde tools/
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FALLOS = REPO_ROOT / "runtime" / "standards_pilot" / "export_50_v5" / "fallos.jsonl"
+
+METADATA_FIELDS = ("court", "chamber", "judgment_date", "case_number")
+MONTHS = {name: number for number, name in enumerate(
+    ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"), start=1
+)}
+
+
+def normalized(value: str) -> str:
+    plain = unicodedata.normalize("NFKD", value)
+    plain = "".join(c for c in plain if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", plain).strip().casefold()
+
+
+def iso_date(value: str) -> str | None:
+    text = normalized(value)
+    match = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    if match:
+        year, month, day = map(int, match.groups())
+    else:
+        match = re.fullmatch(r"(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})", text)
+        if match:
+            day, month, year = map(int, match.groups())
+        else:
+            match = re.fullmatch(r"(\d{1,2}) de ([a-z]+) de (\d{4})", text)
+            if not match or match.group(2) not in MONTHS:
+                return None
+            day, month, year = int(match.group(1)), MONTHS[match.group(2)], int(match.group(3))
+    try:
+        return date(year, month, day).isoformat()
+    except ValueError:
+        return None
+
+
+def validate_document_metadata(parsed: dict, units: dict[str, dict], chunks: dict[str, dict]) -> tuple[dict, dict, list[dict]]:
+    proposals = parsed.get("document_metadata")
+    if not isinstance(proposals, dict):
+        return {}, {}, []  # Respuestas V5 anteriores no traen estos campos.
+    accepted: dict[str, str] = {}
+    evidence: dict[str, dict] = {}
+    issues: list[dict] = []
+    for field in METADATA_FIELDS:
+        candidate = proposals.get(field)
+        if not isinstance(candidate, dict):
+            issues.append({"field": field, "reason": "missing_field"})
+            continue
+        value = str(candidate.get("value") or "").strip()
+        ids = candidate.get("unit_ids")
+        if not value and ids == []:
+            continue
+        if not value or not isinstance(ids, list) or not ids or any(not isinstance(uid, str) for uid in ids):
+            issues.append({"field": field, "reason": "missing_value_or_source"})
+            continue
+        resolved = [units.get(uid) for uid in ids]
+        if any(unit is None for unit in resolved):
+            issues.append({"field": field, "reason": "unknown_unit_id"})
+            continue
+        chunk_ids = {unit["chunk_id"] for unit in resolved}
+        indices = [int(unit["unit_index"]) for unit in resolved]
+        if len(chunk_ids) != 1 or indices != list(range(indices[0], indices[0] + len(indices))):
+            issues.append({"field": field, "reason": "non_contiguous_source"})
+            continue
+        source = chunks[next(iter(chunk_ids))]["text"]
+        literal = source[int(resolved[0]["start_offset"]):int(resolved[-1]["end_offset"])]
+        if normalized(value) not in normalized(literal):
+            issues.append({"field": field, "reason": "value_not_in_source"})
+            continue
+        if field == "judgment_date":
+            converted = iso_date(value)
+            if converted is None:
+                issues.append({"field": field, "reason": "unsupported_date"})
+                continue
+            value = converted
+        accepted[field] = value
+        evidence[field] = {"unit_ids": ids, "literal": literal}
+    return accepted, evidence, issues
 
 
 def validate_result(document: dict[str, Any], response_text: str) -> dict[str, Any]:
@@ -34,6 +112,8 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
             unit_id = str(unit.get("unit_id") or "")
             if unit_id:
                 units[unit_id] = {**unit, "chunk_id": chunk_id}
+
+    metadata, metadata_evidence, metadata_issues = validate_document_metadata(parsed, units, chunks)
 
     output_standards: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
@@ -117,6 +197,9 @@ def validate_result(document: dict[str, Any], response_text: str) -> dict[str, A
         output_standards.append(standard)
 
     return {
+        "document_metadata": metadata,
+        "document_metadata_evidence": metadata_evidence,
+        "document_metadata_issues": metadata_issues,
         "standards": output_standards,
         "validation": {
             "standards_count": len(output_standards),
