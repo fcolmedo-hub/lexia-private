@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from services.standards_pipeline import StandardsPipeline
+from tools.tribunales_estandares import load_courts, metadata_with_court
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,7 @@ def test_prepare_creates_resumable_v5_run_without_api(tmp_path):
     state = pipeline.prepare(
         catalog_path=catalog,
         paths_file=selection,
+        court="Cámara de Apelaciones de Santa Fe, Sala I",
         model="test-model",
         reasoning_effort="medium",
     )
@@ -62,6 +64,10 @@ def test_prepare_creates_resumable_v5_run_without_api(tmp_path):
     assert state["documents"] == 1
     assert state["units"] > 0
     assert (pipeline.run_dir / "prepared_v5" / "fallos.jsonl").exists()
+    prepared = json.loads((pipeline.run_dir / "prepared_v5" / "fallos.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert prepared["metadata"]["court"] == "Cámara de Apelaciones de Santa Fe, Sala I"
+    prompt = json.loads((pipeline.run_dir / "prepared_v5" / "prompts.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert '"court":"Cámara de Apelaciones de Santa Fe, Sala I"' in prompt["prompt"]
     assert (pipeline.run_dir / "extraction_batch" / "batch_input.jsonl").exists()
     assert pipeline.summary()["state"]["run_id"] == "run-test"
 
@@ -87,6 +93,7 @@ def test_prepare_refuses_legacy_relations_without_decision_history(tmp_path):
         pipeline.prepare(
             catalog_path=catalog,
             paths_file=selection,
+            court="CSJN",
             model="test-model",
             reasoning_effort="medium",
         )
@@ -105,6 +112,18 @@ def test_prepare_refuses_already_imported_content_before_creating_run(tmp_path):
         ))
     pipeline = StandardsPipeline(repo_root=ROOT, db_path=db, runs_root=tmp_path / "runs", run_id="repeated")
     with pytest.raises(RuntimeError, match="ya importados"):
-        pipeline.prepare(catalog_path=catalog, paths_file=selection,
+        pipeline.prepare(catalog_path=catalog, paths_file=selection, court="CSJN",
                          model="test-model", reasoning_effort="medium")
     assert not pipeline.run_dir.exists()
+
+
+def test_courts_file_requires_exact_coverage_and_replaces_bad_catalog_court(tmp_path):
+    paths = [r"D:\Fallos\uno.pdf", r"D:\Fallos\dos.pdf"]
+    csv_path = tmp_path / "tribunales.csv"
+    csv_path.write_text('document_path,court\n"D:\\Fallos\\uno.pdf","Cámara Civil, Sala I"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="Faltan tribunales"):
+        load_courts(paths, courts_file=csv_path)
+    csv_path.write_text('document_path,court\n"D:\\Fallos\\uno.pdf","Cámara Civil, Sala I"\n"D:\\Fallos\\dos.pdf",CSJN\n', encoding="utf-8")
+    courts = load_courts(paths, courts_file=csv_path)
+    metadata = metadata_with_court({"Tribunal": "Juzgado equivocado", "fecha": "2020-01-01"}, courts[paths[0]])
+    assert metadata == {"fecha": "2020-01-01", "court": "Cámara Civil, Sala I", "_lexia_court_source": "batch_input"}
