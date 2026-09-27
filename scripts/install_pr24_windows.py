@@ -21,6 +21,7 @@ PREVIOUS_INSTALLED = "5fabf7722253b74bd11a605cfde7621b52e37df6"
 PREVIOUS_CURRENT = "57352ba850f047d59e0e9c84dc8af495fb80126e"
 PREVIOUS_BATCH_UI = "effc5ed4d0e1c0cf67863593ce90df7fcdb72a77"
 PREVIOUS_TREE_UI = "e2c3560898a441226715d7a8b51f2a9d13af92b3"
+PREVIOUS_COLLAPSED_UI = "22b4b1249f73dbca92409043b00dae11b5bc5133"
 TARGET = "FETCH_HEAD"
 
 
@@ -95,7 +96,7 @@ def merge(current: bytes, before: bytes, after: bytes) -> bytes:
     return encode("".join(merged), bom, crlf)
 
 
-def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS, previous_feature: str = PREVIOUS_FEATURE, previous_installed: str = PREVIOUS_INSTALLED, previous_current: str = PREVIOUS_CURRENT, previous_batch_ui: str = PREVIOUS_BATCH_UI, previous_tree_ui: str = PREVIOUS_TREE_UI) -> dict[str, bytes]:
+def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS, previous_feature: str = PREVIOUS_FEATURE, previous_installed: str = PREVIOUS_INSTALLED, previous_current: str = PREVIOUS_CURRENT, previous_batch_ui: str = PREVIOUS_BATCH_UI, previous_tree_ui: str = PREVIOUS_TREE_UI, previous_collapsed_ui: str = PREVIOUS_COLLAPSED_UI) -> dict[str, bytes]:
     # A shallow Windows checkout can have both objects but no complete parent
     # chain for merge-base. The three-way comparison only needs those objects.
     git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
@@ -123,7 +124,7 @@ def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = 
                 # Earlier installers may have added this path to the working
                 # tree without a commit. Try their exact published versions.
                 error = None
-                for reference in (previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui):
+                for reference in (previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui, previous_collapsed_ui):
                     try:
                         candidate = merge(current, git(root, "show", f"{reference}:{name}"), target_content)
                         break
@@ -139,7 +140,7 @@ def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = 
                 conflicts.append(name + " (falta el archivo local)")
                 continue
             error = None
-            for reference in (base, previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui):
+            for reference in (base, previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui, previous_collapsed_ui):
                 try:
                     candidate = merge(current, git(root, "show", f"{reference}:{name}"), target_content)
                     break
