@@ -293,7 +293,7 @@ class SecureDocumentDeletionService:
             return 0
         return int(repository.remove_path(str(path)) or 0)
 
-    def delete(self, path_value) -> dict:
+    def delete(self, path_value, *, require_duplicate: bool = False) -> dict:
         path = self._validate_path(path_value)
         if self.ocr_queue.state().get("running"):
             raise RuntimeError(
@@ -313,6 +313,8 @@ class SecureDocumentDeletionService:
                     "El documento ya no existe en el catalogo activo."
                 )
             is_duplicate = bool(str(state.get("duplicate_of") or "").strip())
+            if require_duplicate and not is_duplicate:
+                raise ValueError("El archivo ya no figura como duplicado activo en LexIA.")
 
             try:
                 if path.exists():
