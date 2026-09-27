@@ -52,8 +52,11 @@ def merge(current: bytes, before: bytes, after: bytes) -> bytes:
         result = subprocess.run(["git", "merge-file", "-p", *(str(path) for path in paths)], capture_output=True)
     if result.returncode == 0:
         return encode(result.stdout.decode("utf-8"), bom, crlf)
-    if result.returncode != 1:
-        raise RuntimeError(result.stderr.decode("utf-8", errors="replace"))
+    # git merge-file returns the number of conflicts (capped at 127), so 2+
+    # is also a merge conflict, not an unexplained process failure.
+    if result.returncode < 0 or result.returncode >= 128:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"Falló git merge-file (código {result.returncode}). {detail}")
     # Git groups adjacent edits into a conflict even when they touch distinct
     # lines. Retry only when every edit occupies a disjoint base-line range.
     base_lines = old.splitlines(keepends=True)
