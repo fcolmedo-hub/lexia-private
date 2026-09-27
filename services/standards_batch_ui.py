@@ -182,6 +182,17 @@ def status(job_id: str) -> dict[str, Any]:
         job["error"] = "El servicio se cerró durante el trabajo. Podés reanudar la etapa."
         job["error_action"] = action
         _write(job)
+    pending = 0
+    for run_id in job.get("run_ids") or []:
+        if not run_id:
+            continue
+        state_path = RUNS / run_id / "state.json"
+        if not state_path.is_file():
+            continue
+        stage = json.loads(state_path.read_text(encoding="utf-8")).get("stage")
+        if stage == "extraction_ready_to_submit" and not (RUNS / run_id / "extraction_batch" / "batch_state.json").is_file():
+            pending += 1
+    job["api_parts_pending"] = pending
     return job
 
 

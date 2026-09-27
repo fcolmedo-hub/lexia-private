@@ -117,3 +117,15 @@ def test_progress_clears_previous_interruption_message(tmp_path, monkeypatch):
     assert job["error"] == job["error_action"] == ""
     saved = json.loads((batch._job_dir(job["job_id"]) / "job.json").read_text(encoding="utf-8"))
     assert saved["message"] == "API: 125 respuestas"
+
+
+def test_status_counts_only_parts_that_would_be_sent_to_api(tmp_path, monkeypatch):
+    monkeypatch.setattr(batch, "RUNS", tmp_path / "runs")
+    sent, waiting = "std-ui-test-part-001", "std-ui-test-part-002"
+    for run_id, stage in [(sent, "extraction_collected"), (waiting, "extraction_ready_to_submit")]:
+        directory = batch.RUNS / run_id
+        directory.mkdir(parents=True)
+        (directory / "state.json").write_text(json.dumps({"stage": stage}), encoding="utf-8")
+    batch._write({"job_id": "std-ui-cost", "phase": "error", "run_ids": [sent, waiting],
+                  "chunks": 2, "error_action": "send"})
+    assert batch.status("std-ui-cost")["api_parts_pending"] == 1

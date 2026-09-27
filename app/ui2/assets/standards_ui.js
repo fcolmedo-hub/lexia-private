@@ -145,8 +145,16 @@
   }
   function scheduleBatchPoll(){window.clearTimeout(batch.timer);if(batch.visible&&batch.jobId)batch.timer=window.setTimeout(batchPoll,2500);}
   async function batchAction(action){
-    const description=action==='send'?'enviar los fallos a la API e iniciar la extracción (con costo)':'enviar las comparaciones de relaciones a la API (con costo)';
-    if((action==='send'||action==='relations')&&!window.confirm(`¿Querés ${description}?`))return;
+    if(action==='send'){
+      let current;
+      try{current=await api('/api/batch-status?job_id='+encodeURIComponent(batch.jobId));}
+      catch(error){batchMessage('No se pudo verificar qué partes ya fueron enviadas: '+error.message,true);return;}
+      const pending=Number(current.api_parts_pending||0), sent=Math.max(0,Number(current.chunks||0)-pending);
+      const description=current.phase==='error'
+        ?`${sent} parte(s) ya enviadas se retomarán sin repetir el envío. Quedan ${pending} parte(s) pendientes${pending?' que se enviarán luego a la API con costo':''}. ¿Querés continuar?`
+        :`¿Querés enviar ${pending} parte(s) a la API? Este envío tendrá costo.`;
+      if(!window.confirm(description))return;
+    }else if(action==='relations'&&!window.confirm('¿Querés enviar las comparaciones de relaciones a la API? Este envío tendrá costo.'))return;
     try{const job=await api('/api/batch-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:batch.jobId,action})});renderBatchJob(job);scheduleBatchPoll();}
     catch(error){batchMessage(error.message,true);}
   }
