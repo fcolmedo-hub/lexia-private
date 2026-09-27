@@ -1,6 +1,7 @@
 import json
+from argparse import Namespace
 
-from tools.procesar_estandares_batch_v5 import SCHEMA
+from tools.procesar_estandares_batch_v5 import SCHEMA, cmd_submit
 from tools.validar_estandares_v5 import validate_result
 
 
@@ -39,3 +40,9 @@ def test_unsupported_or_unsubstantiated_metadata_stays_out_of_dictionary():
     assert result["document_metadata"] == {}
     assert {issue["field"] for issue in result["document_metadata_issues"]} == {"court", "judgment_date"}
     assert "document_metadata" in SCHEMA["required"]
+
+
+def test_resuming_recorded_batch_does_not_call_api(tmp_path, monkeypatch):
+    (tmp_path / "batch_state.json").write_text('{"batch_id":"batch_existing"}', encoding="utf-8")
+    monkeypatch.setattr("tools.procesar_estandares_batch_v5.require_sdk", lambda: (_ for _ in ()).throw(AssertionError("API called")))
+    assert cmd_submit(Namespace(workdir=tmp_path)) == 0
