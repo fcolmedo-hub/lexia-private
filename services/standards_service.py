@@ -106,7 +106,7 @@ class StandardsService:
             "occurrences_total": 0,
             "visible_occurrences": 0,
             "reserved_occurrences": 0,
-            "incomplete_evidence_occurrences": 0,
+            "evidence_attention_occurrences": 0,
             "rejected_occurrences": 0,
         }
         if not self.available():
@@ -121,9 +121,9 @@ class StandardsService:
             visible_occurrences = int(con.execute(
                 "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
             ).fetchone()[0])
-            incomplete_evidence = int(con.execute(
+            evidence_attention = int(con.execute(
                 "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
-                + " AND " + self._incomplete_evidence_sql()
+                + " AND (s.publication_status='blocked' OR " + self._incomplete_evidence_sql() + ")"
             ).fetchone()[0])
             if _canonical_ready(con):
                 canonical_total = int(con.execute(
@@ -148,7 +148,7 @@ class StandardsService:
             "occurrences_total": occurrences_total,
             "visible_occurrences": visible_occurrences,
             "reserved_occurrences": max(0, active_occurrences - visible_occurrences),
-            "incomplete_evidence_occurrences": incomplete_evidence,
+            "evidence_attention_occurrences": evidence_attention,
             "rejected_occurrences": max(0, occurrences_total - active_occurrences),
         }
 
@@ -159,13 +159,16 @@ class StandardsService:
     @staticmethod
     def _evidence_reason(con: sqlite3.Connection, uid: str) -> str:
         has_quote = con.execute("SELECT 1 FROM quotes WHERE standard_uid=? AND TRIM(quote_text)<>'' LIMIT 1", (uid,)).fetchone()
-        return "Falta la página de la cita" if has_quote else "Falta una cita literal y su página"
+        if not has_quote:
+            return "Falta una cita literal y su página"
+        has_page = con.execute("SELECT 1 FROM quotes WHERE standard_uid=? AND TRIM(quote_text)<>'' AND page_start>0 LIMIT 1", (uid,)).fetchone()
+        return "Revisá la incidencia de la extracción" if has_page else "Falta la página de la cita"
 
     def reserved_standards(self, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
         """List stored occurrences excluded by the publication policy."""
         if not self.available():
             return {"ok": True, "available": False, "total": 0, "items": []}
-        where = "(" + self._base_visibility_sql() + ") AND " + self._incomplete_evidence_sql()
+        where = "(" + self._base_visibility_sql() + ") AND (s.publication_status='blocked' OR " + self._incomplete_evidence_sql() + ")"
         with _ro_connect(self.db_path) as con:
             total = int(con.execute(
                 "SELECT COUNT(*) FROM standards s WHERE " + where
@@ -191,7 +194,7 @@ class StandardsService:
         uid = str(standard_uid or "").strip()
         if not uid:
             return None
-        where = "s.standard_uid=? AND (" + self._base_visibility_sql() + ") AND " + self._incomplete_evidence_sql()
+        where = "s.standard_uid=? AND (" + self._base_visibility_sql() + ") AND (s.publication_status='blocked' OR " + self._incomplete_evidence_sql() + ")"
         with _ro_connect(self.db_path) as con:
             row = con.execute(
                 """SELECT s.*,d.document_name,d.document_path,d.source_key,d.court,
