@@ -83,6 +83,23 @@ def test_prepare_without_manual_court_waits_for_sourced_api_attribution(tmp_path
     assert "court" not in prepared["metadata"]  # El CSJN del catálogo no fue comprobado.
 
 
+def test_prepare_refuses_pending_batch_before_creating_another_run(tmp_path):
+    catalog, selection = make_catalog(tmp_path)
+    runs = tmp_path / "runs"
+    previous = runs / "previous"
+    (previous / "source").mkdir(parents=True)
+    (previous / "source" / "fallos.jsonl").write_text(json.dumps({
+        "document_path": selection.read_text().strip(), "content_hash": "",
+    }) + "\n")
+    (previous / "state.json").write_text(json.dumps({"stage": "extraction_submitted"}))
+    pipeline = StandardsPipeline(repo_root=ROOT, db_path=tmp_path / "standards.sqlite3",
+                                 runs_root=runs, run_id="new-run")
+    with pytest.raises(RuntimeError, match="ya preparados o enviados"):
+        pipeline.prepare(catalog_path=catalog, paths_file=selection,
+                         model="test-model", reasoning_effort="medium")
+    assert not pipeline.run_dir.exists()
+
+
 def test_prepare_refuses_legacy_relations_without_decision_history(tmp_path):
     catalog, selection = make_catalog(tmp_path)
     db = tmp_path / "standards.sqlite3"
