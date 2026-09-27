@@ -72,6 +72,17 @@ def test_prepare_creates_resumable_v5_run_without_api(tmp_path):
     assert pipeline.summary()["state"]["run_id"] == "run-test"
 
 
+def test_prepare_without_manual_court_waits_for_sourced_api_attribution(tmp_path):
+    catalog, selection = make_catalog(tmp_path)
+    pipeline = StandardsPipeline(repo_root=ROOT, db_path=tmp_path / "standards.sqlite3",
+                                 runs_root=tmp_path / "runs", run_id="auto-court")
+    state = pipeline.prepare(catalog_path=catalog, paths_file=selection,
+                             model="test-model", reasoning_effort="medium")
+    prepared = json.loads((pipeline.run_dir / "prepared_v5" / "fallos.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert state["court_source"] == "api"
+    assert "court" not in prepared["metadata"]  # El CSJN del catálogo no fue comprobado.
+
+
 def test_prepare_refuses_legacy_relations_without_decision_history(tmp_path):
     catalog, selection = make_catalog(tmp_path)
     db = tmp_path / "standards.sqlite3"
