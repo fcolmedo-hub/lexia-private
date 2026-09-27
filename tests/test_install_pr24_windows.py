@@ -15,6 +15,18 @@ def test_merge_keeps_unrelated_local_edit_and_newlines():
     assert merge(current, before, after) == b"first\r\nsecond changed\r\nthird local\r\n"
 
 
+def test_multiple_merge_conflicts_report_a_useful_error():
+    before = b"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n"
+    local = b"one\nlocal two\nthree\nfour\nfive\nlocal six\nseven\neight\n"
+    after = b"one\nnew two\nthree\nfour\nfive\nnew six\nseven\neight\n"
+    try:
+        merge(local, before, after)
+    except ValueError as error:
+        assert "cambios locales se cruzan" in str(error)
+    else:
+        raise AssertionError("Se esperaba una descripción del conflicto")
+
+
 def test_preflight_is_atomic_when_another_file_conflicts(tmp_path):
     root = tmp_path / "project"
     root.mkdir()
