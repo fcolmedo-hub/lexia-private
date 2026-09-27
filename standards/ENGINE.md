@@ -115,10 +115,11 @@ ni elimina las apariciones originales.
 ## Evidencia incompleta
 
 Las apariciones extraídas y las cargas manuales se muestran en el diccionario
-aunque falte una cita literal o su página. Las rechazadas y las versiones
+aunque falte una cita literal, su página u otra validación de extracción. Las rechazadas y las versiones
 automáticas reemplazadas permanecen ocultas. La interfaz indica qué evidencia
 falta en cada aparición y ofrece una lista de casos incompletos. El usuario
-puede abrir el fallo, completar la cita o excluir la aparición del diccionario.
+puede abrir el fallo, completar la cita, confirmar una incidencia con evidencia
+completa o excluir la aparición del diccionario.
 La cita agregada se registra como `manual_review` con auditoría en
 `standard_citation_decisions`; una exclusión se registra en
 `standard_publication_decisions`. El estado histórico `needs_review/blocked`
