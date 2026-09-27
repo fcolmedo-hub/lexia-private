@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import ntpath
+import posixpath
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -37,7 +40,19 @@ def imported_documents(standards_db: Path) -> tuple[set[str], set[str]]:
     return paths, hashes
 
 
-def candidates(catalog: Path, standards_db: Path, contains: str, limit: int) -> list[str]:
+def within_folder(path: str, folder: str | Path) -> bool:
+    """Compare full directory boundaries, including Windows paths on any host."""
+    source = str(path)
+    selected = str(folder)
+    windows = bool(re.match(r"^[A-Za-z]:[\\/]|^\\\\", selected))
+    path_module = ntpath if windows else posixpath
+    normalize = lambda value: path_module.normcase(path_module.normpath(value))
+    root = normalize(selected)
+    document = normalize(source)
+    return document.startswith(root.rstrip("\\/") + path_module.sep)
+
+
+def candidates(catalog: Path, standards_db: Path, contains: str, limit: int, *, folder: str | Path | None = None) -> list[str]:
     if not catalog.is_file():
         raise FileNotFoundError(f"No existe el catálogo: {catalog}")
     excluded, excluded_hashes = imported_documents(standards_db)
@@ -56,6 +71,8 @@ def candidates(catalog: Path, standards_db: Path, contains: str, limit: int) -> 
         )
         selected_hashes: set[str] = set()
         for path, content_hash in rows:
+            if folder is not None and not within_folder(str(path), folder):
+                continue
             digest = str(content_hash or "").casefold()
             if (str(path).casefold() in excluded or
                     digest and (digest in excluded_hashes or digest in selected_hashes)):
@@ -80,17 +97,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=Path(SETTINGS.catalog_path))
     parser.add_argument("--db", type=Path, default=Path(SETTINGS.runtime_path) / "standards" / "standards.sqlite3")
-    parser.add_argument("--path-contains", required=True, help="Parte de la ruta o carpeta que delimita el lote")
+    scope = parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--path-contains", help="Parte de la ruta que delimita el lote")
+    scope.add_argument("--folder", type=Path, help="Carpeta exacta elegida; incluye sus subcarpetas")
     parser.add_argument("--limit", type=int, default=250)
     parser.add_argument("--output", type=Path, required=True, help="TXT de rutas para revisar antes de prepare")
     args = parser.parse_args()
-    if not args.path_contains.strip() or not 1 <= args.limit <= 250:
-        parser.error("Indicá una carpeta y un límite de 1 a 250 fallos.")
+    if not 1 <= args.limit <= 250:
+        parser.error("Indicá un límite de 1 a 250 fallos.")
+    if args.folder is not None and not args.folder.is_dir():
+        parser.error(f"No existe la carpeta seleccionada: {args.folder}")
+    if args.folder is None and not args.path_contains.strip():
+        parser.error("Indicá una parte de la ruta.")
     if args.output.exists():
         parser.error(f"El archivo ya existe; no se sobrescribe: {args.output}")
     print(f"Revisando Jurisprudencia indexada en {args.catalog}…", flush=True)
     try:
-        paths = candidates(args.catalog, args.db, args.path_contains.strip(), args.limit)
+        contains = args.path_contains.strip() if args.folder is None else args.folder.name
+        paths = candidates(args.catalog, args.db, contains, args.limit, folder=args.folder)
     except (OSError, sqlite3.Error) as error:
         parser.exit(1, f"No se pudo leer el catálogo: {error}\n")
     if not paths:
