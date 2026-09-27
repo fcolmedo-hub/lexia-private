@@ -47,8 +47,17 @@ PHASES = (
     (
         "Pantalla de Mantenimiento disponible al instante",
         TARGET,
-        "FETCH_HEAD",
+        "29b1647f42e64bcfcd766864d01b043ad48074b9",
         ("app/ui2/assets/maintenance.js",),
+    ),
+    (
+        "Pantallas ágiles de Investigación y Mantenimiento",
+        "29b1647f42e64bcfcd766864d01b043ad48074b9",
+        "FETCH_HEAD",
+        (
+            "app/ui2/assets/app_runtime.js",
+            "app/ui2/assets/windows_live_badge_cleanup.js",
+        ),
     ),
 )
 
