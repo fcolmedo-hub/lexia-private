@@ -62,8 +62,8 @@ class StandardsService:
     """Read-only product service for LexIA legal standards.
 
     Publication policy:
-    - rejected/hidden/blocked standards are never exposed.
-    - validated standards in ready/published are searchable.
+    - rejected/hidden standards are never exposed.
+    - incomplete evidence is visible with a warning.
     - confirmed relations are always exposed.
     - proposed weak relations (related_to/supports) may be exposed with a badge.
     - proposed strong relations stay hidden until confirmed.
@@ -76,7 +76,7 @@ class StandardsService:
         return self.db_path.exists()
 
     def _base_visibility_sql(self) -> str:
-        return "s.review_status='validated' AND s.publication_status IN ('ready','published')"
+        return "s.review_status<>'rejected' AND s.publication_status IN ('ready','published','blocked')"
 
     def count(self) -> int:
         """Return the standards exposed by the dictionary, never fragment counts."""
@@ -90,8 +90,8 @@ class StandardsService:
                            SELECT 1 FROM standard_occurrences o
                            JOIN standards s ON s.standard_uid=o.standard_uid
                            WHERE o.canonical_uid=c.canonical_uid
-                             AND s.review_status='validated'
-                             AND s.publication_status IN ('ready','published')
+                             AND s.review_status<>'rejected'
+                             AND s.publication_status IN ('ready','published','blocked')
                        )"""
                 ).fetchone()[0])
             return int(con.execute(
@@ -106,6 +106,7 @@ class StandardsService:
             "occurrences_total": 0,
             "visible_occurrences": 0,
             "reserved_occurrences": 0,
+            "incomplete_evidence_occurrences": 0,
             "rejected_occurrences": 0,
         }
         if not self.available():
@@ -120,6 +121,10 @@ class StandardsService:
             visible_occurrences = int(con.execute(
                 "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
             ).fetchone()[0])
+            incomplete_evidence = int(con.execute(
+                "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
+                + " AND " + self._incomplete_evidence_sql()
+            ).fetchone()[0])
             if _canonical_ready(con):
                 canonical_total = int(con.execute(
                     "SELECT COUNT(*) FROM canonical_standards WHERE status='confirmed'"
@@ -130,8 +135,8 @@ class StandardsService:
                            SELECT 1 FROM standard_occurrences o
                            JOIN standards s ON s.standard_uid=o.standard_uid
                            WHERE o.canonical_uid=c.canonical_uid
-                             AND s.review_status='validated'
-                             AND s.publication_status IN ('ready','published')
+                             AND s.review_status<>'rejected'
+                             AND s.publication_status IN ('ready','published','blocked')
                        )"""
                 ).fetchone()[0])
             else:
@@ -143,28 +148,24 @@ class StandardsService:
             "occurrences_total": occurrences_total,
             "visible_occurrences": visible_occurrences,
             "reserved_occurrences": max(0, active_occurrences - visible_occurrences),
+            "incomplete_evidence_occurrences": incomplete_evidence,
             "rejected_occurrences": max(0, occurrences_total - active_occurrences),
         }
 
     @staticmethod
-    def _reserve_reason(review_status: str, publication_status: str) -> str:
-        if review_status != "validated":
-            return "Requiere validación jurídica"
-        if publication_status == "blocked":
-            return "Publicación bloqueada"
-        if publication_status == "hidden":
-            return "Oculto del diccionario"
-        return "Pendiente de publicación"
+    def _incomplete_evidence_sql() -> str:
+        return "NOT EXISTS (SELECT 1 FROM quotes q WHERE q.standard_uid=s.standard_uid AND TRIM(q.quote_text)<>'' AND q.page_start>0)"
+
+    @staticmethod
+    def _evidence_reason(con: sqlite3.Connection, uid: str) -> str:
+        has_quote = con.execute("SELECT 1 FROM quotes WHERE standard_uid=? AND TRIM(quote_text)<>'' LIMIT 1", (uid,)).fetchone()
+        return "Falta la página de la cita" if has_quote else "Falta una cita literal y su página"
 
     def reserved_standards(self, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
         """List stored occurrences excluded by the publication policy."""
         if not self.available():
             return {"ok": True, "available": False, "total": 0, "items": []}
-        where = (
-            "s.review_status<>'rejected' AND NOT ("
-            + self._base_visibility_sql()
-            + ")"
-        )
+        where = "(" + self._base_visibility_sql() + ") AND " + self._incomplete_evidence_sql()
         with _ro_connect(self.db_path) as con:
             total = int(con.execute(
                 "SELECT COUNT(*) FROM standards s WHERE " + where
@@ -179,10 +180,8 @@ class StandardsService:
                 (max(1, min(int(limit), 200)), max(0, int(offset))),
             ).fetchall()
             items = [dict(row) for row in rows]
-        for item in items:
-            item["reserve_reason"] = self._reserve_reason(
-                str(item["review_status"]), str(item["publication_status"])
-            )
+            for item in items:
+                item["reserve_reason"] = self._evidence_reason(con, item["standard_uid"])
         return {"ok": True, "available": True, "total": total, "items": items}
 
     def get_reserved_standard(self, standard_uid: str) -> dict[str, Any] | None:
@@ -192,11 +191,7 @@ class StandardsService:
         uid = str(standard_uid or "").strip()
         if not uid:
             return None
-        where = (
-            "s.standard_uid=? AND s.review_status<>'rejected' AND NOT ("
-            + self._base_visibility_sql()
-            + ")"
-        )
+        where = "s.standard_uid=? AND (" + self._base_visibility_sql() + ") AND " + self._incomplete_evidence_sql()
         with _ro_connect(self.db_path) as con:
             row = con.execute(
                 """SELECT s.*,d.document_name,d.document_path,d.source_key,d.court,
@@ -224,9 +219,7 @@ class StandardsService:
                    WHERE st.standard_uid=? ORDER BY t.name""",
                 (uid,),
             )]
-        item["reserve_reason"] = self._reserve_reason(
-            str(item["review_status"]), str(item["publication_status"])
-        )
+            item["reserve_reason"] = self._evidence_reason(con, uid)
         return item
 
     def search(
@@ -347,8 +340,8 @@ class StandardsService:
 
         occurrence_where = [
             "o.canonical_uid=c.canonical_uid",
-            "s.review_status='validated'",
-            "s.publication_status IN ('ready','published')",
+            "s.review_status<>'rejected'",
+            "s.publication_status IN ('ready','published','blocked')",
         ]
         occurrence_params: list[Any] = []
         if court:
@@ -382,8 +375,8 @@ class StandardsService:
                        JOIN standards s2 ON s2.standard_uid=o2.standard_uid
                        JOIN standard_tags st ON st.standard_uid=s2.standard_uid
                        JOIN tags t ON t.tag_id=st.tag_id
-                       WHERE s2.review_status='validated'
-                         AND s2.publication_status IN ('ready','published')
+                       WHERE s2.review_status<>'rejected'
+                         AND s2.publication_status IN ('ready','published','blocked')
                          AND t.name IN ({placeholders})
                        GROUP BY o2.canonical_uid
                        HAVING COUNT(DISTINCT t.name)=?
@@ -408,13 +401,13 @@ class StandardsService:
             (SELECT COUNT(*) FROM standard_occurrences oc
              JOIN standards sc ON sc.standard_uid=oc.standard_uid
              WHERE oc.canonical_uid=c.canonical_uid
-               AND sc.review_status='validated'
-               AND sc.publication_status IN ('ready','published')) AS occurrence_count,
+               AND sc.review_status<>'rejected'
+               AND sc.publication_status IN ('ready','published','blocked')) AS occurrence_count,
             (SELECT COUNT(DISTINCT sc.document_id) FROM standard_occurrences oc
              JOIN standards sc ON sc.standard_uid=oc.standard_uid
              WHERE oc.canonical_uid=c.canonical_uid
-               AND sc.review_status='validated'
-               AND sc.publication_status IN ('ready','published')) AS document_count
+               AND sc.review_status<>'rejected'
+               AND sc.publication_status IN ('ready','published','blocked')) AS document_count
         """
         select_sql = (
             "SELECT c.canonical_uid,c.statement,c.status,c.representative_standard_uid,"
@@ -457,8 +450,8 @@ class StandardsService:
         try:
             return {
                 "courts": [str(r[0]) for r in con.execute("SELECT DISTINCT court FROM documents WHERE court IS NOT NULL AND TRIM(court)<>'' ORDER BY court")],
-                "speakers": [str(r[0]) for r in con.execute("SELECT DISTINCT speaker FROM standards WHERE review_status='validated' ORDER BY speaker")],
-                "treatments": [str(r[0]) for r in con.execute("SELECT DISTINCT treatment FROM standards WHERE review_status='validated' ORDER BY treatment")],
+                "speakers": [str(r[0]) for r in con.execute("SELECT DISTINCT speaker FROM standards WHERE review_status<>'rejected' AND publication_status IN ('ready','published','blocked') ORDER BY speaker")],
+                "treatments": [str(r[0]) for r in con.execute("SELECT DISTINCT treatment FROM standards WHERE review_status<>'rejected' AND publication_status IN ('ready','published','blocked') ORDER BY treatment")],
                 "tags": [str(r[0]) for r in con.execute("SELECT name FROM tags ORDER BY name")],
             }
         finally:
@@ -565,8 +558,8 @@ class StandardsService:
                FROM standard_occurrences o
                JOIN standards s ON s.standard_uid=o.standard_uid
                WHERE o.canonical_uid=? AND o.membership_status='confirmed'
-                 AND s.review_status='validated'
-                 AND s.publication_status IN ('ready','published')
+                 AND s.review_status<>'rejected'
+                 AND s.publication_status IN ('ready','published','blocked')
                ORDER BY CASE WHEN o.standard_uid=? THEN 0 ELSE 1 END,
                         s.created_at,o.standard_uid""",
             (canonical_uid, canonical["representative_standard_uid"]),
@@ -658,13 +651,13 @@ class StandardsService:
                       (SELECT COUNT(*) FROM standard_occurrences oc
                        JOIN standards sc ON sc.standard_uid=oc.standard_uid
                        WHERE oc.canonical_uid=c.canonical_uid
-                         AND sc.review_status='validated'
-                         AND sc.publication_status IN ('ready','published')) occurrence_count,
+                         AND sc.review_status<>'rejected'
+                         AND sc.publication_status IN ('ready','published','blocked')) occurrence_count,
                       (SELECT COUNT(DISTINCT sc.document_id) FROM standard_occurrences oc
                        JOIN standards sc ON sc.standard_uid=oc.standard_uid
                        WHERE oc.canonical_uid=c.canonical_uid
-                         AND sc.review_status='validated'
-                         AND sc.publication_status IN ('ready','published')) document_count
+                         AND sc.review_status<>'rejected'
+                         AND sc.publication_status IN ('ready','published','blocked')) document_count
                FROM canonical_standards c
                JOIN standards rs ON rs.standard_uid=c.representative_standard_uid
                JOIN documents rd ON rd.document_id=rs.document_id
@@ -872,6 +865,7 @@ class StandardsService:
                     "quote": occurrence_primary.get("quote_text", ""),
                     "page_start": occurrence_primary.get("page_start"),
                     "page_end": occurrence_primary.get("page_end"),
+                    "evidence_incomplete": not (str(occurrence_primary.get("quote_text") or "").strip() and (occurrence_primary.get("page_start") or 0) > 0),
                     "match_basis": occurrence.get("match_basis"),
                 })
             sources.append({
@@ -893,6 +887,7 @@ class StandardsService:
                 "quote": primary.get("quote_text", ""),
                 "page_start": primary.get("page_start"),
                 "page_end": primary.get("page_end"),
+                "evidence_incomplete": not (str(primary.get("quote_text") or "").strip() and (primary.get("page_start") or 0) > 0),
                 "tags": detail.get("tags", []),
                 "publication_status": detail["publication_status"],
                 "occurrence_count": detail.get("occurrence_count", 1),
