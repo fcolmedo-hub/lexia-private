@@ -82,24 +82,31 @@ def folder_tree(parent: str = "") -> list[dict[str, Any]]:
             for path in sorted(children.get(parent, ()), key=lambda item: item.casefold())]
 
 
-def court_suggestions() -> dict[str, list[str]]:
+def court_suggestions() -> dict[str, Any]:
     index = _folder_index()
     courts: dict[str, dict[str, str]] = {}
     for path in index["counts"]:
-        if index["children"].get(path):
-            continue
         _, parts, _ = _path_parts(path + ("\\_fallo.pdf" if "\\" in path else "/_fallo.pdf"))
         if not parts:
             continue
         segments = [part.strip() for part in parts if part.strip()]
         # A denomination on its own (for example "1º") is meaningful only
         # together with its Civil/Comercial and Primera Instancia ancestors.
-        if not (re.search(r"juzgad|tribunal|c[aá]mara|corte|nominaci[oó]n|\bsala\b", segments[-1], re.I)
-                or re.fullmatch(r"\d{1,2}\s*[ªº°a]?", segments[-1], re.I)
-                and any(re.search(r"nominaci[oó]n|instancia|juzgad", part, re.I) for part in segments[:-1])):
+        last = segments[-1]
+        has_children = bool(index["children"].get(path))
+        numbered = bool(re.fullmatch(r"\d{1,2}\s*[ªº°a]?", last, re.I)
+                        and any(re.search(r"nominaci[oó]n|instancia|juzgad|c[aá]mara|sala", part, re.I)
+                                for part in segments[:-1]))
+        named = bool(re.search(r"juzgad|tribunal|c[aá]mara|corte|nominaci[oó]n|\bsala\b", last, re.I))
+        administrative = bool(re.search(r"contencioso\s+administrativo", last, re.I))
+        locality = bool(last.casefold() in {"rosario", "santa fe"}
+                        and any(re.search(r"contencioso\s+administrativo|c[aá]mara federal", part, re.I)
+                                for part in segments[:-1]))
+        if not (numbered or named or administrative or locality):
+            continue
+        if has_children and re.fullmatch(r"nominaci[oó]n:?|\bsala\b", last, re.I):
             continue
         label = " › ".join(segments)
-        last = segments[-1]
         if re.fullmatch(r"\d{1,2}\s*[ªº°a]?", last, re.I) and len(segments) > 1:
             prefix = segments[:-2] if re.fullmatch(r"nominaci[oó]n:?", segments[-2], re.I) else segments[:-1]
             label = " › ".join(prefix + ["Nominación " + last])
@@ -110,6 +117,9 @@ def court_suggestions() -> dict[str, list[str]]:
             suggested = f"Juzgado de Primera Instancia en lo {subject} de {number.group(1)}ª Nominación"
             if any(part.casefold() == "rosario" for part in segments):
                 suggested += " de Rosario"
+        elif any(re.search(r"c[aá]mara federal", part, re.I) for part in segments):
+            if any(part.casefold() == "rosario" for part in segments):
+                suggested = "Cámara Federal de Rosario"
         courts[label.casefold()] = {"label": label, "path": path, "suggested": suggested}
     catalogued: set[str] = set()
     if DB.is_file():

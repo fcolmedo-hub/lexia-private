@@ -35,6 +35,9 @@ def test_court_suggestions_combine_folder_hierarchy_and_catalogued_courts(tmp_pa
         connection.executemany("INSERT INTO documents VALUES(?,?,0)", [
             (r"D:\LexIA\Jurisprudencia\Santa Fe\Rosario\Civil y Comercial\Primera Instancia\Nominacion\1º\fallo.pdf", "Jurisprudencia"),
             (r"D:\LexIA\Jurisprudencia\Civil\Cámara A\fallo.pdf", "Jurisprudencia"),
+            (r"D:\LexIA\Jurisprudencia\Santa Fe\Rosario\Cámara Federal\2025\fallo.pdf", "Jurisprudencia"),
+            (r"D:\LexIA\Jurisprudencia\Santa Fe\Contencioso Administrativo\Rosario\2024\fallo.pdf", "Jurisprudencia"),
+            (r"D:\LexIA\Jurisprudencia\Santa Fe\Contencioso Administrativo\Santa Fe\2025\fallo.pdf", "Jurisprudencia"),
         ])
     with sqlite3.connect(batch.DB) as connection:
         connection.execute("CREATE TABLE documents(court TEXT)")
@@ -45,6 +48,10 @@ def test_court_suggestions_combine_folder_hierarchy_and_catalogued_courts(tmp_pa
     assert "Santa Fe › Rosario › Civil y Comercial › Primera Instancia" in court["label"]
     assert court["suggested"] == "Juzgado de Primera Instancia en lo Civil y Comercial de 1ª Nominación de Rosario"
     assert "Cámara A" in [item["label"].split(" › ")[-1] for item in result["courts"]]
+    assert any(item["label"].endswith("Rosario › Cámara Federal") and
+               item["suggested"] == "Cámara Federal de Rosario" for item in result["courts"])
+    assert any(item["label"].endswith("Contencioso Administrativo › Rosario") for item in result["courts"])
+    assert any(item["label"].endswith("Contencioso Administrativo › Santa Fe") for item in result["courts"])
     assert "Santa Fe" not in [item["label"] for item in result["courts"]]
     assert result["catalogued"] == ["CSJN"]
 
