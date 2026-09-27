@@ -140,7 +140,11 @@ class StandardsPipeline:
         if not requested_paths:
             raise RuntimeError("La selección de fallos está vacía")
         print(f"Leyendo {len(requested_paths)} fallo(s) del catálogo para preparar el lote…", file=sys.stderr, flush=True)
-        documents, missing = export_documents(catalog_path, requested_paths)
+        documents, missing = export_documents(
+            catalog_path, requested_paths,
+            progress=lambda current, total, file: self._progress(
+                stage="export", current=current, total=total, file=file, standards=0),
+        )
         if missing:
             preview = "\n".join(f"- {path}" for path in missing[:20])
             raise RuntimeError(
@@ -174,8 +178,6 @@ class StandardsPipeline:
 
         source_rows: list[dict[str, Any]] = []
         for pilot_id, document in enumerate(documents, start=1):
-            self._progress(stage="export", current=pilot_id, total=len(documents), file=document.name,
-                           standards=0)
             source_rows.append({
                 "pilot_id": pilot_id,
                 "document_path": document.path,
