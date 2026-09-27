@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+import ntpath
+import posixpath
 import sqlite3
 import threading
 import time
@@ -23,6 +25,75 @@ CHUNK = 250
 MAX_SELECTION = 2500
 _LOCK = threading.Lock()
 _ACTIVE: set[str] = set()
+_TREE_LOCK = threading.Lock()
+_TREE_CACHE: dict[str, Any] = {}
+
+
+def _path_parts(path: str) -> tuple[str, list[str], str]:
+    """Return a Jurisprudencia root and each descendant folder on either OS."""
+    module = ntpath if len(path) > 2 and path[1] == ":" or path.startswith("\\\\") else posixpath
+    parent = module.dirname(module.normpath(path))
+    parts = parent.replace("\\", "/").split("/")
+    anchor = next((i for i, part in enumerate(parts) if part.casefold() == "jurisprudencia"), None)
+    if anchor is None:
+        return parent, [], module.sep
+    root = module.normpath("/".join(parts[:anchor + 1]))
+    return root, parts[anchor + 1:], module.sep
+
+
+def _folder_index() -> dict[str, Any]:
+    if not CATALOG.is_file():
+        raise FileNotFoundError(f"No existe el catálogo: {CATALOG}")
+    wal = Path(str(CATALOG) + "-wal")
+    wal_stamp = (wal.stat().st_mtime_ns, wal.stat().st_size) if wal.exists() else None
+    stamp = (str(CATALOG), CATALOG.stat().st_mtime_ns, CATALOG.stat().st_size, wal_stamp)
+    with _TREE_LOCK:
+        if _TREE_CACHE.get("stamp") == stamp:
+            return _TREE_CACHE
+        children: dict[str, set[str]] = {"": set()}
+        counts: dict[str, int] = {}
+        with sqlite3.connect(f"file:{CATALOG.resolve()}?mode=ro", uri=True) as connection:
+            rows = connection.execute(
+                "SELECT path FROM documents WHERE category='Jurisprudencia' AND COALESCE(is_deleted,0)=0"
+            )
+            for (path,) in rows:
+                root, folders, separator = _path_parts(str(path))
+                children[""].add(root)
+                counts[root] = counts.get(root, 0) + 1
+                parent = root
+                for name in folders:
+                    child = parent.rstrip("\\/") + separator + name
+                    children.setdefault(parent, set()).add(child)
+                    counts[child] = counts.get(child, 0) + 1
+                    parent = child
+        _TREE_CACHE.clear()
+        _TREE_CACHE.update(stamp=stamp, children=children, counts=counts)
+        return _TREE_CACHE
+
+
+def folder_tree(parent: str = "") -> list[dict[str, Any]]:
+    index = _folder_index()
+    children = index["children"]
+    if parent and parent not in index["counts"]:
+        raise ValueError("La carpeta no figura en Jurisprudencia.")
+    return [{"name": ntpath.basename(path.rstrip("\\/")) if "\\" in path else posixpath.basename(path.rstrip("/")),
+             "path": path, "count": index["counts"][path], "has_children": bool(children.get(path))}
+            for path in sorted(children.get(parent, ()), key=lambda item: item.casefold())]
+
+
+def court_suggestions() -> dict[str, list[str]]:
+    index = _folder_index()
+    branches = {ntpath.basename(path.rstrip("\\/")) if "\\" in path else posixpath.basename(path.rstrip("/"))
+                for parent, paths in index["children"].items() if parent for path in paths}
+    catalogued: set[str] = set()
+    if DB.is_file():
+        with sqlite3.connect(f"file:{DB.resolve()}?mode=ro", uri=True) as connection:
+            if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='documents'").fetchone():
+                catalogued = {str(row[0]).strip() for row in connection.execute(
+                    "SELECT DISTINCT court FROM documents WHERE court IS NOT NULL AND TRIM(court)<>''"
+                )}
+    return {"branches": sorted(branches, key=str.casefold),
+            "catalogued": sorted(catalogued, key=str.casefold)}
 
 
 def folders(query: str = "") -> list[str]:
@@ -259,6 +330,12 @@ def prepare(payload: dict[str, Any]) -> dict[str, Any]:
         if _ACTIVE:
             raise ValueError("Ya hay un lote de estándares en ejecución.")
     folder = str(payload.get("folder") or "").strip()
+    court_mode = str(payload.get("court_mode") or ("manual" if payload.get("court") else "api"))
+    if court_mode not in {"manual", "api"}:
+        raise ValueError("Elegí tribunal único o extracción del tribunal por la API.")
+    court = str(payload.get("court") or "").strip() if court_mode == "manual" else ""
+    if court_mode == "manual" and not court:
+        raise ValueError("Indicá el tribunal que dictó todos los fallos, o elegí extracción por la API.")
     selected = payload.get("paths")
     if not isinstance(selected, list) or not selected or len(selected) > MAX_SELECTION:
         raise ValueError(f"Elegí entre 1 y {MAX_SELECTION} fallos.")
@@ -270,7 +347,7 @@ def prepare(payload: dict[str, Any]) -> dict[str, Any]:
     chunks = math.ceil(len(paths)/CHUNK)
     job = {"job_id": job_id, "folder": folder, "phase": "created", "total": len(paths),
            "chunks": chunks, "run_ids": [None]*chunks, "model": "gpt-5.6-luna",
-           "reasoning_effort": "medium", "court": str(payload.get("court") or "").strip(),
+           "reasoning_effort": "medium", "court": court, "court_mode": court_mode,
            "steps": 2+3*chunks, "step": 1, "step_percent": 100, "percent": 0,
            "standards": 0, "completed_standards": 0, "completed_files": 0, "processed_files": 0,
            "without_standards": 0, "without_standards_files": [], "without_standards_by_run": {},

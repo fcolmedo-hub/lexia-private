@@ -506,6 +506,10 @@ class Handler(BaseHTTPRequestHandler):
                 from services import standards_batch_ui as batch_ui
                 if parsed.path == "/api/batch-folders":
                     return self._json({"items": batch_ui.folders(_one(qs, "q"))})
+                if parsed.path == "/api/batch-folder-tree":
+                    return self._json({"items": batch_ui.folder_tree(_one(qs, "parent"))})
+                if parsed.path == "/api/batch-courts":
+                    return self._json(batch_ui.court_suggestions())
                 if parsed.path == "/api/batch-status":
                     return self._json(batch_ui.status(_one(qs, "job_id")))
                 if parsed.path == "/api/batch-recent":
