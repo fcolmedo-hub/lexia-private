@@ -77,9 +77,9 @@
     const target=document.getElementById('stdInventory');if(!target)return;
     try{
       const data=await api('/api/stats');
-      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.reserved_occurrences??Math.max(0,stored-visible)),rejected=Number(data.rejected_occurrences??0);
-      const base=`${visible} ${visible===1?'regla publicada':'reglas publicadas'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
-      target.innerHTML=(reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">Revisar ${reserved} ${reserved===1?'reservada':'reservadas'}</button>`:esc(base))+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
+      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.incomplete_evidence_occurrences??0),rejected=Number(data.rejected_occurrences??0);
+      const base=`${visible} ${visible===1?'regla en el diccionario':'reglas en el diccionario'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
+      target.innerHTML=(reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">${reserved} con evidencia incompleta</button>`:esc(base))+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
       target.querySelector('#stdReservedBtn')?.addEventListener('click',()=>reservedQueue({page:1}));
     }catch(_){target.textContent='Inventario no disponible.';}
   }
@@ -170,34 +170,34 @@
     const request=++state.searchRequest,layout=node.querySelector('#stdLayout'),status=node.querySelector('#stdSearchStatus'),results=node.querySelector('#stdResults'),pager=node.querySelector('#stdPager'),summary=node.querySelector('#stdSummary'),target=node.querySelector('#stdDetail');
     results.replaceChildren();pager?.replaceChildren();summary?.replaceChildren();layout?.classList.add('has-results');layout?.style.setProperty('display','grid','important');
     if(status){status.hidden=true;status.classList.remove('error');status.textContent='';}
-    if(target)target.innerHTML='<div class="std-notice">Seleccioná un estándar reservado para revisar su evidencia antes de decidir.</div>';
+    if(target)target.innerHTML='<div class="std-notice">Estos estándares ya aparecen en el diccionario. Podés completar su evidencia o excluirlos.</div>';
     try{
       const data=await api('/api/reserved?'+p.toString()),items=Array.isArray(data.items)?data.items:[],total=Number(data.total||0);
       if(request!==state.searchRequest)return;
       const pageCount=Math.max(1,Math.ceil(total/pageSize));if(total>0&&requestedPage>pageCount)return reservedQueue({page:pageCount});
       state.page=requestedPage;state.pageSize=pageSize;state.total=total;state.searched=true;
-      if(summary)summary.innerHTML=`<div><div class="std-summary-title">Revisión pendiente</div><div class="std-meta">Página ${requestedPage} de ${pageCount}</div></div><span class="std-summary-count">${total} ${total===1?'reservado':'reservados'}</span>`;
-      if(!items.length){results.innerHTML='<div class="std-empty">No quedan estándares reservados para revisar.</div>';return;}
+      if(summary)summary.innerHTML=`<div><div class="std-summary-title">Evidencia incompleta</div><div class="std-meta">Página ${requestedPage} de ${pageCount}</div></div><span class="std-summary-count">${total} ${total===1?'estándar':'estándares'}</span>`;
+      if(!items.length){results.innerHTML='<div class="std-empty">No quedan estándares con evidencia incompleta.</div>';return;}
       const offset=(requestedPage-1)*pageSize;
       results.innerHTML=items.map((item,index)=>`<article class="std-item" data-reserved-uid="${esc(item.standard_uid)}"><div class="std-number">${offset+index+1}</div><div><div class="std-statement">${esc(item.statement)}</div><div class="std-meta"><span>${esc(item.document_name||'Documento no informado')}</span><span>· ${esc(item.reserve_reason||'Pendiente')}</span></div><div class="std-uid">${esc(item.standard_uid)}</div></div></article>`).join('');
       results.querySelectorAll('[data-reserved-uid]').forEach(item=>item.addEventListener('click',()=>reservedDetail(item.dataset.reservedUid)));
       renderPager(pager,{page:requestedPage,pageCount,offset,count:items.length,total,onPage:page=>reservedQueue({page})});
-    }catch(error){results.innerHTML=`<div class="std-error">No fue posible abrir la revisión pendiente. ${esc(error.message)}</div>`;}
+    }catch(error){results.innerHTML=`<div class="std-error">No fue posible abrir la lista. ${esc(error.message)}</div>`;}
   }
 
   async function reservedDetail(uid){
     state.currentUid=uid;document.querySelectorAll('.std-item').forEach(item=>item.classList.toggle('active',item.dataset.reservedUid===uid));
     const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando evidencia…</div>';
     try{
-      const data=await api('/api/reserved-standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">El estándar ya no está reservado.</div>';return;}
+      const data=await api('/api/reserved-standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">La evidencia ya fue completada. Buscá el estándar en el diccionario.</div>';return;}
       const quoteRows=Array.isArray(data.quotes)?data.quotes:[],publishable=quoteRows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),draft=[...quoteRows].reverse().find(q=>q.validation==='manual_review')||quoteRows[0]||{};
-      const quotes=quoteRows.map(q=>`<div class="std-quote">${esc(q.quote_text)}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-error">No tiene cita registrada. Abrí el fallo y completá la cita antes de publicarlo.</div>';
-      const publicationWarning=publishable?'':'<div class="std-error">La publicación está bloqueada hasta registrar una cita literal y su página.</div>';
-      target.innerHTML=`<div class="std-notice">${esc(data.reserve_reason||'Pendiente de revisión')}</div><h2>${esc(data.statement)}</h2><div class="std-badges"><span class="std-badge proposed">${esc(data.review_status)}</span><span class="std-badge proposed">${esc(data.publication_status)}</span>${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-doc"><button class="std-doc-link" data-open-reserved="${esc(data.standard_uid)}">${esc(data.document_name||'Documento fuente')}</button><div class="std-meta">${esc(data.court||'Tribunal no informado')}${data.judgment_date?' · '+esc(data.judgment_date):''} · ${esc(data.speaker||'')} · ${esc(data.treatment||'')}</div></div><h3>Cita para validar</h3>${quotes}<h3>Completar o corregir cita</h3><div class="std-citation-editor"><label>Cita literal<textarea id="stdReviewQuote">${esc(draft.quote_text||'')}</textarea></label><div class="std-citation-pages"><label>Página inicial<input id="stdReviewPageStart" type="number" min="1" value="${esc(draft.page_start||'')}"></label><label>Página final (opcional)<input id="stdReviewPageEnd" type="number" min="1" value="${esc(draft.page_end||'')}"></label></div><div><button class="std-btn secondary small" data-save-citation>Guardar cita</button></div></div>${publicationWarning}<div class="std-badges"><button class="std-btn small" data-publication="publish" ${publishable?'':'disabled title="Completá una cita literal con página"'}>Publicar</button><button class="std-btn ghost small" data-publication="reserve">Mantener reservado</button><button class="std-btn danger small" data-publication="reject">Rechazar</button></div>`;
+      const quotes=quoteRows.map(q=>`<div class="std-quote">${esc(q.quote_text||'Sin cita literal')}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-error">Falta una cita literal y su página.</div>';
+      const publicationWarning=publishable?'':'<div class="std-error">'+(quoteRows.some(q=>String(q.quote_text||'').trim())?'Falta la página de la cita.':'Falta una cita literal y su página.')+' El estándar ya es visible; comprobá la evidencia en el fallo.</div>';
+      target.innerHTML=`<div class="std-notice">${esc(data.reserve_reason||'Evidencia incompleta')} · Visible en el diccionario</div><h2>${esc(data.statement)}</h2><div class="std-badges">${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-doc"><button class="std-doc-link" data-open-reserved="${esc(data.standard_uid)}">${esc(data.document_name||'Documento fuente')}</button><div class="std-meta">${esc(data.court||'Tribunal no informado')}${data.judgment_date?' · '+esc(data.judgment_date):''} · ${esc(data.speaker||'')} · ${esc(data.treatment||'')}</div></div><h3>Evidencia registrada</h3>${quotes}<h3>Completar o corregir cita</h3><div class="std-citation-editor"><label>Cita literal<textarea id="stdReviewQuote">${esc(draft.quote_text||'')}</textarea></label><div class="std-citation-pages"><label>Página inicial<input id="stdReviewPageStart" type="number" min="1" value="${esc(draft.page_start||'')}"></label><label>Página final (opcional)<input id="stdReviewPageEnd" type="number" min="1" value="${esc(draft.page_end||'')}"></label></div><div><button class="std-btn secondary small" data-save-citation>Guardar cita</button></div></div>${publicationWarning}<div class="std-badges"><button class="std-btn danger small" data-publication="reject">Excluir del diccionario</button></div>`;
       target.querySelector('[data-open-reserved]')?.addEventListener('click',()=>openDocument(uid));
       target.querySelector('[data-save-citation]')?.addEventListener('click',()=>saveReservedCitation(uid));
       target.querySelectorAll('[data-publication]').forEach(button=>button.addEventListener('click',()=>publicationDecision(uid,button.dataset.publication)));
-    }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir el estándar reservado. ${esc(error.message)}</div>`;}
+    }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir la evidencia. ${esc(error.message)}</div>`;}
   }
 
   async function saveReservedCitation(uid){
@@ -206,18 +206,17 @@
     if(button)button.disabled=true;
     try{
       await api('/api/standard-citation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,quote,page_start:pageStart,page_end:pageEnd})});
-      await reservedDetail(uid);
+      await loadInventory();await reservedQueue({page:state.page});
     }catch(error){alert('No fue posible guardar la cita: '+error.message);}
     finally{if(button&&button.isConnected)button.disabled=false;}
   }
 
   async function publicationDecision(uid,decision){
-    const messages={publish:'¿Publicar este estándar en el diccionario?',reject:'¿Rechazar este estándar? Se conservará únicamente su trazabilidad.'};
+    const messages={reject:'¿Excluir este estándar del diccionario? Se conservará su trazabilidad.'};
     if(messages[decision]&&!window.confirm(messages[decision]))return;
     try{
       await api('/api/publication-decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,decision})});
       await loadInventory();
-      if(decision==='reserve')alert('El estándar se mantiene reservado.');
       await reservedQueue({page:state.page});
     }catch(error){alert('No fue posible registrar la revisión: '+error.message);}
   }
@@ -229,11 +228,11 @@
     const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando estándar…</div>';
     try{
       const data=await api('/api/standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">Estándar no encontrado.</div>';return;}
-      const renderQuotes=quotes=>(quotes||[]).map(q=>`<div class="std-quote">${esc(q.quote_text)}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-empty">Sin citas registradas.</div>';
+      const renderQuotes=quotes=>{const rows=quotes||[],complete=rows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),warning=complete?'':`<div class="std-error">${rows.some(q=>String(q.quote_text||'').trim())?'Falta la página de la cita.':'Falta una cita literal y su página.'} Comprobá la evidencia en el fallo.</div>`;return warning+rows.map(q=>`<div class="std-quote">${esc(q.quote_text||'Sin cita literal')}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('');};
       const occurrences=(data.occurrences||[data]).map((occ,index)=>{const different=norm(occ.statement)!==norm(data.statement);return `<article class="std-occurrence"><div class="std-occurrence-head"><div><button class="std-doc-link" data-open-occurrence="${esc(occ.standard_uid)}">${esc(occ.document_name||'Documento fuente')}</button><div class="std-meta">${esc(occ.court||'Tribunal no informado')}${occ.judgment_date?' · '+esc(occ.judgment_date):''} · ${esc(occ.speaker||'')} · ${esc(occ.treatment||'')}</div></div><span class="std-source-count">Fuente ${index+1}</span></div>${different?`<div class="std-wording"><b>Formulación del fallo:</b> ${esc(occ.statement)}</div>`:''}${renderQuotes(occ.quotes)}</article>`;}).join('');
       const relations=(data.relations||[]).map(rel=>{const count=Number(rel.other?.document_count||0);return `<div class="std-relation"><div><span class="std-badge rel-${esc(rel.relation_type)}">${esc(relLabels[rel.relation_type]||rel.relation_type)}</span><span class="std-badge ${esc(rel.status)}">${esc(rel.status)}</span></div><div class="std-rel-title" data-related-uid="${esc(rel.other?.standard_uid||'')}">${esc(rel.other?.statement||'')}</div><div class="std-meta">${count>1?count+' fallos':esc(rel.other?.document_name||'')} · ${esc(rel.other?.speaker||'')}</div></div>`;}).join('')||'<div class="std-empty">Sin relaciones visibles.</div>';
       const suggestions=(data.canonical_suggestions||[]).map(item=>`<div class="std-suggestion"><div><span class="std-badge proposed">Posible misma regla</span>${item.confidence?`<span class="std-badge">Confianza ${esc(item.confidence)}</span>`:''}</div><div class="std-rel-title" data-related-uid="${esc(item.other?.standard_uid||'')}">${esc(item.other?.statement||'')}</div><div class="std-meta">Requiere confirmación antes de consolidarse.</div><div class="std-badges"><button class="std-btn small" data-confirm-relation="${esc(item.relation_id)}">Confirmar</button><button class="std-btn ghost small" data-reject-relation="${esc(item.relation_id)}">Rechazar</button></div></div>`).join('');
-      const occurrenceCount=Number(data.occurrence_count||1),documentCount=Number(data.document_count||1);const notice=occurrenceCount>1?`Estándar canónico confirmado: ${occurrenceCount} apariciones en ${documentCount} fallos, conservadas con su propia redacción y cita.`:'Estándar canónico con una aparición validada. Las nuevas equivalencias se agregarán sin perder su fallo ni su redacción.';
+      const occurrenceCount=Number(data.occurrence_count||1),documentCount=Number(data.document_count||1);const notice=occurrenceCount>1?`Estándar canónico: ${occurrenceCount} apariciones en ${documentCount} fallos, conservadas con su propia redacción y evidencia.`:'Estándar canónico con una aparición. Las nuevas equivalencias se agregarán sin perder su fallo ni su redacción.';
       target.innerHTML=`<div class="std-notice">${esc(notice)}</div><h2>${esc(data.statement)}</h2><div class="std-badges"><span class="std-badge confirmed">Canónico confirmado</span><span class="std-badge">${documentCount} ${documentCount===1?'fallo':'fallos'}</span>${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-uid">${esc(data.canonical_uid||data.standard_uid)}</div><h3>Fallos, formulaciones y citas</h3><div class="std-occurrences">${occurrences}</div>${suggestions?`<h3>Equivalencias pendientes</h3>${suggestions}`:''}<h3>Relaciones directas</h3>${relations}`;
       target.querySelectorAll('[data-related-uid]').forEach(node=>node.addEventListener('click',()=>detail(node.dataset.relatedUid)));
       target.querySelectorAll('[data-open-occurrence]').forEach(node=>node.addEventListener('click',()=>openDocument(node.dataset.openOccurrence)));
