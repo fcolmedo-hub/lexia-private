@@ -110,10 +110,12 @@ def _pipeline(run_id: str, job: dict[str, Any], step: int, stage_name: str) -> S
         filename = str(event.get("file") or "")
         job["standards"] = int(job.get("completed_standards") or 0) + int(event.get("standards") or 0)
         job["file_standards"] = int(event.get("file_standards") or 0)
+        job["without_standards"] = len(job.get("without_standards_files") or []) + int(event.get("without_standards") or 0)
         job["processed_files"] = min(job["total"], int(job.get("completed_files") or 0) + current)
         phase={"Preparación": "preparing", "Validación": "validating", "Relaciones": "preparing_relations"}.get(stage_name, stage_name)
+        finding = " · sin estándar generalizable" if event.get("stage") == "validate" and "file_standards" in event and not job["file_standards"] else ""
         _update(job, phase=phase, step=step, step_percent=percent, file=filename,
-                message=f"{stage_name}: {current}/{total} · {filename}")
+                message=f"{stage_name}: {current}/{total} · {filename}{finding}")
     return StandardsPipeline(repo_root=ROOT, db_path=DB, runs_root=RUNS, run_id=run_id, progress=callback)
 
 
@@ -184,6 +186,10 @@ def _run_worker(job_id: str, action: str) -> None:
                 if stage != "standards_imported":
                     raise RuntimeError(f"La parte {index+1} quedó en un estado inesperado: {stage}")
                 validation = pipeline.load_state().get("validation") or {}
+                empty_runs = job.setdefault("without_standards_by_run", {})
+                empty_runs[run_id] = validation.get("documents_without_standards") or []
+                job["without_standards_files"] = [item for rows in empty_runs.values() for item in rows]
+                job["without_standards"] = len(job["without_standards_files"])
                 counted = job.setdefault("counted_run_ids", [])
                 if run_id not in counted:
                     job["completed_standards"] = int(job.get("completed_standards") or 0) + int(validation.get("standards") or 0)
@@ -267,6 +273,7 @@ def prepare(payload: dict[str, Any]) -> dict[str, Any]:
            "reasoning_effort": "medium", "court": str(payload.get("court") or "").strip(),
            "steps": 2+3*chunks, "step": 1, "step_percent": 100, "percent": 0,
            "standards": 0, "completed_standards": 0, "completed_files": 0, "processed_files": 0,
+           "without_standards": 0, "without_standards_files": [], "without_standards_by_run": {},
            "file_standards": 0, "file": "", "message": "Selección lista", "log": ["Selección lista"],
            "relation_candidates": 0, "error": ""}
     directory = _job_dir(job_id)

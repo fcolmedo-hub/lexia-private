@@ -2,6 +2,8 @@ import json
 from argparse import Namespace
 
 from tools.procesar_estandares_batch_v5 import SCHEMA, cmd_submit
+from tools.importar_estandares_sqlite import import_validated_run
+from tools.preseleccionar_fallos_estandares import imported_documents
 from tools.validar_estandares_v5 import validate_result
 
 
@@ -46,3 +48,23 @@ def test_resuming_recorded_batch_does_not_call_api(tmp_path, monkeypatch):
     (tmp_path / "batch_state.json").write_text('{"batch_id":"batch_existing"}', encoding="utf-8")
     monkeypatch.setattr("tools.procesar_estandares_batch_v5.require_sdk", lambda: (_ for _ in ()).throw(AssertionError("API called")))
     assert cmd_submit(Namespace(workdir=tmp_path)) == 0
+
+
+def test_valid_empty_result_marks_document_processed_without_inventing_standard(tmp_path):
+    source = tmp_path / "regulacion.pdf"
+    fallos = tmp_path / "fallos.jsonl"
+    fallos.write_text(json.dumps({"pilot_id": 1, "document_name": source.name,
+                                  "document_path": str(source), "metadata": {}}) + "\n", encoding="utf-8")
+    validated = tmp_path / "validated"
+    validated.mkdir()
+    result = validate_result({"fragments": []}, '{"standards": []}')
+    (validated / "001_validado.json").write_text(json.dumps(result), encoding="utf-8")
+    database = tmp_path / "standards.sqlite3"
+
+    imported = import_validated_run(validated_dir=validated, fallos_path=fallos, db_path=database)
+
+    assert result["validation"]["standards_count"] == 0
+    assert imported["imported"]["documents"] == 1
+    assert imported["imported"]["standards"] == 0
+    paths, _ = imported_documents(database)
+    assert str(source).casefold() in paths

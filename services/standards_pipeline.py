@@ -303,6 +303,7 @@ class StandardsPipeline:
         validation = {
             "documents": 0,
             "standards": 0,
+            "documents_without_standards": [],
             "evidence_total": 0,
             "evidence_resolved": 0,
             "invalid_evidence": 0,
@@ -347,13 +348,19 @@ class StandardsPipeline:
             values = result["validation"]
             validation["documents"] += 1
             validation["standards"] += int(values["standards_count"])
+            if not values["standards_count"]:
+                validation["documents_without_standards"].append({
+                    "name": document["document_name"],
+                    "path": document["document_path"],
+                })
             validation["evidence_total"] += int(values["evidence_total"])
             validation["evidence_resolved"] += int(values["evidence_resolved"])
             validation["invalid_evidence"] += int(values["invalid_evidence"])
             validation["needs_review"] += int(bool(values["needs_review"]))
             self._progress(stage="validate", current=position, total=len(response_paths),
                            file=document["document_name"], standards=validation["standards"],
-                           file_standards=int(values["standards_count"]))
+                           file_standards=int(values["standards_count"]),
+                           without_standards=len(validation["documents_without_standards"]))
         if validation["format_errors"]:
             raise RuntimeError(
                 f"Hay {validation['format_errors']} respuestas con formato inválido; no se importó el lote"
