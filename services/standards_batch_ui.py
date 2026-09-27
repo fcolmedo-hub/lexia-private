@@ -201,6 +201,9 @@ def recent() -> list[dict[str, Any]]:
 
 def _update(job: dict[str, Any], *, phase: str, step: int, step_percent: int = 0,
             message: str = "", file: str = "", **extra: Any) -> None:
+    if phase != "error":
+        job["error"] = ""
+        job["error_action"] = ""
     job.update(extra)
     job.update(phase=phase, step=step, step_percent=max(0, min(100, int(step_percent))),
                percent=min(100, round(100 * ((step-1) + max(0, min(100, step_percent))/100) / job["steps"])),

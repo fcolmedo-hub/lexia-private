@@ -106,3 +106,14 @@ def test_batch_action_requires_correct_stage_and_resumable_error(tmp_path, monke
         pass
     else:
         raise AssertionError("Relations cannot be sent before their preparation")
+
+
+def test_progress_clears_previous_interruption_message(tmp_path, monkeypatch):
+    monkeypatch.setattr(batch, "RUNS", tmp_path / "runs")
+    job = {"job_id": "std-ui-resumed", "phase": "error", "steps": 5, "log": [],
+           "error": "El servicio se cerró durante el trabajo.", "error_action": "send"}
+    batch._update(job, phase="extracting", step=2, step_percent=50, message="API: 125 respuestas")
+    assert job["phase"] == "extracting"
+    assert job["error"] == job["error_action"] == ""
+    saved = json.loads((batch._job_dir(job["job_id"]) / "job.json").read_text(encoding="utf-8"))
+    assert saved["message"] == "API: 125 respuestas"
