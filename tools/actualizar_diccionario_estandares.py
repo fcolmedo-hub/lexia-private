@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
         "prepare", parents=[common], help="Prepara fallos y lote V5 sin llamar a la API."
     )
     prepare.add_argument("--paths-file", type=Path, required=True)
-    court_source = prepare.add_mutually_exclusive_group(required=True)
+    court_source = prepare.add_mutually_exclusive_group()
     court_source.add_argument("--court", "--tribunal", dest="court", help="Tribunal actuante común a todos los fallos del lote")
     court_source.add_argument("--courts-file", type=Path, help="CSV document_path,court con una fila por fallo")
     prepare.add_argument("--catalog", type=Path, default=Path(SETTINGS.catalog_path))
