@@ -133,8 +133,6 @@ class StandardsPipeline:
         requested_paths, encoding = _load_requested_paths(paths_file)
         if not requested_paths:
             raise RuntimeError("La selección de fallos está vacía")
-        courts = load_courts(requested_paths, court=court, courts_file=courts_file)
-        courts_by_path = {path.casefold(): value for path, value in courts.items()}
         print(f"Leyendo {len(requested_paths)} fallo(s) del catálogo para preparar el lote…", file=sys.stderr, flush=True)
         documents, missing = export_documents(catalog_path, requested_paths)
         if missing:
@@ -142,6 +140,8 @@ class StandardsPipeline:
             raise RuntimeError(
                 "Hay fallos no indexados como Jurisprudencia o sin fragmentos:\n" + preview
             )
+        courts = load_courts(requested_paths, court=court, courts_file=courts_file)
+        courts_by_path = {path.casefold(): value for path, value in courts.items()}
 
         imported_paths, imported_hashes = imported_documents(self.db_path)
         repeated = [document.path for document in documents
