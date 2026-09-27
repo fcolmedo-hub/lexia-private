@@ -1,7 +1,33 @@
 import sqlite3
+import json
 from pathlib import Path
 
-from tools.preseleccionar_fallos_estandares import candidates, within_folder
+from tools.preseleccionar_fallos_estandares import candidates, pending_documents, within_folder
+
+
+def test_pending_runs_retain_path_and_hash_until_imported(tmp_path: Path):
+    run = tmp_path / "runs" / "run-1"
+    (run / "source").mkdir(parents=True)
+    (run / "source" / "fallos.jsonl").write_text(json.dumps({
+        "document_path": "/old/fallo.pdf", "content_hash": "a" * 64,
+    }) + "\n")
+    (run / "state.json").write_text(json.dumps({"stage": "extraction_ready_to_submit"}))
+    assert pending_documents(tmp_path / "runs") == ({"/old/fallo.pdf"}, {"a" * 64})
+    assert pending_documents(tmp_path / "runs", submitted_only=True) == (set(), set())
+    (run / "extraction_batch").mkdir()
+    (run / "extraction_batch" / "batch_state.json").write_text('{"batch_id":"batch_1"}')
+    assert pending_documents(tmp_path / "runs", submitted_only=True)[1] == {"a" * 64}
+    catalog = tmp_path / "catalog.sqlite3"
+    with sqlite3.connect(catalog) as connection:
+        connection.executescript("""
+            CREATE TABLE documents(path TEXT,category TEXT,is_deleted INTEGER,content_hash TEXT);
+            CREATE TABLE fragments(document_path TEXT,text_content TEXT);
+        """)
+        connection.execute("INSERT INTO documents VALUES(?,?,?,?)", ("/new/copia.pdf", "Jurisprudencia", 0, "a" * 64))
+        connection.execute("INSERT INTO fragments VALUES(?,?)", ("/new/copia.pdf", "fallo"))
+    assert candidates(catalog, tmp_path / "missing.sqlite3", "copia", 10, runs_root=tmp_path / "runs") == []
+    (run / "state.json").write_text(json.dumps({"stage": "standards_imported"}))
+    assert pending_documents(tmp_path / "runs") == (set(), set())
 
 
 def test_selection_uses_indexed_judgments_in_folder_and_skips_imported(tmp_path: Path):
