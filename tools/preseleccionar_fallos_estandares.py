@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import ntpath
 import posixpath
 import re
@@ -40,6 +41,39 @@ def imported_documents(standards_db: Path) -> tuple[set[str], set[str]]:
     return paths, hashes
 
 
+def pending_documents(runs_root: Path, *, exclude_run_id: str | None = None, submitted_only: bool = False) -> tuple[set[str], set[str]]:
+    """Files prepared or submitted in another run but not yet imported."""
+    paths: set[str] = set()
+    hashes: set[str] = set()
+    if not runs_root.is_dir():
+        return paths, hashes
+    for run in runs_root.iterdir():
+        if not run.is_dir() or run.name == exclude_run_id:
+            continue
+        state_path = run / "state.json"
+        source_path = run / "source" / "fallos.jsonl"
+        if not state_path.is_file() or not source_path.is_file():
+            continue
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        stage = str(state.get("stage") or "")
+        if stage not in {"extraction_ready_to_submit", "extraction_submitted", "extraction_collected"}:
+            continue
+        sent = (run / "extraction_batch" / "batch_state.json").is_file() or stage == "extraction_submitted"
+        if submitted_only and not sent:
+            continue
+        if not sent and stage != "extraction_ready_to_submit":
+            continue
+        for raw in source_path.read_text(encoding="utf-8").splitlines():
+            if not raw.strip():
+                continue
+            doc = json.loads(raw)
+            if doc.get("document_path"):
+                paths.add(str(doc["document_path"]).casefold())
+            if doc.get("content_hash"):
+                hashes.add(str(doc["content_hash"]).casefold())
+    return paths, hashes
+
+
 def within_folder(path: str, folder: str | Path) -> bool:
     """Compare full directory boundaries, including Windows paths on any host."""
     source = str(path)
@@ -52,10 +86,14 @@ def within_folder(path: str, folder: str | Path) -> bool:
     return document.startswith(root.rstrip("\\/") + path_module.sep)
 
 
-def candidates(catalog: Path, standards_db: Path, contains: str, limit: int, *, folder: str | Path | None = None) -> list[str]:
+def candidates(catalog: Path, standards_db: Path, contains: str, limit: int, *, folder: str | Path | None = None, runs_root: Path | None = None) -> list[str]:
     if not catalog.is_file():
         raise FileNotFoundError(f"No existe el catálogo: {catalog}")
     excluded, excluded_hashes = imported_documents(standards_db)
+    if runs_root is not None:
+        pending_paths, pending_hashes = pending_documents(runs_root)
+        excluded.update(pending_paths)
+        excluded_hashes.update(pending_hashes)
 
     result: list[str] = []
     with sqlite3.connect(f"file:{catalog.resolve()}?mode=ro", uri=True) as connection:
@@ -97,6 +135,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=Path(SETTINGS.catalog_path))
     parser.add_argument("--db", type=Path, default=Path(SETTINGS.runtime_path) / "standards" / "standards.sqlite3")
+    parser.add_argument("--runs-root", type=Path, default=Path(SETTINGS.runtime_path) / "standards" / "runs")
     scope = parser.add_mutually_exclusive_group(required=True)
     scope.add_argument("--path-contains", help="Parte de la ruta que delimita el lote")
     scope.add_argument("--folder", type=Path, help="Carpeta exacta elegida; incluye sus subcarpetas")
@@ -114,8 +153,8 @@ def main() -> int:
     print(f"Revisando Jurisprudencia indexada en {args.catalog}…", flush=True)
     try:
         contains = args.path_contains.strip() if args.folder is None else args.folder.name
-        paths = candidates(args.catalog, args.db, contains, args.limit, folder=args.folder)
-    except (OSError, sqlite3.Error) as error:
+        paths = candidates(args.catalog, args.db, contains, args.limit, folder=args.folder, runs_root=args.runs_root)
+    except (OSError, sqlite3.Error, ValueError) as error:
         parser.exit(1, f"No se pudo leer el catálogo: {error}\n")
     if not paths:
         parser.exit(1, "No hay fallos indexados nuevos en esa carpeta.\n")
