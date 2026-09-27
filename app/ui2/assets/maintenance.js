@@ -104,7 +104,7 @@
   // The tab belongs to this renderer; its data module never injects navigation.
   if(!document.querySelector('script[data-lexia-windows-maintenance-duplicates]')){
     const script=document.createElement('script');
-    script.src='assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-2';
+    script.src='assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-3';
     script.dataset.lexiaWindowsMaintenanceDuplicates='1';
     (document.body||document.documentElement).appendChild(script);
   }
