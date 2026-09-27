@@ -15,6 +15,7 @@ from tools.exportar_estandares_piloto import (
     export_documents,
 )
 from tools.preseleccionar_fallos_estandares import imported_documents
+from tools.tribunales_estandares import load_courts, metadata_with_court
 from tools.importar_estandares_sqlite import import_validated_run
 from tools.preparar_canonicalizacion_estandares import build_candidates
 from tools.preparar_estandares_v2 import dump_jsonl
@@ -92,6 +93,8 @@ class StandardsPipeline:
         *,
         catalog_path: Path,
         paths_file: Path,
+        court: str | None = None,
+        courts_file: Path | None = None,
         model: str,
         reasoning_effort: str,
         max_output_tokens: int = 4000,
@@ -130,6 +133,8 @@ class StandardsPipeline:
         requested_paths, encoding = _load_requested_paths(paths_file)
         if not requested_paths:
             raise RuntimeError("La selección de fallos está vacía")
+        courts = load_courts(requested_paths, court=court, courts_file=courts_file)
+        courts_by_path = {path.casefold(): value for path, value in courts.items()}
         print(f"Leyendo {len(requested_paths)} fallo(s) del catálogo para preparar el lote…", file=sys.stderr, flush=True)
         documents, missing = export_documents(catalog_path, requested_paths)
         if missing:
@@ -161,7 +166,7 @@ class StandardsPipeline:
                 "document_path": document.path,
                 "document_name": document.name,
                 "total_pages": document.total_pages,
-                "metadata": document.metadata,
+                "metadata": metadata_with_court(document.metadata, courts_by_path[document.path.casefold()]),
                 "content_hash": document.content_hash,
                 "fragments": document.fragments,
             })
@@ -198,6 +203,9 @@ class StandardsPipeline:
             "catalog_path": str(catalog_path.resolve()),
             "paths_file": str(paths_file.resolve()),
             "selection_encoding": encoding,
+            "court_source": "courts_file" if courts_file is not None else "court",
+            "courts_file": str(courts_file.resolve()) if courts_file is not None else None,
+            "courts": sorted(set(courts.values())),
             "model": model,
             "reasoning_effort": reasoning_effort,
             "documents": len(prepared_rows),
