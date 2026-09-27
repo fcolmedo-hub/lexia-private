@@ -117,7 +117,7 @@ ni elimina las apariciones originales.
 Las apariciones extraídas y las cargas manuales se muestran en el diccionario
 aunque falte una cita literal, su página u otra validación de extracción. Las rechazadas y las versiones
 automáticas reemplazadas permanecen ocultas. La interfaz indica qué evidencia
-falta en cada aparición y ofrece una lista de casos incompletos. El usuario
+falta dentro de cada aparición de la lista general. El usuario
 puede abrir el fallo, completar la cita, confirmar una incidencia con evidencia
 completa o excluir la aparición del diccionario.
 La cita agregada se registra como `manual_review` con auditoría en
