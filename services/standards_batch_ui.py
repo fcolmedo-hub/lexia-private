@@ -101,7 +101,8 @@ def court_suggestions() -> dict[str, list[str]]:
         label = " › ".join(segments)
         last = segments[-1]
         if re.fullmatch(r"\d{1,2}\s*[ªº°a]?", last, re.I) and len(segments) > 1:
-            label = " › ".join(segments[:-1] + ["Nominación " + last])
+            prefix = segments[:-2] if re.fullmatch(r"nominaci[oó]n:?", segments[-2], re.I) else segments[:-1]
+            label = " › ".join(prefix + ["Nominación " + last])
         subject = next((part for part in segments if re.search(r"civil|comercial|laboral|penal|familia|contencioso", part, re.I)), "")
         number = re.search(r"(\d{1,2})\s*[ªº°a]?", last) if re.search(r"nominaci[oó]n", last, re.I) or re.fullmatch(r"\d{1,2}\s*[ªº°a]?", last, re.I) else None
         suggested = ""
