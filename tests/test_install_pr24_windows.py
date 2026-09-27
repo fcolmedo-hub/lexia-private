@@ -94,3 +94,34 @@ def test_previous_pr_files_merge_without_overwriting_local_edits(tmp_path):
     assert planned["selector.txt"] == b"new first\nsecond local\n"
     assert "pipeline.txt" not in planned
     assert (root / "ui.txt").read_bytes() == b"previous UI\r\n"
+
+
+def test_preflight_accepts_installed_previous_feature_and_keeps_local_edits(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    path = root / "ui.txt"
+    path.write_text("old header\nold queue\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    path.write_text("old header\nprevious queue\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "previous")
+    previous = _git(root, "rev-parse", "HEAD")
+    path.write_text("new header\nprevious queue\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "feature")
+    feature = _git(root, "rev-parse", "HEAD")
+    path.write_text("new header\nmain list\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "target")
+    target = _git(root, "rev-parse", "HEAD")
+    path.write_text("new header\nprevious queue\nlocal footer changed\n")
+
+    planned = changes(root, base, target, previous, feature)
+
+    assert planned["ui.txt"] == b"new header\nmain list\nlocal footer changed\n"
+    assert path.read_text() == "new header\nprevious queue\nlocal footer changed\n"
