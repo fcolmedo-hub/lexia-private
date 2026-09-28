@@ -98,6 +98,7 @@
   const scrollPositions=new Map();
   let renderedTab='';
   const ocrSelection=new Set();
+  let ocrDeleteBatch=null;
   let ocrList={items:[],total:0,offset:0,limit:50,loading:false,error:''};
   let ocrListRequest=0;
 
@@ -156,9 +157,10 @@
         '<div class="maint-ocr-item-info"><strong>'+esc(name)+'</strong><span title="'+esc(path)+'">'+esc(path)+'</span>'+((item.total_pages||item.progress_page)?'<small>Página '+esc(item.progress_page||0)+' de '+esc(item.total_pages||'—')+'</small>':'')+(item.error?'<small class="maint-ocr-item-error">'+esc(item.error)+'</small>':'')+'</div>'+
         '<div class="maint-ocr-item-actions"><button type="button" class="maint-btn" data-ocr-open="'+esc(path)+'">Abrir</button>'+(canSelect?'<button type="button" class="maint-btn" data-ocr-retry="'+esc(path)+'" '+(busy?'disabled':'')+'>Reprocesar</button><button type="button" class="maint-btn danger" data-ocr-delete="'+esc(path)+'" '+(busy?'disabled':'')+'>Eliminar de LexIA</button>':'')+'</div></div>';
     }).join('');
-    const controls=canSelect?'<div class="maint-actions">'+button('mOcrSelectPage','Seleccionar esta página','secondary',disabled||!ocrList.items.length)+button('mOcrClearSelection','Quitar selección','secondary',working||!ocrSelection.size)+button('mOcrRetrySelected','Reprocesar seleccionados ('+ocrSelection.size+')','primary',disabled||!ocrSelection.size)+'</div>':'';
+    const controls=canSelect?'<div class="maint-actions">'+button('mOcrSelectPage','Seleccionar esta página','secondary',disabled||!ocrList.items.length)+button('mOcrClearSelection','Quitar selección','secondary',working||!ocrSelection.size)+button('mOcrRetrySelected','Reprocesar seleccionados ('+ocrSelection.size+')','primary',disabled||!ocrSelection.size)+button('mOcrDeleteSelected','Eliminar seleccionados ('+ocrSelection.size+')','danger',disabled||!ocrSelection.size)+'</div>':'';
+    const deletionProgress=ocrDeleteBatch?'<div class="maint-note" id="mOcrDeleteProgress" role="status" aria-live="polite">'+esc(ocrDeleteBatch.status)+progress(ocrDeleteBatch.completed,ocrDeleteBatch.total)+(ocrDeleteBatch.current?'<p class="maint-current-file" title="'+esc(ocrDeleteBatch.current)+'">'+esc(shortFileName(ocrDeleteBatch.current))+'</p>':'')+'</div>':'';
     const paging='<div class="maint-ocr-paging">'+button('mOcrPrevious','Anterior','secondary',ocrList.loading||ocrList.offset===0)+'<span>'+esc(ocrList.total?ocrList.offset+1:0)+'–'+esc(ocrList.offset+ocrList.items.length)+' de '+esc(ocrList.total)+'</span>'+button('mOcrNext','Siguiente','secondary',ocrList.loading||ocrList.offset+ocrList.items.length>=ocrList.total)+'</div>';
-    return '<div class="maint-ocr-queue"><b>'+esc(labels[ocrQueueFilter])+' · '+esc(ocrList.total)+'</b>'+controls+(ocrList.loading?'<p class="maint-note" role="status">Actualizando archivos…</p>':'')+(ocrList.error?'<p class="maint-toast-error" role="alert">'+esc(ocrList.error)+'</p>':'')+'<div class="maint-ocr-items">'+(rows||(!ocrList.loading&&!ocrList.error?'<p class="maint-empty">No hay archivos en este estado.</p>':''))+'</div>'+paging+'</div>';
+    return '<div class="maint-ocr-queue"><b>'+esc(labels[ocrQueueFilter])+' · '+esc(ocrList.total)+'</b>'+controls+deletionProgress+(ocrList.loading?'<p class="maint-note" role="status">Actualizando archivos…</p>':'')+(ocrList.error?'<p class="maint-toast-error" role="alert">'+esc(ocrList.error)+'</p>':'')+'<div class="maint-ocr-items">'+(rows||(!ocrList.loading&&!ocrList.error?'<p class="maint-empty">No hay archivos en este estado.</p>':''))+'</div>'+paging+'</div>';
   }
 
   async function jsonRequest(url,body){
@@ -188,12 +190,8 @@
     if(!paths.length||working)return;
     requestAction('ocr-start-selected',{paths},()=>{paths.forEach(path=>ocrSelection.delete(path));});
   }
-  async function deleteOcrFile(path){
-    if(working)return;
-    const name=shortFileName(path);
-    if(!confirm('¿Eliminar de LexIA “'+name+'”?\n\n'+path+'\n\nSe eliminará el archivo físico de la biblioteca, su texto indexado y sus datos asociados en LexIA. Esta acción no es solo quitarlo de la cola OCR.'))return;
-    working=true;notice='Eliminando '+name+'…';noticeError=false;render();
-    try{
+  async function deleteOcrPath(path){
+      const name=shortFileName(path);
       const started=await jsonRequest('/api/delete-file',{path,confirm_name:name});
       const target=String(started.state?.path||path),deadline=Date.now()+120000;
       let completed=false;
@@ -206,11 +204,43 @@
         if(['error','interrupted'].includes(deletion.status))throw new Error(deletion.error||'No se pudo completar la eliminación.');
       }
       if(!completed)throw new Error('La eliminación sigue pendiente. Actualizá el estado antes de reintentar.');
-      ocrSelection.delete(path);notice='Archivo eliminado: '+name;
+      ocrSelection.delete(path);
       window.lexiaSearch320RemovePath?.(target);
       window.dispatchEvent(new CustomEvent('lexia:document-deleted',{detail:{path:target}}));
+  }
+  async function deleteOcrFile(path){
+    if(working||state?.live?.ocr?.running)return;
+    const name=shortFileName(path);
+    if(!confirm('¿Eliminar de LexIA “'+name+'”?\n\n'+path+'\n\nSe eliminará el archivo físico de la biblioteca, su texto indexado y sus datos asociados en LexIA. Esta acción no es solo quitarlo de la cola OCR.'))return;
+    working=true;ocrDeleteBatch=null;notice='Eliminando '+name+'…';noticeError=false;render();
+    try{
+      await deleteOcrPath(path);
+      notice='Archivo eliminado: '+name;
     }catch(error){notice=error.message||String(error);noticeError=true;}
     finally{working=false;await refresh(false,false);render();schedulePoll();}
+  }
+  async function deleteSelectedOcr(){
+    if(working||state?.live?.ocr?.running||ocrList.loading||ocrList.error||ocrQueueFilter==='processing')return;
+    const paths=[...ocrSelection];
+    if(!paths.length)return;
+    if(!confirm('¿Eliminar los '+paths.length+' archivos seleccionados de LexIA?\n\nSe borrarán los archivos físicos de la biblioteca, su texto indexado y sus datos asociados. No es solo quitarlos de la cola OCR.\n\nSe incluyen los seleccionados en otras páginas de esta lista.'))return;
+    working=true;notice='';noticeError=false;
+    ocrDeleteBatch={total:paths.length,completed:0,current:'',status:'Preparando eliminación…'};
+    render();
+    try{
+      for(const path of paths){
+        ocrDeleteBatch.current=path;
+        ocrDeleteBatch.status='Eliminando archivo '+(ocrDeleteBatch.completed+1)+' de '+paths.length+'…';
+        render();
+        await deleteOcrPath(path);
+        ocrDeleteBatch.completed++;
+      }
+      ocrDeleteBatch.current='';
+      notice=ocrDeleteBatch.status='Eliminación terminada: '+paths.length+' archivo(s) eliminados.';
+    }catch(error){
+      noticeError=true;
+      notice=ocrDeleteBatch.status='Eliminación detenida: '+ocrDeleteBatch.completed+' de '+paths.length+' completados. '+(error.message||String(error))+' Los no confirmados quedan seleccionados; comprobá el estado antes de reintentar.';
+    }finally{working=false;await refresh(false,false);render();schedulePoll();}
   }
   function ocrStatusButtons(ocr){
     return '<div class="maint-ocr-stats"><button type="button" data-ocr-filter="pending" class="'+(ocrQueueFilter==='pending'?'active':'')+'"><span>Pendientes</span><b>'+esc(ocr.pending||0)+'</b></button><button type="button" data-ocr-filter="processing" class="'+(ocrQueueFilter==='processing'?'active':'')+'"><span>En proceso</span><b>'+esc(ocr.processing||0)+'</b></button><button type="button" data-ocr-filter="error" class="'+(ocrQueueFilter==='error'?'active':'')+'"><span>Con error</span><b>'+esc(ocr.error||0)+'</b></button></div>';
@@ -438,11 +468,13 @@
       element.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();go();}};
     });
     document.querySelectorAll('[data-ocr-filter]').forEach(element=>element.addEventListener('click',()=>{
+      if(working)return;
       ocrQueueFilter=element.dataset.ocrFilter||'';
       ocrSelection.clear();ocrList={items:[],total:0,offset:0,limit:50,loading:false,error:''};
       loadOcrList(0);
     }));
     page.querySelectorAll('[data-ocr-select]').forEach(element=>element.addEventListener('change',()=>{
+      if(working)return;
       if(element.checked){
         if(ocrSelection.size>=100){notice='Podés seleccionar hasta 100 archivos por operación.';noticeError=true;}
         else ocrSelection.add(element.dataset.ocrSelect);
@@ -456,9 +488,10 @@
     }));
     page.querySelectorAll('[data-ocr-retry]').forEach(element=>element.addEventListener('click',()=>retryOcr([element.dataset.ocrRetry])));
     page.querySelectorAll('[data-ocr-delete]').forEach(element=>element.addEventListener('click',()=>deleteOcrFile(element.dataset.ocrDelete)));
-    document.getElementById('mOcrSelectPage')?.addEventListener('click',()=>{ocrList.items.forEach(item=>{if(ocrSelection.size<100)ocrSelection.add(item.document_path);});render();});
-    document.getElementById('mOcrClearSelection')?.addEventListener('click',()=>{ocrSelection.clear();render();});
+    document.getElementById('mOcrSelectPage')?.addEventListener('click',()=>{if(working)return;ocrList.items.forEach(item=>{if(ocrSelection.size<100)ocrSelection.add(item.document_path);});render();});
+    document.getElementById('mOcrClearSelection')?.addEventListener('click',()=>{if(working)return;ocrSelection.clear();render();});
     document.getElementById('mOcrRetrySelected')?.addEventListener('click',()=>retryOcr([...ocrSelection]));
+    document.getElementById('mOcrDeleteSelected')?.addEventListener('click',deleteSelectedOcr);
     document.getElementById('mOcrPrevious')?.addEventListener('click',()=>loadOcrList(Math.max(0,ocrList.offset-50)));
     document.getElementById('mOcrNext')?.addEventListener('click',()=>loadOcrList(ocrList.offset+50));
     document.getElementById('mRefresh')?.addEventListener('click',()=>{if(tab==='duplicates')window.lexiaMaintenanceDuplicates?.load();refresh(true,true);});
