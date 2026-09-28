@@ -33,15 +33,14 @@ def reconcile_moved_duplicate(application, path_value):
         else:
             raise ValueError('El original todavía existe. No corresponde tratarlo como un traslado.')
         old = catalog.get_file_state(original)
-        if not old or old.get('is_deleted') or old.get('duplicate_of') or not old.get('content_hash'):
-            raise ValueError('No se encontró el registro principal con una huella comprobable.')
+        if old and (old.get('duplicate_of') or not old.get('content_hash')):
+            raise ValueError('El registro anterior no tiene una huella principal comprobable; requiere revisión.')
         if current.get('text_content') or current.get('vector_indexed_hash'):
             raise ValueError('La ubicación nueva tiene indexación propia; se conserva para una revisión específica.')
         before = path.stat()
         digest = FileHasher().calculate(path)
-        if digest != old['content_hash'] or digest != current.get('content_hash'):
+        if digest != current.get('content_hash') or (old and digest != old['content_hash']):
             raise ValueError('La huella del archivo no coincide con el original registrado. No se modificó el catálogo.')
-        category = path.relative_to(root).parts[0]
         from services.structural_category_policy import classify_structural_path
         category = classify_structural_path(path, library_root=root).category
         document = Document(name=path.name, path=path, category=category,
@@ -66,7 +65,15 @@ def reconcile_moved_duplicate(application, path_value):
         after = path.stat()
         if (before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) or original.exists():
             raise ValueError('Las ubicaciones cambiaron durante la comprobación. No se modificó el catálogo.')
-        result = catalog.relocate_documents_batch([(str(original), document)])
+        if old is None:
+            catalog.release_orphan_duplicate(path, original, digest)
+            warnings = ['La entrada antigua ya no existe. Se quitó la marca de duplicado; la extracción local del texto queda pendiente de AutoSync.']
+            try:
+                application.autosync.notify_change('modified', str(path), False)
+            except Exception:
+                warnings.append('Ejecutá una sincronización para procesar este archivo.')
+            return {'reconciled': str(path), 'old_path': str(original), 'backup': str(backup), 'warnings': warnings}
+        result = catalog.relocate_documents_batch([(str(original), document)], recover_deleted=True)
         if result.get('relocated') != 1 or result.get('failed'):
             raise RuntimeError('No se pudo reconciliar la ubicación. Se conserva el respaldo: ' + str(backup))
         warnings = []

@@ -172,7 +172,7 @@ def _duplicates_snapshot() -> list[dict]:
             "original_name": str(row["original_name"] or Path(str(row["duplicate_of"] or "")).name),
             "original_category": str(row["original_category"] or ""),
             "exists": Path(str(row["path"] or "")).is_file(),
-            "can_reconcile": bool(row['original_catalog_path']) and Path(row['path']).is_file() and not Path(row['duplicate_of']).exists(),
+            "can_reconcile": Path(row['path']).is_file() and not Path(row['duplicate_of']).exists(),
             "can_delete": bool(row['original_catalog_path']) and not duplicate_problem(row['path'], row['duplicate_of']),
             "problem": duplicate_problem(row['path'], row['duplicate_of']) or ('' if row['original_catalog_path'] else 'El original ya no está activo en el catálogo.'),
         }

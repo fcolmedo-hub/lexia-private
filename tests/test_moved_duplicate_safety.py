@@ -7,6 +7,7 @@ import threading
 from types import SimpleNamespace
 import unittest
 import importlib
+import ast
 import sys
 from unittest.mock import Mock, patch
 
@@ -45,7 +46,7 @@ class MovedDuplicateTests(unittest.TestCase):
         self.settings = SimpleNamespace(library_path=self.library,runtime_path=self.root/'runtime',knowledge_path=self.root/'knowledge.sqlite3')
         self.app = SimpleNamespace(catalog=self.catalog,
             ocr_queue=SimpleNamespace(state=lambda:{'running':False}),
-            autosync=SimpleNamespace(_sync_lock=threading.Lock(),library_snapshot=Mock(),request_full_scan=Mock()),
+            autosync=SimpleNamespace(_sync_lock=threading.Lock(),library_snapshot=Mock(),request_full_scan=Mock(),notify_change=Mock()),
             knowledge_engine=Mock(),indexer=Mock(),search_cache=Mock())
         p=patch.object(repair,'SETTINGS',self.settings);p.start();self.addCleanup(p.stop)
 
@@ -96,6 +97,72 @@ class MovedDuplicateTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):repair.reconcile_moved_duplicate(self.app,str(self.new))
         finally:self.app.autosync._sync_lock.release()
         self.assertEqual(self.catalog.get_file_state(self.new)['duplicate_of'],str(self.old))
+
+    def duplicate_snapshot(self):
+        # Exercise the real snapshot SQL and eligibility without starting HTTP/Qdrant.
+        source = Path(__file__).resolve().parents[1] / 'services/windows_research_manual_sources.py'
+        node = next(n for n in ast.parse(source.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == '_duplicates_snapshot')
+        namespace = {'Path': Path, 'sqlite3': sqlite3, 'SETTINGS': SimpleNamespace(catalog_path=self.catalog.database_path), 'duplicate_problem': duplicate_problem}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
+        return namespace['_duplicates_snapshot']()
+
+    def test_deleted_original_shows_repair_and_restores_text_and_search(self):
+        self.catalog.mark_paths_deleted({str(self.old)})
+        row = self.duplicate_snapshot()[0]
+        self.assertTrue(row['can_reconcile'])
+        self.assertFalse(row['can_delete'])
+        before = self.new.read_bytes()
+        result = repair.reconcile_moved_duplicate(self.app, str(self.new))
+        current = self.catalog.get_file_state(self.new)
+        self.assertFalse(current['is_deleted'])
+        self.assertIsNone(current['duplicate_of'])
+        self.assertIsNone(current['vector_indexed_hash'])
+        self.assertEqual(current['text_content'], 'Texto original ya extraído')
+        with self.catalog._connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM fragments_fts WHERE document_path=?', (str(self.new),)).fetchone()[0], 1)
+        self.assertEqual(self.new.read_bytes(), before)
+        self.assertFalse(self.old.exists())
+        self.assertFalse(self.duplicate_snapshot())
+        self.assertEqual(self.catalog.pending_vector_relocation_count(), 0)
+        self.app.indexer.run.assert_called_once_with(target_paths=[str(self.new)])
+        with sqlite3.connect(Path(result['backup'])/'catalog.sqlite3') as db:
+            self.assertEqual(db.execute('SELECT is_deleted FROM documents WHERE path=?', (str(self.old),)).fetchone()[0], 1)
+
+    def test_missing_original_row_releases_only_flag_and_queues_local_extraction(self):
+        with self.catalog._connect() as db:
+            db.execute('DELETE FROM documents WHERE path=?', (str(self.old),))
+        self.assertTrue(self.duplicate_snapshot()[0]['can_reconcile'])
+        before = self.new.read_bytes()
+        result = repair.reconcile_moved_duplicate(self.app, str(self.new))
+        current = self.catalog.get_file_state(self.new)
+        self.assertIsNone(current['duplicate_of'])
+        self.assertEqual(current['extraction_method'], '')
+        self.assertEqual(self.new.read_bytes(), before)
+        self.assertTrue(result['warnings'])
+        self.app.autosync.notify_change.assert_called_once_with('modified', str(self.new), False)
+        self.app.indexer.run.assert_not_called()
+
+    def test_inactive_original_hash_mismatch_keeps_both_records(self):
+        self.catalog.mark_paths_deleted({str(self.old)})
+        with self.catalog._connect() as db:
+            db.execute('UPDATE documents SET content_hash=? WHERE path=?', ('wrong', str(self.old)))
+        with self.assertRaises(ValueError): repair.reconcile_moved_duplicate(self.app, str(self.new))
+        self.assertTrue(self.catalog.get_file_state(self.old)['is_deleted'])
+        self.assertEqual(self.catalog.get_file_state(self.new)['duplicate_of'], str(self.old))
+
+    def test_missing_original_and_changed_file_is_not_released(self):
+        with self.catalog._connect() as db:
+            db.execute('DELETE FROM documents WHERE path=?', (str(self.old),))
+        self.new.write_bytes(b'changed after indexing')
+        with self.assertRaises(ValueError): repair.reconcile_moved_duplicate(self.app, str(self.new))
+        self.assertEqual(self.catalog.get_file_state(self.new)['duplicate_of'], str(self.old))
+
+    def test_recovery_does_not_replace_independently_indexed_new_path(self):
+        self.catalog.mark_paths_deleted({str(self.old)})
+        with self.catalog._connect() as db:
+            db.execute('UPDATE documents SET text_content=? WHERE path=?', ('Independent text', str(self.new)))
+        with self.assertRaises(ValueError): repair.reconcile_moved_duplicate(self.app, str(self.new))
+        self.assertEqual(self.catalog.get_file_state(self.new)['text_content'], 'Independent text')
 
     def test_vector_failure_keeps_file_and_catalog_with_pending_relocation(self):
         self.app.indexer.run.side_effect=RuntimeError('Qdrant offline')
