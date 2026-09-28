@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import math
 import ntpath
+import os
 import posixpath
 import re
 import sqlite3
+import tempfile
 import threading
 import time
 import uuid
@@ -172,9 +174,25 @@ def _write(job: dict[str, Any]) -> None:
     directory = _job_dir(job["job_id"])
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "job.json"
-    temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(job, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
+    payload = (json.dumps(job, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    with tempfile.NamedTemporaryFile(dir=directory, prefix="job-", suffix=".tmp", delete=False) as output:
+        output.write(payload)
+        temporary = Path(output.name)
+    try:
+        for attempt in range(12):
+            try:
+                os.replace(temporary, path)
+                return
+            except PermissionError:
+                if attempt == 11:
+                    raise
+                # Windows scanners and previews may hold job.json open briefly.
+                time.sleep(min(0.05 * (2 ** attempt), 0.5))
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def status(job_id: str) -> dict[str, Any]:

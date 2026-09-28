@@ -144,3 +144,23 @@ def test_batch_document_link_only_opens_saved_selection(tmp_path, monkeypatch):
         pass
     else:
         raise AssertionError("An unrelated path must not be opened")
+
+
+def test_job_write_retries_transient_windows_file_lock(tmp_path, monkeypatch):
+    monkeypatch.setattr(batch, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(batch.time, "sleep", lambda seconds: None)
+    replace = batch.os.replace
+    attempts = []
+
+    def temporarily_locked(source, destination):
+        attempts.append((source, destination))
+        if len(attempts) < 3:
+            raise PermissionError(5, "Acceso denegado")
+        replace(source, destination)
+
+    monkeypatch.setattr(batch.os, "replace", temporarily_locked)
+    batch._write({"job_id": "std-ui-lock", "phase": "validating"})
+    directory = batch._job_dir("std-ui-lock")
+    assert len(attempts) == 3
+    assert json.loads((directory / "job.json").read_text(encoding="utf-8"))["phase"] == "validating"
+    assert not list(directory.glob("job-*.tmp"))
