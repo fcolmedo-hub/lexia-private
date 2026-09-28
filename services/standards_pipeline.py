@@ -403,11 +403,25 @@ class StandardsPipeline:
                 {str(row[0]) for row in conn.execute("SELECT candidate_id FROM relation_decisions")}
                 if decisions_table else set()
             )
-            candidates = build_candidates(conn, 0.08, 1, 24, excluded)
+            def report(stage: str, current: int, total: int) -> None:
+                if stage == "index":
+                    percent = round(30 * current / max(total, 1))
+                    message = f"Indexando términos: {current}/{total}"
+                else:
+                    percent = 30 + round(60 * current / max(total, 1))
+                    message = f"Comparando pares: {current}/{total}"
+                self._progress(stage="relations_build", current=percent, total=100, file=message)
+
+            candidates = build_candidates(
+                conn, 0.08, 1, 24, excluded,
+                max_posting_size=80, max_pair_pool=50_000, progress=report,
+            )
         finally:
             conn.close()
 
         candidates_path = self.run_dir / "relation_candidates.jsonl"
+        self._progress(stage="relations_build", current=90, total=100,
+                       file=f"Guardando {len(candidates)} pares candidatos")
         dump_jsonl(candidates_path, candidates)
         if not candidates:
             return self._transition(
@@ -427,6 +441,8 @@ class StandardsPipeline:
         ))
         if code != 0:
             raise RuntimeError("No se pudo preparar el lote de relaciones")
+        self._progress(stage="relations_build", current=100, total=100,
+                       file=f"{len(candidates)} pares listos")
         return self._transition(
             "relations_ready_to_submit", relation_candidates=len(candidates)
         )
