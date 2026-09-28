@@ -29,6 +29,7 @@ PREVIOUS_SDK_NOTICE = "d21716dcf90f883dfac7f8414fdc03cbb6cc10f2"
 PREVIOUS_ACTIVITY_SCROLL = "e54d51a7b02ebd8881b2d732b1d561a2878abf2d"
 PREVIOUS_COST_NOTICE = "69163a79e27183226423535a5671e1b862f9fac9"
 PREVIOUS_ZERO_DOCUMENT_LINKS = "f320f56091b94eca545ffb549c98efdeeb5248f5"
+PREVIOUS_LOCK_RETRY = "53d3d6aa943197d04def7e81550ca638d27c3fbd"
 TARGET = "FETCH_HEAD"
 
 
@@ -103,7 +104,7 @@ def merge(current: bytes, before: bytes, after: bytes) -> bytes:
     return encode("".join(merged), bom, crlf)
 
 
-def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS, previous_feature: str = PREVIOUS_FEATURE, previous_installed: str = PREVIOUS_INSTALLED, previous_current: str = PREVIOUS_CURRENT, previous_batch_ui: str = PREVIOUS_BATCH_UI, previous_tree_ui: str = PREVIOUS_TREE_UI, previous_collapsed_ui: str = PREVIOUS_COLLAPSED_UI, previous_court_list: str = PREVIOUS_COURT_LIST, previous_federal_courts: str = PREVIOUS_FEDERAL_COURTS, previous_batch_notice: str = PREVIOUS_BATCH_NOTICE, previous_sdk_notice: str = PREVIOUS_SDK_NOTICE, previous_activity_scroll: str = PREVIOUS_ACTIVITY_SCROLL, previous_cost_notice: str = PREVIOUS_COST_NOTICE, previous_zero_document_links: str = PREVIOUS_ZERO_DOCUMENT_LINKS) -> dict[str, bytes]:
+def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = PREVIOUS, previous_feature: str = PREVIOUS_FEATURE, previous_installed: str = PREVIOUS_INSTALLED, previous_current: str = PREVIOUS_CURRENT, previous_batch_ui: str = PREVIOUS_BATCH_UI, previous_tree_ui: str = PREVIOUS_TREE_UI, previous_collapsed_ui: str = PREVIOUS_COLLAPSED_UI, previous_court_list: str = PREVIOUS_COURT_LIST, previous_federal_courts: str = PREVIOUS_FEDERAL_COURTS, previous_batch_notice: str = PREVIOUS_BATCH_NOTICE, previous_sdk_notice: str = PREVIOUS_SDK_NOTICE, previous_activity_scroll: str = PREVIOUS_ACTIVITY_SCROLL, previous_cost_notice: str = PREVIOUS_COST_NOTICE, previous_zero_document_links: str = PREVIOUS_ZERO_DOCUMENT_LINKS, previous_lock_retry: str = PREVIOUS_LOCK_RETRY) -> dict[str, bytes]:
     # A shallow Windows checkout can have both objects but no complete parent
     # chain for merge-base. The three-way comparison only needs those objects.
     git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
@@ -131,7 +132,7 @@ def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = 
                 # Earlier installers may have added this path to the working
                 # tree without a commit. Try their exact published versions.
                 error = None
-                for reference in (previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui, previous_collapsed_ui, previous_court_list, previous_federal_courts, previous_batch_notice, previous_sdk_notice, previous_activity_scroll, previous_cost_notice, previous_zero_document_links):
+                for reference in (previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui, previous_collapsed_ui, previous_court_list, previous_federal_courts, previous_batch_notice, previous_sdk_notice, previous_activity_scroll, previous_cost_notice, previous_zero_document_links, previous_lock_retry):
                     try:
                         candidate = merge(current, git(root, "show", f"{reference}:{name}"), target_content)
                         break
@@ -147,7 +148,7 @@ def changes(root: Path, base: str = BASE, target: str = TARGET, previous: str = 
                 conflicts.append(name + " (falta el archivo local)")
                 continue
             error = None
-            for reference in (base, previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui, previous_collapsed_ui, previous_court_list, previous_federal_courts, previous_batch_notice, previous_sdk_notice, previous_activity_scroll, previous_cost_notice, previous_zero_document_links):
+            for reference in (base, previous, previous_feature, previous_installed, previous_current, previous_batch_ui, previous_tree_ui, previous_collapsed_ui, previous_court_list, previous_federal_courts, previous_batch_notice, previous_sdk_notice, previous_activity_scroll, previous_cost_notice, previous_zero_document_links, previous_lock_retry):
                 try:
                     candidate = merge(current, git(root, "show", f"{reference}:{name}"), target_content)
                     break

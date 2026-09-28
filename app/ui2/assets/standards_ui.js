@@ -40,7 +40,9 @@
       .std-batch-tree-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:39px;padding:8px 12px;border:1px solid #d8d3ff;border-radius:9px;background:#fff;color:#5146f6;font:inherit;font-weight:750;text-align:left;cursor:pointer}
       .std-batch-tree-toggle:hover{background:#f7f5ff}.std-batch-tree[hidden]{display:none!important}
       #lexiaStandardsShell .std-batch-tree{max-height:min(300px,48vh)!important;margin-top:6px}
-      .std-batch-empty-list{max-height:260px;overflow:auto;margin:8px 0 0;padding-left:22px}.std-batch-empty-list li{padding:3px 0}
+      .std-batch-log,.std-batch-empty-list{overscroll-behavior:contain}
+      [data-batch-empty] summary{font-size:12px;line-height:1.45;cursor:pointer}
+      .std-batch-empty-list{max-height:260px;overflow:auto;margin:8px 0 0;padding-left:22px;font-size:12px;line-height:1.4}.std-batch-empty-list li{padding:3px 0}.std-batch-empty-list .std-doc-link{font-size:12px;font-weight:600;line-height:1.4}
       @media(max-width:1100px){#lexiaStandardsShell{left:0;top:54px}.std-layout{grid-template-columns:1fr}.std-grid{grid-template-columns:1fr 1fr}.std-grid.secondary{grid-template-columns:1fr 1fr}.std-wrap{padding:18px}}@media(max-width:680px){.std-grid,.std-grid.secondary{grid-template-columns:1fr}.std-title{font-size:23px}.std-wrap{padding:12px}.std-list,.std-detail,.std-search{padding:12px}.std-head{display:block}.std-batch-metrics{grid-template-columns:1fr 1fr}}
     `;
     document.head.appendChild(style);
@@ -125,6 +127,9 @@
   }
   function renderBatchJob(job){
     const progress=document.getElementById('stdBatchProgress');if(!progress)return;
+    const signature=JSON.stringify(job);
+    if(!progress.hidden&&progress.dataset.renderSignature===signature)return;
+    const outerScroll=shell(),outerTop=outerScroll.scrollTop;
     const previousLog=progress.querySelector('.std-batch-log');
     const previousTop=previousLog?.scrollTop||0,previousHeight=previousLog?.scrollHeight||0;
     const previousEmpty=progress.querySelector('[data-batch-empty]');
@@ -140,6 +145,8 @@
     const currentEmpty=progress.querySelector('[data-batch-empty]');
     if(currentEmpty&&emptyOpen){currentEmpty.open=true;currentEmpty.querySelector('.std-batch-empty-list').scrollTop=emptyTop;}
     batchMessage(job.phase==='error'?(job.error||job.message||''): '');
+    outerScroll.scrollTop=outerTop;
+    progress.dataset.renderSignature=signature;
     if(job.phase==='completed'){loadInventory();}
   }
   async function batchPoll(){
