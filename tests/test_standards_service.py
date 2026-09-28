@@ -82,6 +82,33 @@ def test_search_uses_recall_oriented_terms(tmp_path):
     assert {item['representative_standard_uid'] for item in result['items']} == {'STD-A', 'STD-B'}
 
 
+def test_boolean_search_and_exact_phrase_in_canonical_dictionary(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    assert service.search(text='reserva AND legal')['total'] == 1
+    assert service.search(text='reserva OR exportación')['total'] == 2
+    assert service.search(text='reserva NOT exportación')['total'] == 1
+    assert service.search(text='NOT exportación')['total'] == 2
+    assert service.search(text='"reserva legal"')['total'] == 1
+    assert service.search(text='(reserva OR exportación) AND tributaria')['total'] == 2
+
+
+def test_boolean_search_in_ungrouped_dictionary_and_invalid_expression(tmp_path):
+    db = make_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute('DELETE FROM canonical_standards')
+    service = StandardsService(db)
+
+    assert service.search(text='reserva AND legal')['total'] == 2
+    assert service.search(text='NOT exportación')['total'] == 3
+    try:
+        service.search(text='reserva AND (')
+    except ValueError as exc:
+        assert 'término' in str(exc) or 'paréntesis' in str(exc)
+    else:
+        assert False, 'La expresión incompleta debe mostrar un error'
+
+
 def test_count_matches_searchable_standards(tmp_path):
     service = StandardsService(make_db(tmp_path))
 

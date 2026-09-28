@@ -26,6 +26,97 @@ def _fts_query(value: str) -> str:
     return " OR ".join(f'"{token}"' for token in tokens)
 
 
+def _boolean_query(value: str, table: str, uid: str) -> tuple[str, list[str]] | None:
+    """Compile explicit boolean syntax to parameterized FTS membership tests.
+
+    Plain free-form queries retain the existing OR/relevance behavior. A unary
+    NOT uses SQL negation because FTS5 does not accept a leading NOT term.
+    """
+    parts = list(re.finditer(r'"[^"]*"|\(|\)|[^\s()"]+', value))
+    if not any(part.group().upper() in {"AND", "OR", "NOT"} or
+               part.group() in {"(", ")"} or part.group().startswith('"') for part in parts):
+        return None
+    previous_end = 0
+    words: list[str] = []
+    for part in parts:
+        if value[previous_end:part.start()].strip():
+            raise ValueError("Comillas sin cerrar en la búsqueda.")
+        words.append(part.group())
+        previous_end = part.end()
+    if value[previous_end:].strip():
+        raise ValueError("Comillas sin cerrar en la búsqueda.")
+    if len(words) > 40:
+        raise ValueError("La búsqueda tiene demasiados términos (máximo 40).")
+
+    position = 0
+
+    def peek() -> str:
+        return words[position] if position < len(words) else ""
+
+    def atom(depth: int = 0):
+        nonlocal position
+        if depth > 12:
+            raise ValueError("Hay demasiados paréntesis anidados.")
+        token = peek()
+        if not token:
+            raise ValueError("Falta un término en la búsqueda.")
+        if token.upper() == "NOT":
+            position += 1
+            return ("not", atom(depth + 1))
+        if token == "(":
+            position += 1
+            result = expression(depth + 1)
+            if peek() != ")":
+                raise ValueError("Falta cerrar un paréntesis en la búsqueda.")
+            position += 1
+            return result
+        if token == ")" or token.upper() in {"AND", "OR"}:
+            raise ValueError("Operadores mal ubicados en la búsqueda.")
+        position += 1
+        phrase = token.startswith('"')
+        terms = re.findall(r"[^\W_]+", token[1:-1] if phrase else token, flags=re.UNICODE)
+        if not terms:
+            raise ValueError("Hay un término vacío en la búsqueda.")
+        return ("term", '"' + " ".join(terms) + '"' if phrase else
+                " OR ".join('"' + term + '"' for term in terms))
+
+    def conjunction(depth: int):
+        nonlocal position
+        result = atom(depth)
+        while peek().upper() == "AND" or peek().upper() == "NOT":
+            if peek().upper() == "AND":
+                position += 1
+            result = ("and", result, atom(depth))
+        return result
+
+    def expression(depth: int):
+        nonlocal position
+        result = conjunction(depth)
+        while peek() and peek() != ")":
+            if peek().upper() == "OR":
+                position += 1
+            # Unqualified adjacent terms keep the prior OR behavior.
+            result = ("or", result, conjunction(depth))
+        return result
+
+    tree = expression(0)
+    if position != len(words):
+        raise ValueError("Sobran paréntesis en la búsqueda.")
+
+    def sql(node):
+        if node[0] == "term":
+            column = "canonical_uid" if table == "canonical_standards_fts" else "standard_uid"
+            return (f"{uid} IN (SELECT {column} FROM {table} WHERE {table} MATCH ?)", [node[1]])
+        if node[0] == "not":
+            clause, parameters = sql(node[1])
+            return f"NOT ({clause})", parameters
+        left, left_params = sql(node[1])
+        right, right_params = sql(node[2])
+        return f"({left} {node[0].upper()} {right})", left_params + right_params
+
+    return sql(tree)
+
+
 def _ro_connect(path: Path) -> sqlite3.Connection:
     uri = path.resolve().as_uri() + "?mode=ro"
     con = sqlite3.connect(uri, uri=True, timeout=3)
@@ -264,8 +355,12 @@ class StandardsService:
         score_sql = "0.0 AS rank"
 
         if text:
-            fts_query = _fts_query(text)
-            if fts_query:
+            boolean = _boolean_query(text, "standards_fts", "s.standard_uid")
+            fts_query = _fts_query(text) if boolean is None else ""
+            if boolean is not None:
+                where.append(boolean[0])
+                params.extend(boolean[1])
+            elif fts_query:
                 joins.append("JOIN standards_fts f ON f.standard_uid=s.standard_uid")
                 where.append("f.standards_fts MATCH ?")
                 params.append(fts_query)
@@ -330,8 +425,12 @@ class StandardsService:
         score_sql = "0.0 AS rank"
 
         if text:
-            query = _fts_query(text)
-            if query:
+            boolean = _boolean_query(text, "canonical_standards_fts", "c.canonical_uid")
+            query = _fts_query(text) if boolean is None else ""
+            if boolean is not None:
+                where.append(boolean[0])
+                params.extend(boolean[1])
+            elif query:
                 joins.append(
                     "JOIN canonical_standards_fts f ON f.canonical_uid=c.canonical_uid"
                 )
