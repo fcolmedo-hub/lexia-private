@@ -14,6 +14,7 @@ from pathlib import Path
 from qdrant_client import models
 
 from config.settings import SETTINGS
+from services.duplicate_file_safety import require_identical_files
 
 
 class SecureDocumentDeletionService:
@@ -315,6 +316,12 @@ class SecureDocumentDeletionService:
             is_duplicate = bool(str(state.get("duplicate_of") or "").strip())
             if require_duplicate and not is_duplicate:
                 raise ValueError("El archivo ya no figura como duplicado activo en LexIA.")
+            if require_duplicate:
+                original = self._validate_path(state['duplicate_of'])
+                original_state = self.catalog.get_file_state(original)
+                if not original_state or original_state.get('is_deleted') or original_state.get('duplicate_of'):
+                    raise ValueError('El original no es un documento principal activo. No se eliminó el archivo.')
+                require_identical_files(path, original)
 
             try:
                 if path.exists():
@@ -322,6 +329,8 @@ class SecureDocumentDeletionService:
                         raise IsADirectoryError(str(path))
                     self._move_to_staging(path, staged)
                     moved = True
+                    if require_duplicate:
+                        require_identical_files(staged, original)
 
                 self._set_stage("Retirando vectores")
                 vectors_before = self._vector_count(path)
@@ -364,6 +373,8 @@ class SecureDocumentDeletionService:
                 if not is_duplicate and self._knowledge_count(path) != 0:
                     raise RuntimeError("El documento aun figura en Knowledge Engine.")
                 if staged.exists():
+                    if require_duplicate:
+                        require_identical_files(staged, original)
                     staged.unlink()
 
                 return {

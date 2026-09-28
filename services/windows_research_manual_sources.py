@@ -11,6 +11,7 @@ import uuid
 
 from config.settings import SETTINGS
 from models.search_result import SearchResult
+from services.duplicate_file_safety import duplicate_problem
 
 
 PORT = 8516
@@ -145,6 +146,7 @@ def _duplicates_snapshot() -> list[dict]:
                 d.size,
                 d.updated_at,
                 d.duplicate_of,
+                o.path AS original_catalog_path,
                 o.name AS original_name,
                 o.category AS original_category
             FROM documents AS d
@@ -170,6 +172,9 @@ def _duplicates_snapshot() -> list[dict]:
             "original_name": str(row["original_name"] or Path(str(row["duplicate_of"] or "")).name),
             "original_category": str(row["original_category"] or ""),
             "exists": Path(str(row["path"] or "")).is_file(),
+            "can_reconcile": bool(row['original_catalog_path']) and Path(row['path']).is_file() and not Path(row['duplicate_of']).exists(),
+            "can_delete": bool(row['original_catalog_path']) and not duplicate_problem(row['path'], row['duplicate_of']),
+            "problem": duplicate_problem(row['path'], row['duplicate_of']) or ('' if row['original_catalog_path'] else 'El original ya no está activo en el catálogo.'),
         }
         for row in rows
     ]
@@ -195,9 +200,9 @@ def _start_duplicate_job(application, paths: list[str]) -> dict:
         raise ValueError("Seleccioná una lista válida de duplicados encontrados.")
     # Only the files the user saw may be deleted. The catalog is checked again
     # under AutoSync's lock by secure_document_deletion for each document.
-    found = {str(Path(item["path"]).expanduser().resolve()).casefold() for item in _duplicates_snapshot()}
+    found = {str(Path(item["path"]).expanduser().resolve()) for item in _duplicates_snapshot() if item['can_delete']}
     selected = list(dict.fromkeys(str(_validate_library_file(path)) for path in paths))
-    if any(path.casefold() not in found for path in selected):
+    if any(path not in found for path in selected):
         raise ValueError("La lista cambió. Actualizá los duplicados antes de eliminar.")
     with _DUPLICATE_JOB_LOCK:
         if _DUPLICATE_JOB["running"]:
@@ -434,6 +439,10 @@ def _handler(application):
                     return self._json({"ok": True, **result})
                 if self.path == "/delete-duplicates":
                     return self._json({"ok": True, **_start_duplicate_job(application, body.get("paths"))})
+                if self.path == '/reconcile-duplicate':
+                    from services.moved_duplicate_reconciliation import reconcile_moved_duplicate
+                    result = reconcile_moved_duplicate(application, str(body.get('path') or ''))
+                    return self._json({'ok': True, **result})
                 return self._json({"ok": False, "error": "Ruta no encontrada."}, 404)
             except PermissionError as error:
                 return self._json({"ok": False, "error": str(error)}, 403)

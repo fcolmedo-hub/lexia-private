@@ -330,6 +330,7 @@ class DocumentCatalog:
                     modified_ns,
                     content_hash,
                     is_deleted,
+                    vector_indexed_hash,
                     duplicate_of,
                     text_content,
                     extraction_error,
@@ -1738,12 +1739,19 @@ class DocumentCatalog:
             sql += " AND path != ?"
             params.append(exclude_path)
 
-        sql += " ORDER BY updated_at ASC LIMIT 1"
+        sql += " ORDER BY updated_at ASC"
 
         with self._connect() as connection:
-            row = connection.execute(sql, params).fetchone()
+            rows = connection.execute(sql, params).fetchall()
 
-        return row["path"] if row else None
+        for row in rows:
+            candidate = Path(row['path'])
+            try:
+                if candidate.is_file() and not (exclude_path and candidate.samefile(exclude_path)):
+                    return row['path']
+            except OSError:
+                continue
+        return None
 
     def processing_stats(self) -> dict[str, int]:
         with self._connect() as connection:

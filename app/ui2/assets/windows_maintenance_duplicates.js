@@ -12,6 +12,7 @@
   let loaded=false;
   let deleting=false;
   let loadError='';
+  let repairNotice='';
   let job=null;
   let jobTimer=null;
 
@@ -74,24 +75,28 @@
     const panel=document.getElementById(PANEL_ID);if(!panel)return;
     const scroll=panel.querySelector('.lexia-dup-list')?.scrollTop||0;
     const busy=loading||deleting||Boolean(job?.running);
+    const eligible=duplicates.filter(item=>item.can_delete===true);
     const rows=duplicates.map((item,index)=>`
       <div class="maint-ocr-queue-item lexia-dup-row">
         <div class="maint-ocr-item-info lexia-dup-info">
           <strong><a class="lexia-dup-file-link" href="/api/file-preview?path=${esc(encodeURIComponent(item.path||''))}" target="_blank" rel="noopener" title="Abrir duplicado: ${esc(item.path)}" data-dup-open="${index}">${esc(item.name||shortName(item.path)||'Documento')}</a></strong>
           <span title="${esc(item.path)}">${esc(item.path)}</span>
           <small>${esc(item.category||'Sin categoría')} · ${esc(bytes(item.size))}</small>
+          ${item.problem?`<small class="maint-toast-error">${esc(item.problem)} No se permite eliminarlo como duplicado.</small>`:''}
           <span title="${esc(item.duplicate_of||'')}">Original: ${item.duplicate_of?`<a class="lexia-dup-file-link lexia-dup-original-link" href="/api/file-preview?path=${esc(encodeURIComponent(item.duplicate_of))}" target="_blank" rel="noopener" data-dup-open-original="${index}">${esc(item.original_name||shortName(item.duplicate_of)||'Documento original')}</a>`:esc(item.original_name||'Documento original')} · ${esc(item.duplicate_of||'')}</span>
         </div>
         <div class="maint-ocr-item-actions lexia-dup-actions">
           <button type="button" class="maint-btn lexia-dup-open-copy" data-dup-open="${index}">Abrir duplicado</button>
           <button type="button" class="maint-btn lexia-dup-open-original" data-dup-open-original="${index}" ${item.duplicate_of?'':'disabled'}>Abrir original</button>
-          <button type="button" class="maint-btn danger" data-dup-delete="${index}" ${busy?'disabled':''}>Eliminar de LexIA</button>
+          ${item.can_reconcile?`<button type="button" class="maint-btn" data-dup-reconcile="${index}" ${busy?'disabled':''}>Corregir ubicación</button>`:''}
+          <button type="button" class="maint-btn danger" data-dup-delete="${index}" ${busy||item.can_delete!==true?'disabled':''}>Eliminar de LexIA</button>
         </div>
       </div>`).join('');
     panel.innerHTML=`
-      <div class="lexia-dup-head"><h3>Archivos duplicados</h3><p>LexIA no elimina nada automáticamente. Abrí el duplicado y el principal para compararlos antes de decidir.</p></div>
+      <div class="lexia-dup-head"><h3>Duplicados y ubicaciones por revisar</h3><p>Los archivos cuyo original falta quedan protegidos. Antes de borrar se comprueban los contenidos de ambas copias.</p></div>
       <div class="maint-ocr-queue">
-        <div class="lexia-dup-toolbar"><span class="lexia-dup-count">${loaded?duplicates.length.toLocaleString('es-AR')+' duplicado'+(duplicates.length===1?'':'s'):''}</span><div class="lexia-dup-toolbar-actions"><button type="button" class="maint-btn danger" data-dup-delete-all ${busy||!duplicates.length?'disabled':''}>Eliminar todos los duplicados encontrados</button><button type="button" class="maint-btn secondary" data-dup-refresh ${busy?'disabled':''}>${loading?'Actualizando…':'Actualizar lista'}</button></div></div>
+        <div class="lexia-dup-toolbar"><span class="lexia-dup-count">${loaded?eligible.length+' con ambas copias · '+(duplicates.length-eligible.length)+' protegidos':''}</span><div class="lexia-dup-toolbar-actions"><button type="button" class="maint-btn danger" data-dup-delete-all ${busy||!eligible.length?'disabled':''}>Eliminar duplicados con ambas copias (${eligible.length})</button><button type="button" class="maint-btn secondary" data-dup-refresh ${busy?'disabled':''}>${loading?'Actualizando…':'Actualizar lista'}</button></div></div>
+        ${repairNotice?'<p class="maint-note" role="status">'+esc(repairNotice)+'</p>':''}
         ${job?.running?'<p class="maint-note" role="status">Eliminando duplicados: '+esc(job.processed)+' de '+esc(job.total)+' · '+esc(job.deleted)+' eliminados · archivo: '+esc(shortName(job.current_file)||'esperando')+'</p>':''}
         ${job&&!job.running&&job.processed?'<p class="maint-note" role="status">Eliminación terminada: '+esc(job.deleted)+' de '+esc(job.total)+' eliminados'+(job.failed?.length?' · '+esc(job.failed.length)+' con error. Se conservaron los archivos con error.':'')+'</p>':''}
         ${job?.failed?.length?'<div class="maint-toast-error" role="alert">'+job.failed.map(item=>esc(shortName(item.path)+': '+item.error)).join('<br>')+'</div>':''}
@@ -117,7 +122,7 @@
 
   async function deleteDuplicate(index,button){
     if(loading||deleting||job?.running)return;
-    const item=duplicates[index];if(!item?.path)return;
+    const item=duplicates[index];if(!item?.path||item.can_delete!==true)return;
     if(!confirm('¿Eliminar este archivo duplicado de LexIA?\n\n'+(item.name||shortName(item.path))+'\n'+item.path+'\n\nSe eliminará el archivo físico duplicado y sus datos en LexIA. El documento original se conservará.'))return;
     deleting=true;loadError='';
     const previous=button.textContent;button.disabled=true;button.textContent='Eliminando…';
@@ -144,7 +149,8 @@
 
   async function deleteAll(){
     if(loading||deleting||job?.running||!duplicates.length)return;
-    const paths=duplicates.map(item=>item.path).filter(Boolean);
+    const paths=duplicates.filter(item=>item.can_delete===true).map(item=>item.path).filter(Boolean);
+    if(!paths.length)return;
     if(!confirm('¿Eliminar los '+paths.length+' archivos duplicados encontrados?\n\nSe borrarán sus archivos físicos y datos de LexIA. Los originales se conservarán. Podés seguir el avance en esta pantalla.'))return;
     deleting=true;loadError='';render();
     try{
@@ -160,6 +166,17 @@
     else window.open('/api/file-preview?path='+encodeURIComponent(path),'_blank','noopener');
   }
 
+  async function reconcile(index){
+    if(loading||deleting||job?.running)return;
+    const item=duplicates[index];if(!item?.can_reconcile)return;
+    deleting=true;loadError='';repairNotice='Comprobando huella y respaldando el catálogo. Conservá LexIA abierta…';render();
+    try{
+      const result=await sidecar('/reconcile-duplicate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:item.path})});
+      repairNotice='Ubicación corregida sin borrar el archivo. Respaldo: '+result.backup+(result.warnings?.length?' · '+result.warnings.join(' · '):'');
+    }catch(error){loadError=error.message||String(error);repairNotice='';}
+    finally{deleting=false;if(!loadError)await load();render();}
+  }
+
   function openDuplicate(index){const item=duplicates[index];if(item?.path)openPath(item.path);}
   function openOriginal(index){const item=duplicates[index];if(item?.duplicate_of)openPath(item.duplicate_of);}
 
@@ -167,6 +184,7 @@
     const target=event.target instanceof Element?event.target:null;if(!target)return;
     if(target.closest('[data-dup-refresh]')){load();return;}
     if(target.closest('[data-dup-delete-all]')){deleteAll();return;}
+    const repair=target.closest('[data-dup-reconcile]');if(repair){reconcile(Number(repair.dataset.dupReconcile));return;}
     const remove=target.closest('[data-dup-delete]');if(remove){deleteDuplicate(Number(remove.dataset.dupDelete),remove);return;}
     const open=target.closest('[data-dup-open]');if(open){event.preventDefault();openDuplicate(Number(open.dataset.dupOpen));return;}
     const original=target.closest('[data-dup-open-original]');if(original){event.preventDefault();openOriginal(Number(original.dataset.dupOpenOriginal));return;}

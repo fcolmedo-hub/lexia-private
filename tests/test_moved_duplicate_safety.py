@@ -1,0 +1,132 @@
+from pathlib import Path
+import hashlib
+import os
+import sqlite3
+import tempfile
+import threading
+from types import SimpleNamespace
+import unittest
+import importlib
+import sys
+from unittest.mock import Mock, patch
+
+from models.document import Document
+from models.fragment import Fragment
+from storage.catalog import DocumentCatalog
+from services.duplicate_file_safety import duplicate_problem, require_identical_files
+from services import moved_duplicate_reconciliation as repair
+
+
+class MovedDuplicateTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.library = self.root / 'library'
+        self.old = self.library / 'Escritos/Administrativos/original.doc'
+        self.new = self.library / 'Escritos/Tributario/original.doc'
+        self.old.parent.mkdir(parents=True)
+        self.new.parent.mkdir(parents=True)
+        self.old.write_bytes(b'legal document contents')
+        self.digest = hashlib.sha256(self.old.read_bytes()).hexdigest()
+        self.catalog = DocumentCatalog(self.root / 'catalog.sqlite3')
+        doc = Document(name=self.old.name, path=self.old, category='Escritos',
+                       size=self.old.stat().st_size, modified_ns=self.old.stat().st_mtime_ns,
+                       content_hash=self.digest, text='Texto original ya extraído',
+                       fragments=[Fragment(self.old.name,self.old,'Escritos',0,'Texto original ya extraído',0,25)])
+        self.catalog.save(doc)
+        with self.catalog._connect() as db:
+            db.execute('UPDATE documents SET vector_indexed_hash=? WHERE path=?', (self.digest,str(self.old)))
+        self.old.rename(self.new)
+        duplicate = Document(name=self.new.name,path=self.new,category='Escritos',
+                             size=self.new.stat().st_size,modified_ns=self.new.stat().st_mtime_ns,
+                             content_hash=self.digest,duplicate_of=str(self.old),extraction_method='duplicate')
+        self.catalog.save(duplicate)
+        self.settings = SimpleNamespace(library_path=self.library,runtime_path=self.root/'runtime',knowledge_path=self.root/'knowledge.sqlite3')
+        self.app = SimpleNamespace(catalog=self.catalog,
+            ocr_queue=SimpleNamespace(state=lambda:{'running':False}),
+            autosync=SimpleNamespace(_sync_lock=threading.Lock(),library_snapshot=Mock(),request_full_scan=Mock()),
+            knowledge_engine=Mock(),indexer=Mock(),search_cache=Mock())
+        p=patch.object(repair,'SETTINGS',self.settings);p.start();self.addCleanup(p.stop)
+
+    def test_missing_original_is_not_a_duplicate_candidate(self):
+        self.assertIsNone(self.catalog.find_path_by_hash(self.digest, str(self.new)))
+        self.assertTrue(duplicate_problem(self.new,self.old))
+        with self.assertRaises(ValueError):require_identical_files(self.new,self.old)
+        self.assertTrue(self.new.is_file())
+
+    def test_real_identical_copies_pass_different_or_same_file_fail(self):
+        self.old.write_bytes(self.new.read_bytes())
+        require_identical_files(self.new,self.old)
+        self.old.write_bytes(b'completely different')
+        with self.assertRaises(ValueError):require_identical_files(self.new,self.old)
+        with self.assertRaises(ValueError):require_identical_files(self.new,self.new)
+        self.old.unlink();os.link(self.new,self.old)
+        with self.assertRaises(ValueError):require_identical_files(self.new,self.old)
+
+    def test_repair_preserves_file_text_fragments_and_vector_relocation(self):
+        content=self.new.read_bytes()
+        result=repair.reconcile_moved_duplicate(self.app,str(self.new))
+        state=self.catalog.get_file_state(self.new)
+        self.assertIsNone(state['duplicate_of'])
+        self.assertEqual(state['text_content'],'Texto original ya extraído')
+        self.assertIsNone(self.catalog.get_file_state(self.old))
+        self.assertEqual(self.new.read_bytes(),content)
+        self.assertFalse(self.old.exists())
+        with self.catalog._connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM fragments WHERE document_path=?',(str(self.new),)).fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM fragments_fts WHERE document_path=?',(str(self.new),)).fetchone()[0],1)
+        self.assertEqual(self.catalog.pending_vector_relocations()[0]['new_path'],str(self.new))
+        self.assertTrue((Path(result['backup'])/'catalog.sqlite3').is_file())
+        self.app.knowledge_engine.move_documents.assert_called_once_with([(str(self.old),str(self.new))])
+        self.app.indexer.run.assert_called_once_with(target_paths=[str(self.new)])
+        with self.assertRaises(ValueError):repair.reconcile_moved_duplicate(self.app,str(self.new))
+
+    def test_changed_contents_or_existing_original_never_reconciled(self):
+        self.new.write_bytes(b'changed')
+        with self.assertRaises(ValueError):repair.reconcile_moved_duplicate(self.app,str(self.new))
+        self.assertEqual(self.catalog.get_file_state(self.new)['duplicate_of'],str(self.old))
+        self.old.write_bytes(b'another file')
+        with self.assertRaises(ValueError):repair.reconcile_moved_duplicate(self.app,str(self.new))
+        self.assertTrue(self.old.exists())
+
+    def test_busy_sync_defers_repair(self):
+        self.app.autosync._sync_lock.acquire()
+        try:
+            with self.assertRaises(RuntimeError):repair.reconcile_moved_duplicate(self.app,str(self.new))
+        finally:self.app.autosync._sync_lock.release()
+        self.assertEqual(self.catalog.get_file_state(self.new)['duplicate_of'],str(self.old))
+
+    def test_vector_failure_keeps_file_and_catalog_with_pending_relocation(self):
+        self.app.indexer.run.side_effect=RuntimeError('Qdrant offline')
+        result=repair.reconcile_moved_duplicate(self.app,str(self.new))
+        self.assertTrue(result['warnings'])
+        self.assertIsNone(self.catalog.get_file_state(self.new)['duplicate_of'])
+        self.assertTrue(self.new.exists())
+        self.assertEqual(self.catalog.pending_vector_relocation_count(),1)
+        self.app.autosync.request_full_scan.assert_called_once()
+
+    def test_delete_service_blocks_missing_or_different_original_before_any_removal(self):
+        # Qdrant is not exercised: the guard must reject before any index access.
+        try:
+            deletion = importlib.import_module('services.secure_document_deletion')
+        except ModuleNotFoundError as error:
+            if error.name != 'qdrant_client':raise
+            with patch.dict(sys.modules, {'qdrant_client': SimpleNamespace(models=SimpleNamespace())}):
+                deletion = importlib.import_module('services.secure_document_deletion')
+        service = deletion.SecureDocumentDeletionService.__new__(deletion.SecureDocumentDeletionService)
+        service.catalog=self.catalog
+        service.ocr_queue=self.app.ocr_queue
+        service.autosync=self.app.autosync
+        service._set_stage=Mock()
+        service._move_to_staging=Mock(side_effect=AssertionError('must not move file'))
+        with patch.object(deletion,'SETTINGS',self.settings):
+            with self.assertRaises(ValueError):service.delete(self.new,require_duplicate=True)
+            self.old.write_bytes(b'different contents')
+            with self.assertRaises(ValueError):service.delete(self.new,require_duplicate=True)
+        service._move_to_staging.assert_not_called()
+        self.assertTrue(self.new.is_file())
+        self.assertEqual(self.catalog.get_file_state(self.new)['duplicate_of'],str(self.old))
+
+
+if __name__=='__main__':unittest.main()
