@@ -1,4 +1,5 @@
 import logging
+from services.library_work_priority import DeletionPriorityYield
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -200,6 +201,10 @@ class DocumentPipeline:
                     len(documents),
                     "Completado",
                 )
+
+        except DeletionPriorityYield:
+            self.jobs.finish(job_id, 'interrupted', stats)
+            raise
 
         except KeyboardInterrupt:
             self.jobs.finish(

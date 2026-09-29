@@ -457,6 +457,17 @@ def _maintenance_action(application, body: dict) -> dict:
                 int(body.get("limit", 50)),
             )
             return {"ok": True, **result}
+        if action == 'ocr-delete-selected':
+            paths, names = body.get('paths'), body.get('confirm_names')
+            if not isinstance(paths, list) or not 1 <= len(paths) <= 100 or not isinstance(names, list) or len(names) != len(paths):
+                raise ValueError('La tanda de eliminación no es válida.')
+            service = application.secure_document_deletion
+            validated = [service._validate_path(path) for path in paths]
+            if any(path.name != name for path, name in zip(validated, names)):
+                raise ValueError('La confirmación no coincide con los archivos seleccionados.')
+            if not service.start_delete_batch(validated):
+                raise RuntimeError('Ya hay una eliminación en curso. La nueva selección se conserva para la próxima tanda.')
+            return {'ok': True, 'started': True, 'state': service.state()}
         if action == "ocr-start-selected":
             paths = body.get("paths")
             if not isinstance(paths, list) or not 1 <= len(paths) <= 100:
@@ -1709,8 +1720,8 @@ def _handler_class(application, token):
                     return self._json({
                         "ok": False,
                         "error": (
-                            "AutoSync, OCR u otra eliminación están trabajando. "
-                            "Esperá a que finalicen antes de reintentar."
+                            "Ya hay otra eliminación en curso. "
+                            "La selección se conserva para la próxima tanda."
                         ),
                         "state": state,
                     }, 409)

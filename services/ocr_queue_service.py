@@ -1,3 +1,4 @@
+from services.library_work_priority import WORK_PRIORITY
 from datetime import datetime
 import threading
 from pathlib import Path
@@ -177,152 +178,155 @@ class OCRQueueService:
                 paths,
                 start=1,
             ):
-                if self._cancel_requested.is_set():
-                    break
-                # A moved or deleted document cannot be OCR-processed. It is
-                # stale queue state, not an error that needs user attention.
-                if not Path(path).is_file():
-                    self.repository.remove(path)
+                if WORK_PRIORITY.pending():
+                    self._state.update(stage='paused_for_deletion')
+                with WORK_PRIORITY.background('OCR del documento actual'):
+                    if self._cancel_requested.is_set():
+                        break
+                    # A moved or deleted document cannot be OCR-processed. It is
+                    # stale queue state, not an error that needs user attention.
+                    if not Path(path).is_file():
+                        self.repository.remove(path)
+                        self._state.update(
+                            current_file=str(path),
+                            document_name=Path(path).name,
+                            stage="skipped",
+                            error="",
+                            processed=position,
+                        )
+                        continue
+                    queue_item = self.repository.get(path) or {}
+                    total_pages = int(queue_item.get("total_pages", 0) or 0)
+                    self._active_queue_path = path
                     self._state.update(
                         current_file=str(path),
-                        document_name=Path(path).name,
-                        stage="skipped",
-                        error="",
-                        processed=position,
+                        processed=position - 1,
+                        document_name=str(
+                            queue_item.get("document_name")
+                            or Path(path).name
+                        ),
+                        current_page=1 if total_pages else 0,
+                        completed_pages=0,
+                        total_pages=total_pages,
                     )
-                    continue
-                queue_item = self.repository.get(path) or {}
-                total_pages = int(queue_item.get("total_pages", 0) or 0)
-                self._active_queue_path = path
-                self._state.update(
-                    current_file=str(path),
-                    processed=position - 1,
-                    document_name=str(
-                        queue_item.get("document_name")
-                        or Path(path).name
-                    ),
-                    current_page=1 if total_pages else 0,
-                    completed_pages=0,
-                    total_pages=total_pages,
-                )
-                self.repository.mark_processing(path)
+                    self.repository.mark_processing(path)
 
-                try:
-                    # >>> LEXIA OCR STABLE INDEXER INSTANCE FIX 1.0
-                    indexer = self.indexer
+                    try:
+                        # >>> LEXIA OCR STABLE INDEXER INSTANCE FIX 1.0
+                        indexer = self.indexer
 
-                    self._state["stage"] = "ocr"
-                    pipeline = DocumentPipeline().run(
-                        changed_paths=[path],
-                        full_scan=False,
-                        force_ocr_paths=[path],
-                        cancel_callback=self._cancel_requested.is_set,
-                        ocr_progress_callback=self._publish_page_progress,
-                    )
-                    state = indexer.catalog.get_file_state(path)
-                    if pipeline.detected != 1:
-                        # The document is no longer part of the active
-                        # library tree. Drop its stale OCR entry quietly.
-                        self.repository.remove(path)
-                        self._state.update(stage="skipped", error="")
-                        self._state["processed"] = position
-                        continue
-                    if pipeline.failed:
-                        detail = (
-                            str((state or {}).get("extraction_error") or "")
-                            or "La extracción u OCR terminó con error."
+                        self._state["stage"] = "ocr"
+                        pipeline = DocumentPipeline().run(
+                            changed_paths=[path],
+                            full_scan=False,
+                            force_ocr_paths=[path],
+                            cancel_callback=self._cancel_requested.is_set,
+                            ocr_progress_callback=self._publish_page_progress,
                         )
-                        raise RuntimeError(
-                            f"OCR no pudo procesar '{Path(path).name}': {detail}"
-                        )
+                        state = indexer.catalog.get_file_state(path)
+                        if pipeline.detected != 1:
+                            # The document is no longer part of the active
+                            # library tree. Drop its stale OCR entry quietly.
+                            self.repository.remove(path)
+                            self._state.update(stage="skipped", error="")
+                            self._state["processed"] = position
+                            continue
+                        if pipeline.failed:
+                            detail = (
+                                str((state or {}).get("extraction_error") or "")
+                                or "La extracción u OCR terminó con error."
+                            )
+                            raise RuntimeError(
+                                f"OCR no pudo procesar '{Path(path).name}': {detail}"
+                            )
 
-                    if state is None:
-                        raise RuntimeError(
-                            "La extraccion termino sin guardar el documento."
-                        )
-                    if state.get("extraction_error"):
-                        raise RuntimeError(str(state["extraction_error"]))
-                    if not str(state.get("text_content") or "").strip():
-                        raise RuntimeError(
-                            "La extraccion termino sin texto utilizable."
-                        )
+                        if state is None:
+                            raise RuntimeError(
+                                "La extraccion termino sin guardar el documento."
+                            )
+                        if state.get("extraction_error"):
+                            raise RuntimeError(str(state["extraction_error"]))
+                        if not str(state.get("text_content") or "").strip():
+                            raise RuntimeError(
+                                "La extraccion termino sin texto utilizable."
+                            )
 
-                    # >>> LEXIA OCR DIAGNOSTIC PROBE 1.0
-                    probe_path = Path("runtime") / "ocr_diagnostic.log"
+                        # >>> LEXIA OCR DIAGNOSTIC PROBE 1.0
+                        probe_path = Path("runtime") / "ocr_diagnostic.log"
 
-                    def _probe(message: str) -> None:
-                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                        with probe_path.open("a", encoding="utf-8") as probe_file:
-                            probe_file.write(f"{timestamp} | {message}\n")
+                        def _probe(message: str) -> None:
+                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                            with probe_path.open("a", encoding="utf-8") as probe_file:
+                                probe_file.write(f"{timestamp} | {message}\n")
 
-                    _probe(
-                        "POST_PIPELINE | "
-                        f"path={path} | "
-                        f"content_hash={state.get('content_hash')} | "
-                        f"vector_indexed_hash={state.get('vector_indexed_hash')} | "
-                        f"extraction_method={state.get('extraction_method')} | "
-                        f"extraction_error={state.get('extraction_error')}"
-                    )
-
-                    pending_before = indexer.catalog.pending_vector_documents(
-                        paths=[path]
-                    )
-                    _probe(
-                        "PRE_INDEXER | "
-                        f"path={path} | "
-                        f"pending_count={len(pending_before)} | "
-                        f"pending_hashes={[doc.content_hash for doc in pending_before]}"
-                    )
-                    # <<< LEXIA OCR DIAGNOSTIC PROBE 1.0
-
-                    self._state["stage"] = "indexing"
-                    index_result = indexer.run(
-                        deleted_paths=pipeline.deleted_paths,
-                        target_paths=[path],
-                    )
-
-                    # >>> LEXIA OCR DIAGNOSTIC PROBE 1.0
-                    _probe(
-                        "INDEX_RESULT | "
-                        f"path={path} | "
-                        f"documents_indexed={index_result.documents_indexed} | "
-                        f"fragments_indexed={index_result.fragments_indexed} | "
-                        f"documents_deleted={index_result.documents_deleted} | "
-                        f"documents_relocated={index_result.documents_relocated} | "
-                        f"cancelled={index_result.cancelled}"
-                    )
-                    # <<< LEXIA OCR DIAGNOSTIC PROBE 1.0
-
-                    if index_result.cancelled:
-                        raise RuntimeError("La indexacion fue cancelada.")
-
-                    # >>> LEXIA OCR TRUST INDEX RESULT FIX 1.0
-                    # VectorIndexer.run() es sincrono. Si retorna sin
-                    # excepcion y no fue cancelado, la indexacion vectorial
-                    # termino. mark_vector_indexed() ya valida internamente
-                    # que su confirmacion haya quedado persistida.
-                    if index_result.documents_indexed < 1:
-                        raise RuntimeError(
-                            "La indexacion no proceso el documento OCR."
-                        )
-                    # <<< LEXIA OCR TRUST INDEX RESULT FIX 1.0
-
-                    self.repository.mark_completed(path)
-                    SearchCacheRepository(
-                        SETTINGS.search_cache_path
-                    ).clear()
-
-                except Exception as error:
-                    if self._cancel_requested.is_set():
-                        self.repository.mark_pending(path)
-                        break
-                    else:
-                        self.repository.mark_error(
-                            path,
-                            str(error),
+                        _probe(
+                            "POST_PIPELINE | "
+                            f"path={path} | "
+                            f"content_hash={state.get('content_hash')} | "
+                            f"vector_indexed_hash={state.get('vector_indexed_hash')} | "
+                            f"extraction_method={state.get('extraction_method')} | "
+                            f"extraction_error={state.get('extraction_error')}"
                         )
 
-                self._state["processed"] = position
+                        pending_before = indexer.catalog.pending_vector_documents(
+                            paths=[path]
+                        )
+                        _probe(
+                            "PRE_INDEXER | "
+                            f"path={path} | "
+                            f"pending_count={len(pending_before)} | "
+                            f"pending_hashes={[doc.content_hash for doc in pending_before]}"
+                        )
+                        # <<< LEXIA OCR DIAGNOSTIC PROBE 1.0
+
+                        self._state["stage"] = "indexing"
+                        index_result = indexer.run(
+                            deleted_paths=pipeline.deleted_paths,
+                            target_paths=[path],
+                        )
+
+                        # >>> LEXIA OCR DIAGNOSTIC PROBE 1.0
+                        _probe(
+                            "INDEX_RESULT | "
+                            f"path={path} | "
+                            f"documents_indexed={index_result.documents_indexed} | "
+                            f"fragments_indexed={index_result.fragments_indexed} | "
+                            f"documents_deleted={index_result.documents_deleted} | "
+                            f"documents_relocated={index_result.documents_relocated} | "
+                            f"cancelled={index_result.cancelled}"
+                        )
+                        # <<< LEXIA OCR DIAGNOSTIC PROBE 1.0
+
+                        if index_result.cancelled:
+                            raise RuntimeError("La indexacion fue cancelada.")
+
+                        # >>> LEXIA OCR TRUST INDEX RESULT FIX 1.0
+                        # VectorIndexer.run() es sincrono. Si retorna sin
+                        # excepcion y no fue cancelado, la indexacion vectorial
+                        # termino. mark_vector_indexed() ya valida internamente
+                        # que su confirmacion haya quedado persistida.
+                        if index_result.documents_indexed < 1:
+                            raise RuntimeError(
+                                "La indexacion no proceso el documento OCR."
+                            )
+                        # <<< LEXIA OCR TRUST INDEX RESULT FIX 1.0
+
+                        self.repository.mark_completed(path)
+                        SearchCacheRepository(
+                            SETTINGS.search_cache_path
+                        ).clear()
+
+                    except Exception as error:
+                        if self._cancel_requested.is_set():
+                            self.repository.mark_pending(path)
+                            break
+                        else:
+                            self.repository.mark_error(
+                                path,
+                                str(error),
+                            )
+
+                    self._state["processed"] = position
 
         except Exception as error:
             self._state["error"] = str(error)

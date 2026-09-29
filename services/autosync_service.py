@@ -14,6 +14,7 @@ from watchdog.observers import Observer
 
 from config.settings import SETTINGS
 from core.pipeline import DocumentPipeline
+from services.library_work_priority import WORK_PRIORITY, DeletionPriorityYield
 from core.file_hasher import FileHasher
 from storage.catalog import DocumentCatalog
 from models.document import Document
@@ -616,6 +617,7 @@ class AutoSyncService:
 
         return full_scan, changed, deleted, moved
 
+    @WORK_PRIORITY.background_task("AutoSync")
     def _execute(
         self,
         full_scan: bool,
@@ -649,6 +651,7 @@ class AutoSyncService:
             stage_timings: dict[str, float] = {}
 
             try:
+                WORK_PRIORITY.checkpoint()
                 self.logger.info(
                     "Sincronización iniciada | mode=%s | full_scan=%s | "
                     "changed=%s | deleted=%s | moved=%s",
@@ -1205,11 +1208,14 @@ class AutoSyncService:
                 )
                 # <<< LEXIA SMART RELOCATION 1.1
 
+                WORK_PRIORITY.checkpoint()
+
                 def pipeline_progress(
                     done: int,
                     total: int,
                     path: str,
                 ):
+                    WORK_PRIORITY.checkpoint()
                     self._publish_progress(
                         "pipeline", "Revisando y extrayendo texto", done, total, path, phase="scanning"
                     )
@@ -1366,11 +1372,13 @@ class AutoSyncService:
                 )
                 index_started = perf_counter()
 
+                WORK_PRIORITY.checkpoint()
                 indexed = self.indexer.run(
                     pipeline.deleted_paths,
                     progress_callback=index_progress,
                 )
 
+                WORK_PRIORITY.checkpoint()
                 stage_timings["vector_indexing"] = round(
                     perf_counter() - index_started,
                     3,
@@ -1545,6 +1553,10 @@ class AutoSyncService:
                     ),
                 )
 
+            except DeletionPriorityYield:
+                self.request_full_scan('resume_after_priority_deletion')
+                self._update(status='Pausado para eliminar archivos; se retomará automáticamente',
+                             phase='waiting', pending_changes=True, last_error=None)
             except Exception as error:
                 failed_file = ""
                 try:

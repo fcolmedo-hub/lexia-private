@@ -15,6 +15,7 @@ from qdrant_client import models
 
 from config.settings import SETTINGS
 from services.duplicate_file_safety import require_identical_files
+from services.library_work_priority import WORK_PRIORITY
 
 
 class SecureDocumentDeletionService:
@@ -39,7 +40,7 @@ class SecureDocumentDeletionService:
         self._running = False
         self._state_path = self._resolved(SETTINGS.runtime_path) / "secure_delete_state.json"
         self._state = self._load_state()
-        if self._state.get("status") == "running":
+        if self._state.get("status") in {"queued", "running"}:
             self._state.update(
                 status="interrupted",
                 stage="Interrumpida al cerrar LexIA",
@@ -70,42 +71,61 @@ class SecureDocumentDeletionService:
             self._save_state()
 
     def start_delete(self, path_value) -> bool:
-        path = self._validate_path(path_value)
+        return self.start_delete_batch([path_value])
+
+    def start_delete_batch(self, path_values) -> bool:
+        if not isinstance(path_values, list) or not 1 <= len(path_values) <= 100:
+            raise ValueError('Seleccioná entre 1 y 100 archivos para eliminar.')
+        paths = list(dict.fromkeys(str(self._validate_path(path)) for path in path_values))
         with self._lock:
-            if self._running or self.ocr_queue.state().get("running"):
+            if self._running:
                 return False
+            ticket = WORK_PRIORITY.reserve()
             self._running = True
             self._state = {
-                "status": "running", "stage": "Preparando eliminacion",
-                "path": str(path), "name": path.name, "error": "",
-                "started_at": time.time(),
+                'status': 'queued', 'stage': 'Eliminación en cola prioritaria',
+                'operation_id': ticket, 'path': paths[0], 'name': Path(paths[0]).name,
+                'paths': paths, 'total': len(paths), 'completed': 0, 'deleted_paths': [],
+                'error': '', 'started_at': time.time(),
             }
-            self._save_state()
-        threading.Thread(
-            target=self._delete_worker,
-            args=(str(path),),
-            name="LexIA-Secure-Delete",
-            daemon=True,
-        ).start()
+            try:
+                self._save_state()
+                threading.Thread(target=self._delete_batch_worker, args=(paths, ticket),
+                                 name='LexIA-Priority-Delete', daemon=True).start()
+            except BaseException:
+                self._running = False
+                WORK_PRIORITY.cancel(ticket)
+                raise
         return True
 
-    def _delete_worker(self, path: str) -> None:
+    def _delete_batch_worker(self, paths, ticket):
         try:
-            result = self.delete(path)
-            with self._lock:
-                self._state.update(
-                    status="completed", stage="Eliminacion completada",
-                    result=result, error="", finished_at=time.time(),
-                )
-                self._save_state()
+            blocker = WORK_PRIORITY.blocker()
+            if blocker:
+                self._set_stage('Eliminación en cola prioritaria: esperando un punto seguro de ' + blocker)
+            with WORK_PRIORITY.deletion(ticket):
+                for path in paths:
+                    with self._lock:
+                        self._state.update(status='running', path=path, name=Path(path).name,
+                                           stage='Eliminando archivo')
+                        self._save_state()
+                    result = self.delete(path)
+                    with self._lock:
+                        self._state['deleted_paths'].append(path)
+                        self._state['completed'] += 1
+                        self._state['result'] = result
+                        self._save_state()
+                with self._lock:
+                    self._state.update(status='completed', stage='Eliminación completada',
+                                       error='', finished_at=time.time())
+                    self._save_state()
         except Exception as error:
             with self._lock:
-                self._state.update(
-                    status="error", stage="No se pudo completar",
-                    error=str(error), finished_at=time.time(),
-                )
+                self._state.update(status='error', stage='Eliminación detenida',
+                                   error=str(error), finished_at=time.time())
                 self._save_state()
         finally:
+            WORK_PRIORITY.cancel(ticket)
             with self._lock:
                 self._running = False
 
@@ -295,11 +315,12 @@ class SecureDocumentDeletionService:
         return int(repository.remove_path(str(path)) or 0)
 
     def delete(self, path_value, *, require_duplicate: bool = False) -> dict:
+        # Direct navigator/duplicate deletions share the same exclusive gate.
+        with WORK_PRIORITY.deletion():
+            return self._delete_locked(path_value, require_duplicate=require_duplicate)
+
+    def _delete_locked(self, path_value, *, require_duplicate: bool = False) -> dict:
         path = self._validate_path(path_value)
-        if self.ocr_queue.state().get("running"):
-            raise RuntimeError(
-                "OCR esta trabajando. Espera a que termine antes de eliminar."
-            )
 
         staging_root = self._resolved(SETTINGS.runtime_path) / "secure_delete_staging"
         staging_root.mkdir(parents=True, exist_ok=True)

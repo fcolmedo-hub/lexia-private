@@ -4,12 +4,14 @@ from pathlib import Path
 import sqlite3
 import threading
 import time
+from services.library_work_priority import WORK_PRIORITY
 
 from services.moved_duplicate_reconciliation import reconcile_moved_duplicate, _finish_moves
 
 LOGGER = logging.getLogger(__name__)
 
 
+@WORK_PRIORITY.background_task('actualización de ubicaciones')
 def reconcile_pass(application, progress=lambda **values: None, stop=None):
     lock = application.autosync._sync_lock
     if not lock.acquire(blocking=False):
@@ -31,7 +33,7 @@ def reconcile_pass(application, progress=lambda **values: None, stop=None):
         progress(total=len(candidates), processed=0, repaired=0, failed=0, waiting=False)
         try:
             for path in candidates:
-                if stop is not None and stop.is_set():
+                if WORK_PRIORITY.pending() or (stop is not None and stop.is_set()):
                     break
                 progress(current_file=path)
                 # A previous relocation may already have updated this reference.
@@ -52,7 +54,7 @@ def reconcile_pass(application, progress=lambda **values: None, stop=None):
                 progress(processed=processed, repaired=repaired, failed=failed)
         finally:
             warnings = _finish_moves(application, batch['moves'])
-        return {'deferred': False, 'total': len(candidates), 'processed': processed,
+        return {'deferred': WORK_PRIORITY.pending(), 'total': len(candidates), 'processed': processed,
                 'repaired': repaired, 'failed': failed, 'warnings': warnings,
                 'backup': str(batch['backup']) if batch['backup'] else '', 'current_file': ''}
     finally:
