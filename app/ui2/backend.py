@@ -107,26 +107,30 @@ class LiveReadOnlyAdapter:
                     for row in con.execute('PRAGMA table_info("documents")').fetchall()
                 }
                 result["documents"] = int(con.execute(
-                    "SELECT COUNT(*) FROM documents WHERE COALESCE(is_deleted, 0) = 0"
+                    "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
                 ).fetchone()[0])
                 if "created_at" in document_columns:
                     result["added_today"] = int(con.execute(
                         """SELECT COUNT(*) FROM documents
-                           WHERE COALESCE(is_deleted, 0) = 0
+                           WHERE is_deleted = 0
                              AND created_at IS NOT NULL
                              AND date(created_at, 'localtime') = date('now', 'localtime')"""
                     ).fetchone()[0])
-                result["fragments"] = int(con.execute(
-                    """SELECT COUNT(*)
-                       FROM fragments f
-                       JOIN documents d ON d.path=f.document_path
-                       WHERE COALESCE(d.is_deleted, 0)=0"""
-                ).fetchone()[0])
+                # The fragment join can scan millions of rows. On Windows the
+                # first home snapshot must return its recents before that count.
+                if getattr(self, "live_cache_seconds", 0) > 0:
+                    result["fragments"] = self._deferred_fragment_count()
+                else:
+                    result["fragments"] = int(con.execute(
+                        """SELECT COUNT(*) FROM fragments f
+                           JOIN documents d ON d.path=f.document_path
+                           WHERE d.is_deleted=0"""
+                    ).fetchone()[0])
 
                 rows = con.execute(
                     """SELECT category, COUNT(*) n
                        FROM documents
-                       WHERE COALESCE(is_deleted, 0)=0
+                       WHERE is_deleted=0
                        GROUP BY category
                        ORDER BY n DESC
                        LIMIT 8"""
@@ -139,9 +143,9 @@ class LiveReadOnlyAdapter:
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_method,total_pages
                        FROM documents
-                       WHERE COALESCE(is_deleted, 0)=0
+                       WHERE is_deleted=0
                          AND (extraction_error IS NULL OR extraction_error='')
-                       ORDER BY datetime(updated_at) DESC
+                       ORDER BY updated_at DESC
                        LIMIT 8"""
                 ).fetchall()
                 result["recent_documents"] = [
@@ -159,10 +163,10 @@ class LiveReadOnlyAdapter:
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_error
                        FROM documents
-                       WHERE COALESCE(is_deleted, 0)=0
+                       WHERE is_deleted=0
                          AND extraction_error IS NOT NULL
                          AND extraction_error!=''
-                       ORDER BY datetime(updated_at) DESC
+                       ORDER BY updated_at DESC
                        LIMIT 6"""
                 ).fetchall()
                 result["recent_errors"] = [
@@ -176,13 +180,47 @@ class LiveReadOnlyAdapter:
 
                 try:
                     result["ocr_pages"] = int(con.execute(
-                        "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE COALESCE(is_deleted, 0)=0"
+                        "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE is_deleted=0"
                     ).fetchone()[0])
                 except sqlite3.Error:
                     pass
         except Exception as exc:
             result["error"] = str(exc)
         return result
+
+    def _count_active_fragments(self) -> int:
+        with _ro_connect(self.catalog_path) as con:
+            return int(con.execute(
+                """SELECT COUNT(*) FROM fragments f
+                   JOIN documents d ON d.path=f.document_path
+                   WHERE d.is_deleted=0"""
+            ).fetchone()[0])
+
+    def _deferred_fragment_count(self) -> int:
+        if not hasattr(self, "_fragment_lock"):
+            self._fragment_lock = threading.Lock()
+            self._fragment_value = 0
+            self._fragment_checked_at = 0.0
+            self._fragment_running = False
+        with self._fragment_lock:
+            if not self._fragment_running and time.monotonic() - self._fragment_checked_at >= 300:
+                self._fragment_running = True
+                threading.Thread(target=self._refresh_fragment_count, daemon=True).start()
+            return self._fragment_value
+
+    def _refresh_fragment_count(self) -> None:
+        try:
+            value = self._count_active_fragments()
+        except (OSError, sqlite3.Error):
+            value = None
+        with self._fragment_lock:
+            if value is not None:
+                self._fragment_value = value
+                self._fragment_checked_at = time.monotonic()
+                self._snapshot_cache = None
+            else:
+                self._fragment_checked_at = time.monotonic() - 270
+            self._fragment_running = False
 
     @staticmethod
     def _generic_history(path: Path, limit: int = 5) -> dict:

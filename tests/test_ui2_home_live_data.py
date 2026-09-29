@@ -4,6 +4,7 @@ import importlib.util
 import os
 import sqlite3
 import sys
+import threading
 import types
 from pathlib import Path
 from unittest.mock import patch
@@ -196,6 +197,8 @@ def test_windows_home_refresh_is_single_flight_and_bounded() -> None:
     assert "if(fastWindowsStartup&&startupDocuments>0&&Number(catalog.documents||0)<=0)return false" in javascript
     assert "&& /\\/api\\/live(?:[?#]|$)/.test(requestedUrl)" in javascript
     assert "const retryDelays=[0,1000,2500,5000,10000,20000]" in javascript
+    assert "retry(completed?0:Math.min(attempt+1,retryDelays.length-1),completed?30000:null)" in javascript
+    assert "const timeout=window.setTimeout(()=>controller.abort(),12000)" in javascript
     assert "window.addEventListener('lexia:catalog-changed'" in javascript
     assert "if(fastWindowsStartup)" in javascript
     assert "window.addEventListener('lexia:catalog-changed',()=>update());\n      return;" in javascript
@@ -225,6 +228,48 @@ def test_live_adapter_cache_reuses_one_snapshot(monkeypatch) -> None:
     assert adapter.snapshot()["catalog"]["documents"] == 86790
     assert adapter.snapshot()["catalog"]["documents"] == 86790
     assert len(calls) == 1
+
+
+def test_windows_home_returns_recents_while_fragment_count_is_pending(tmp_path: Path, monkeypatch) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    history = tmp_path / "context_query_history.sqlite3"
+    with sqlite3.connect(database) as con:
+        con.executescript("""CREATE TABLE documents (
+            path TEXT PRIMARY KEY, name TEXT, category TEXT, updated_at TEXT,
+            created_at TEXT, extraction_method TEXT, total_pages INTEGER,
+            extraction_error TEXT, ocr_pages INTEGER, is_deleted INTEGER);
+            CREATE TABLE fragments (document_path TEXT, fragment_index INTEGER);
+            CREATE INDEX active_updated ON documents(updated_at DESC) WHERE is_deleted=0;
+        """)
+        con.execute("INSERT INTO documents VALUES ('fallo','Fallo reciente','Jurisprudencia',"
+                    "'2026-09-29 19:00',NULL,'native',1,NULL,0,0)")
+    with sqlite3.connect(history) as con:
+        con.execute("CREATE TABLE context_query_history (id INTEGER PRIMARY KEY, query TEXT, "
+                    "objective TEXT, created_at TEXT)")
+        con.execute("INSERT INTO context_query_history(query,objective,created_at) "
+                    "VALUES ('Responsabilidad estatal','Investigación','2026-09-29 19:00')")
+    adapter = LiveReadOnlyAdapter()
+    adapter.catalog_path = database
+    adapter.context_history_path = history
+    adapter.search_history_path = tmp_path / "missing.sqlite3"
+    adapter.ocr_path = tmp_path / "ocr.sqlite3"
+    adapter.live_cache_seconds = 30
+    entered = threading.Event()
+    release = threading.Event()
+
+    def slow_count():
+        entered.set()
+        release.wait(3)
+        return 1
+
+    monkeypatch.setattr(adapter, "_count_active_fragments", slow_count)
+    try:
+        snapshot = adapter.snapshot()
+        assert entered.wait(1)
+        assert snapshot["catalog"]["recent_documents"][0]["name"] == "Fallo reciente"
+        assert snapshot["contexts"]["recent"][0]["query"] == "Responsabilidad estatal"
+    finally:
+        release.set()
 
 
 def test_visible_search_numbers_are_always_incremental() -> None:
