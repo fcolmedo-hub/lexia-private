@@ -12,28 +12,36 @@ import subprocess
 import sys
 import tempfile
 TARGET = 'FETCH_HEAD'
-FILES = {'core/pipeline.py': {'target': '6aefd58a4d51dc4819ddeb856d3c1e93dccc462c71c2c30c8c6469fba96b6e02',
-                      'known': ['5c26368ec9667bab1392c066fe47d64b65506fa6cd94aea5647bdc914551e922']},
- 'storage/catalog.py': {'target': 'd568f488d259f36eeed1bc1338d0df7a4dda7146367ec88588339aab388cce06',
+FILES = {'core/pipeline.py': {'target': '9c1d21dd3a93989ebf21fa3b26232154709b55fa56ac4b0808d0d2c3c5486911',
+                      'known': ['5c26368ec9667bab1392c066fe47d64b65506fa6cd94aea5647bdc914551e922',
+                                '6aefd58a4d51dc4819ddeb856d3c1e93dccc462c71c2c30c8c6469fba96b6e02']},
+ 'storage/catalog.py': {'target': 'd98f9ffec3686b70d933756e933f4a14cb46ff8bf0b30df7e0e6c55b9f5ba625',
                         'known': ['1dd4391bfe575c04d72e61f5acd4d138c59298ff3b301af931fc2cb3e9130eb5',
-                                  '526243f11c9d9f0a4ab1c1f29de54a2e492186bab82dda6e9d533316b6b3e030']},
+                                  '526243f11c9d9f0a4ab1c1f29de54a2e492186bab82dda6e9d533316b6b3e030',
+                                  'd568f488d259f36eeed1bc1338d0df7a4dda7146367ec88588339aab388cce06']},
  'services/secure_document_deletion.py': {'target': '8c371d8fcd0adcfbcf55ed507985482ea98ec1edf48cff3c4cb64dbc282d8753',
                                           'known': ['3abae644f8121a0c68360473f0dc53b151c51325dfaa181ca019cf049f47a5ff',
                                                     'ec6e6c3ff9b74be7f22049a2bfa6c70698e9927a360cf1355a9afb513a561048']},
- 'services/windows_research_manual_sources.py': {'target': '4cefff84f5ad3c994cb7a1e0fb4d8f3b25ac264bfc7a3f7fc1f6a42e9295b175',
+ 'services/windows_research_manual_sources.py': {'target': 'd4d86c3832fb93e510ef2a3e41b6e15f4c5f59afd2d64055517fcef25a694bac',
                                                  'known': ['13c4986e0d09ed1c258c24096bb1fa29b240e6aa7eb7586237e62d93c0136bc2',
+                                                           '4cefff84f5ad3c994cb7a1e0fb4d8f3b25ac264bfc7a3f7fc1f6a42e9295b175',
                                                            'b5476c16a2ebacd6e4b1f9e32a42f28b301e3b8acece2032d3e442a7938cefe4',
                                                            'faeb6d015641078151dfb9de04c78467cae545ae67540e8f2fd951e1480780dd']},
- 'app/ui2/assets/windows_maintenance_duplicates.js': {'target': '75fe1fde158e04da456a08207050a188748e36b7ce2244c7910e490d1e640560',
+ 'app/ui2/assets/windows_maintenance_duplicates.js': {'target': 'f686cc5da5ab490470cd0b8acc23c2e88c52b9e1e66114898610ae5ba1579416',
                                                       'known': ['4bc7b56bd7a0cc40f8168a483298e799a20ba06b86441ad63f972396b43f6a3f',
+                                                                '75fe1fde158e04da456a08207050a188748e36b7ce2244c7910e490d1e640560',
                                                                 '86bb838204965dc9540812036bfcf429a5cde1e43c6805c07cc56cc1f187a342',
                                                                 'bf8e8f46b503edad24457ba21755cd116ca8b3ea86df62493dd1aebdb4a2f7bc']},
- 'services/duplicate_file_safety.py': {'target': '782afc5f495b59cf75af29c7e8c79f79b409dd70eb935da6f50777410cfc11ca',
-                                       'known': [],
+ 'services/duplicate_file_safety.py': {'target': '68660a7f9b90fe71e2ecbef305658dc7ff269158e53911ab9d81b2b5b1280ad9',
+                                       'known': ['782afc5f495b59cf75af29c7e8c79f79b409dd70eb935da6f50777410cfc11ca'],
                                        'allow_missing': True},
- 'services/moved_duplicate_reconciliation.py': {'target': 'c5e3301091552017359cb27bfc291a4885cace17764db96b7d882295be05312c',
-                                                'known': ['089f23a9963e55e6e937d87d9a8c6989e8ac83608d83bc163c39147a70755ae2'],
-                                                'allow_missing': True}}
+ 'services/moved_duplicate_reconciliation.py': {'target': 'd6f3821841e2d0282b4a6dc5e7bb1ea52109063997fd2ce08ac28dd2bcccf2e9',
+                                                'known': ['089f23a9963e55e6e937d87d9a8c6989e8ac83608d83bc163c39147a70755ae2',
+                                                          'c5e3301091552017359cb27bfc291a4885cace17764db96b7d882295be05312c'],
+                                                'allow_missing': True},
+ 'services/automatic_duplicate_reconciliation.py': {'target': 'a5ceb03da45d7dfe958cf13393f2495dc7904d5ae72f610b4b647983473fc87b',
+                                                    'known': [],
+                                                    'allow_missing': True}}
 
 def git(root: Path, *args: str) -> bytes:
     result = subprocess.run(["git", *args], cwd=root, capture_output=True)
@@ -189,7 +197,7 @@ def main() -> int:
         return 1
     print(f'Instalación terminada. Respaldo: {backup}')
     print('Cerrá LexIA completamente y volvé a abrirla. No hace falta reconstruir la aplicación.')
-    print('En Duplicados, usá Corregir ubicación para reparar un archivo trasladado. No lo elimines.')
+    print('Las ubicaciones se corrigen automáticamente al abrir LexIA. Duplicados muestra solo copias idénticas en carpetas distintas.')
     return 0
 
 if __name__ == '__main__':

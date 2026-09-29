@@ -11,7 +11,7 @@ import uuid
 
 from config.settings import SETTINGS
 from models.search_result import SearchResult
-from services.duplicate_file_safety import duplicate_problem
+from services.duplicate_file_safety import duplicate_problem, identical_duplicates
 
 
 PORT = 8516
@@ -23,6 +23,7 @@ _ALLOWED_ORIGINS = {
 _LOCK = threading.RLock()
 _SERVER: ThreadingHTTPServer | None = None
 _THREAD: threading.Thread | None = None
+_RECONCILER = None
 _MANUAL_SOURCES: dict[str, dict] = {}
 _PATCHED_BUILDERS: set[int] = set()
 _DUPLICATE_JOB: dict = {"running": False, "total": 0, "processed": 0, "deleted": 0, "failed": []}
@@ -151,8 +152,9 @@ def _duplicates_snapshot() -> list[dict]:
                 o.category AS original_category
             FROM documents AS d
             LEFT JOIN documents AS o
-              ON o.path = d.duplicate_of
+             ON o.path = d.duplicate_of
              AND COALESCE(o.is_deleted, 0) = 0
+             AND o.duplicate_of IS NULL
             WHERE COALESCE(d.is_deleted, 0) = 0
               AND d.duplicate_of IS NOT NULL
               AND TRIM(d.duplicate_of) <> ''
@@ -172,11 +174,11 @@ def _duplicates_snapshot() -> list[dict]:
             "original_name": str(row["original_name"] or Path(str(row["duplicate_of"] or "")).name),
             "original_category": str(row["original_category"] or ""),
             "exists": Path(str(row["path"] or "")).is_file(),
-            "can_reconcile": Path(row['path']).is_file() and not Path(row['duplicate_of']).exists(),
-            "can_delete": bool(row['original_catalog_path']) and not duplicate_problem(row['path'], row['duplicate_of']),
-            "problem": duplicate_problem(row['path'], row['duplicate_of']) or ('' if row['original_catalog_path'] else 'El original ya no está activo en el catálogo.'),
+            "can_delete": True,
+            "verified_identical": True,
         }
         for row in rows
+        if row['original_catalog_path'] and identical_duplicates(row['path'], row['duplicate_of'])
     ]
 
 
@@ -402,8 +404,13 @@ def _handler(application):
             if self.path == "/sources":
                 return self._json({"ok": True, "sources": _sources_snapshot()})
             if self.path == "/duplicates":
+                if _RECONCILER is not None:
+                    _RECONCILER.request()
                 duplicates = _duplicates_snapshot()
-                return self._json({"ok": True, "count": len(duplicates), "duplicates": duplicates})
+                return self._json({"ok": True, "count": len(duplicates), "duplicates": duplicates,
+                                   "reconciliation": _RECONCILER.snapshot() if _RECONCILER else {}})
+            if self.path == '/duplicate-reconciliation':
+                return self._json({'ok': True, **(_RECONCILER.snapshot() if _RECONCILER else {})})
             if self.path == "/duplicate-job":
                 return self._json({"ok": True, **_duplicate_job_snapshot()})
             return self._json({"ok": False, "error": "Ruta no encontrada."}, 404)
@@ -457,7 +464,7 @@ def _handler(application):
 
 
 def start_windows_research_manual_sources(application, port: int = PORT) -> bool:
-    global _SERVER, _THREAD
+    global _SERVER, _THREAD, _RECONCILER
     if sys.platform not in {"win32", "darwin"}:
         return False
     if _SERVER is not None:
@@ -474,11 +481,17 @@ def start_windows_research_manual_sources(application, port: int = PORT) -> bool
     thread.start()
     _SERVER = server
     _THREAD = thread
+    from services.automatic_duplicate_reconciliation import AutomaticDuplicateReconciler
+    _RECONCILER = AutomaticDuplicateReconciler(application)
+    _RECONCILER.request()
     return True
 
 
 def stop_windows_research_manual_sources() -> None:
-    global _SERVER, _THREAD
+    global _SERVER, _THREAD, _RECONCILER
+    if _RECONCILER is not None:
+        _RECONCILER.stop()
+        _RECONCILER = None
     server = _SERVER
     _SERVER = None
     if server is not None:

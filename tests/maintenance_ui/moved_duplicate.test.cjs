@@ -15,7 +15,7 @@ async function setup({deferMaintenance=false}={}){
   let rows=[{document_path:'/library/one.pdf',document_name:'one.pdf',status:'pending'},
     {document_path:'/library/two.pdf',document_name:'two.pdf',status:'pending'},
     {document_path:'/library/error.pdf',document_name:'error.pdf',status:'error',error:'Unreadable'}];
-  const duplicates=[{path:'/library/copy.pdf',name:'copy.pdf',duplicate_of:'/library/original.pdf',original_name:'original.pdf',can_delete:true},{path:'/library/moved.pdf',name:'moved.pdf',duplicate_of:'/old/moved.pdf',original_name:'moved.pdf',can_delete:false,can_reconcile:true,problem:'El original ya no está'}];
+  const duplicates=[{path:'/library/copy.pdf',name:'copy.pdf',duplicate_of:'/library/original.pdf',original_name:'original.pdf',can_delete:true,verified_identical:true},{path:'/library/moved.pdf',name:'moved.pdf',duplicate_of:'/old/moved.pdf',original_name:'moved.pdf',can_delete:false,can_reconcile:true,problem:'El original ya no está'}];
   let deleted='';
   let releaseMaintenance;
   const snapshot=()=>({ok:true,live:{autosync:sync,ocr:{running:false,pending:2,error:1},catalog:{documents:4}},autosync_config:{mode:'manual'},history:Array.from({length:8},(_,i)=>({action:'autosync-scan',message:'Scan '+i,created_at:'2026-09-25'}))});
@@ -64,17 +64,13 @@ async function setup({deferMaintenance=false}={}){
 }
 
 
-test('Moved file is protected and repaired without a deletion request',async()=>{
+test('Only verified duplicates appear; moved files have no manual repair action',async()=>{
  const a=await setup();await a.click('[data-maint-tab="duplicates"]');
- assert.ok(a.document.querySelector('[data-dup-delete="1"]').hasAttribute('disabled'));
- assert.match(a.document.querySelector('#lexiaMaintenanceDuplicatesPanel').textContent,/El original ya no está/);
- await a.click('[data-dup-delete="1"]');
- assert.equal(a.requests.some(r=>r.url.endsWith('/delete-duplicate')),false);
- await a.click('[data-dup-reconcile="1"]');
- assert.equal(a.requests.filter(r=>r.url.endsWith('/reconcile-duplicate')).length,1);
- assert.equal(a.requests.some(r=>r.url.includes('/delete-duplicate')),false);
- assert.match(a.document.querySelector('#lexiaMaintenanceDuplicatesPanel').textContent,/Ubicación corregida/);
+ assert.equal(a.document.querySelectorAll('[data-dup-delete]').length,1);
+ assert.doesNotMatch(a.document.querySelector('#lexiaMaintenanceDuplicatesPanel').textContent,/moved.pdf/);
  assert.equal(a.document.querySelector('[data-dup-reconcile]'),null);
+ assert.equal(a.requests.some(r=>r.url.endsWith('/reconcile-duplicate')),false);
+ assert.match(a.document.querySelector('#lexiaMaintenanceDuplicatesPanel').textContent,/carpetas distintas/);
 });
 test('Bulk request excludes protected moved files',async()=>{
  const a=await setup();await a.click('[data-maint-tab="duplicates"]');a.approve();

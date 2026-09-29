@@ -1778,6 +1778,10 @@ class DocumentCatalog:
             candidate = Path(row['path'])
             try:
                 if candidate.is_file() and not (exclude_path and candidate.samefile(exclude_path)):
+                    if exclude_path:
+                        from services.duplicate_file_safety import identical_duplicates
+                        if not identical_duplicates(exclude_path, candidate):
+                            continue
                     return row['path']
             except OSError:
                 continue

@@ -8,12 +8,12 @@ from core.file_hasher import FileHasher
 from models.document import Document
 
 
-def reconcile_moved_duplicate(application, path_value):
+def reconcile_moved_duplicate(application, path_value, *, _batch=None):
     root = Path(SETTINGS.library_path).expanduser().resolve()
     path = Path(path_value).expanduser().resolve()
     path.relative_to(root)
     lock = application.autosync._sync_lock
-    if not lock.acquire(blocking=False):
+    if _batch is None and not lock.acquire(blocking=False):
         raise RuntimeError('AutoSync está trabajando. Esperá a que termine para corregir la ubicación.')
     try:
         if application.ocr_queue.state().get('running'):
@@ -47,21 +47,24 @@ def reconcile_moved_duplicate(application, path_value):
                             extension=path.suffix.lower(), size=before.st_size,
                             modified_ns=before.st_mtime_ns, content_hash=digest)
 
-        # Back up every local DB modified below, while AutoSync is locked.
-        backup = Path(SETTINGS.runtime_path) / 'backups' / ('moved-duplicate-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-        backup.mkdir(parents=True)
-        for label, database in [('catalog', catalog.database_path),
-                                ('knowledge', getattr(SETTINGS, 'knowledge_path', None)),
-                                ('ocr', getattr(SETTINGS, 'ocr_queue_path', None))]:
-            if database is None or not Path(database).is_file():
-                continue
-            source = sqlite3.connect(Path(database).resolve().as_uri() + '?mode=ro', uri=True)
-            destination = sqlite3.connect(backup / (label + '.sqlite3'))
-            try:
-                source.backup(destination, pages=1024)
-            finally:
-                destination.close()
-                source.close()
+        backup = _batch.get('backup') if _batch is not None else None
+        if backup is None:
+            backup = Path(SETTINGS.runtime_path) / 'backups' / ('moved-duplicate-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+            backup.mkdir(parents=True)
+            for label, database in [('catalog', catalog.database_path),
+                                    ('knowledge', getattr(SETTINGS, 'knowledge_path', None)),
+                                    ('ocr', getattr(SETTINGS, 'ocr_queue_path', None))]:
+                if database is None or not Path(database).is_file():
+                    continue
+                source = sqlite3.connect(Path(database).resolve().as_uri() + '?mode=ro', uri=True)
+                destination = sqlite3.connect(backup / (label + '.sqlite3'))
+                try:
+                    source.backup(destination, pages=1024)
+                finally:
+                    destination.close()
+                    source.close()
+            if _batch is not None:
+                _batch['backup'] = backup
         after = path.stat()
         if (before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) or original.exists():
             raise ValueError('Las ubicaciones cambiaron durante la comprobación. No se modificó el catálogo.')
@@ -84,29 +87,42 @@ def reconcile_moved_duplicate(application, path_value):
                     connection.execute('UPDATE ocr_queue SET document_path=?, document_name=? WHERE document_path=? AND NOT EXISTS(SELECT 1 FROM ocr_queue WHERE document_path=?)', (str(path), path.name, str(original), str(path)))
             except Exception as error:
                 warnings.append('Cola OCR pendiente: ' + str(error))
-        try:
-            application.knowledge_engine.move_documents([(str(original), str(path))])
-        except Exception as error:
-            warnings.append('Knowledge pendiente: ' + str(error))
-        try:
-            application.indexer.run(target_paths=[str(path)])
-        except Exception as error:
-            warnings.append('Vínculos vectoriales pendientes: ' + str(error))
-        try:
-            application.autosync.library_snapshot.apply_changes(changed_paths={str(path)}, deleted_paths={str(original)})
-        except Exception as error:
-            warnings.append('Registro de carpetas pendiente: ' + str(error))
-        if warnings:
-            try:
-                application.autosync.request_full_scan('moved_duplicate_repair')
-            except Exception:
-                warnings.append('Ejecutá una sincronización para completar los vínculos pendientes.')
-        cache = getattr(application, 'search_cache', None)
-        if cache is not None:
-            try:
-                cache.clear()
-            except Exception:
-                warnings.append('Caché de búsqueda pendiente de renovar.')
+        if _batch is not None:
+            _batch['moves'].append((str(original), str(path)))
+        else:
+            warnings.extend(_finish_moves(application, [(str(original), str(path))]))
         return {'reconciled': str(path), 'old_path': str(original), 'backup': str(backup), 'warnings': warnings}
     finally:
-        lock.release()
+        if _batch is None:
+            lock.release()
+
+
+def _finish_moves(application, moves):
+    warnings = []
+    if not moves:
+        return warnings
+    paths = {new for old, new in moves}
+    try:
+        application.knowledge_engine.move_documents(moves)
+    except Exception as error:
+        warnings.append('Knowledge pendiente: ' + str(error))
+    try:
+        application.indexer.run(target_paths=sorted(paths))
+    except Exception as error:
+        warnings.append('Vínculos vectoriales pendientes: ' + str(error))
+    try:
+        application.autosync.library_snapshot.apply_changes(changed_paths=paths, deleted_paths={old for old, new in moves})
+    except Exception as error:
+        warnings.append('Registro de carpetas pendiente: ' + str(error))
+    if warnings:
+        try:
+            application.autosync.request_full_scan('moved_duplicate_repair')
+        except Exception:
+            warnings.append('Sincronización pendiente de completar.')
+    cache = getattr(application, 'search_cache', None)
+    if cache is not None:
+        try:
+            cache.clear()
+        except Exception:
+            warnings.append('Caché de búsqueda pendiente de renovar.')
+    return warnings
