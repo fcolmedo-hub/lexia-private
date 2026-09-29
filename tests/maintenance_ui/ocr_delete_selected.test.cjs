@@ -7,7 +7,7 @@ const {parseHTML}=require('linkedom');
 const assets=path.resolve(__dirname,'../../app/ui2/assets');
 const tick=async()=>{for(let i=0;i<12;i++)await new Promise(resolve=>setImmediate(resolve));};
 
-async function setup({deferMaintenance=false,fail="",mismatch=false,running=false,count=3}={}){
+async function setup({deferMaintenance=false,fail="",mismatch=false,running=false,count=3,holdDeletion=false}={}){
   const {window,document}=parseHTML('<html><head></head><body><div class="app"><section id="maintenance"></section></div></body></html>');
   const requests=[],opened=[],confirmations=[];
   let approve=false,duplicateError=false;
@@ -15,7 +15,7 @@ async function setup({deferMaintenance=false,fail="",mismatch=false,running=fals
   let rows=Array.from({length:count},(_,i)=>({document_path:'/library/'+i+'.pdf',document_name:i+'.pdf',status:'pending'}));
   const duplicates=[{path:'/library/copy.pdf',name:'copy.pdf',duplicate_of:'/library/original.pdf',original_name:'original.pdf'}];
   let deleted='';
-  let releaseMaintenance;
+  let releaseMaintenance,releaseDeletion;
   const snapshot=()=>({ok:true,live:{autosync:sync,ocr:{running,pending:rows.length,error:0},catalog:{documents:4}},autosync_config:{mode:'manual'},history:Array.from({length:8},(_,i)=>({action:'autosync-scan',message:'Scan '+i,created_at:'2026-09-25'}))});
   const fetch=async(url,options={})=>{
     const body=options.body?JSON.parse(options.body):null;
@@ -35,6 +35,7 @@ async function setup({deferMaintenance=false,fail="",mismatch=false,running=fals
     }else if(url==='/api/delete-file'){
       deleted=body.path;payload={ok:true,started:true,state:{path:deleted,status:'running'}};
     }else if(url==='/api/delete-file-status'){
+      if(holdDeletion)await new Promise(resolve=>{releaseDeletion=resolve;});
       if(deleted===fail)payload={ok:true,state:{path:deleted,status:'error',error:'Archivo bloqueado'}};
       else if(mismatch)payload={ok:true,state:{path:'/library/unrelated.pdf',status:'completed'}};
       else {rows=rows.filter(row=>row.document_path!==deleted);payload={ok:true,state:{path:deleted,status:'completed'}};}
@@ -57,6 +58,7 @@ async function setup({deferMaintenance=false,fail="",mismatch=false,running=fals
   const select=async file=>{const element=[...document.querySelectorAll('[data-ocr-select]')].find(e=>e.dataset.ocrSelect===file);assert.ok(element);element.checked=true;element.dispatchEvent(new window.Event('change',{bubbles:true}));await tick();};
   return {window,document,requests,opened,confirmations,click,select,
     releaseMaintenance:()=>releaseMaintenance?.(),
+    releaseDeletion:()=>{holdDeletion=false;releaseDeletion?.();},
     approve:()=>approve=true,failDuplicates:()=>duplicateError=true,setRows:value=>rows=value,setSync:value=>sync=value};
 }
 
@@ -101,4 +103,40 @@ test('Unrelated completion cannot delete the rest or clear selection',async()=>{
 test('OCR running disables bulk deletion and rows',async()=>{
  const a=await ocr({running:true});assert.ok(a.document.querySelector('#mOcrDeleteSelected').hasAttribute('disabled'));
  assert.ok(a.document.querySelector('[data-ocr-select]').hasAttribute('disabled'));
+});
+
+
+test('Select next files during deletion without modifying the active batch',async()=>{
+ const a=await ocr({holdDeletion:true});await a.select('/library/0.pdf');a.approve();await a.click('#mOcrDeleteSelected');
+ assert.ok(a.document.querySelector('[data-ocr-select="/library/0.pdf"]').hasAttribute('disabled'));
+ assert.equal(a.document.querySelector('[data-ocr-select="/library/1.pdf"]').hasAttribute('disabled'),false);
+ await a.select('/library/1.pdf');
+ assert.match(a.document.querySelector('#mOcrDeleteSelected').textContent,/\(1\)/);
+ assert.ok(a.document.querySelector('#mOcrDeleteSelected').hasAttribute('disabled'));
+ await a.click('#mOcrDeleteSelected');
+ assert.equal(deletes(a).length,1);
+ a.releaseDeletion();await tick();
+ assert.deepEqual(deletes(a).map(r=>r.body.path),['/library/0.pdf']);
+ assert.ok(a.document.querySelector('[data-ocr-select="/library/1.pdf"]').hasAttribute('checked'));
+ assert.equal(a.document.querySelector('#mOcrDeleteSelected').hasAttribute('disabled'),false);
+});
+test('Select page and clear affect only the next batch while deletion runs',async()=>{
+ const a=await ocr({holdDeletion:true});await a.select('/library/0.pdf');a.approve();await a.click('#mOcrDeleteSelected');
+ await a.click('#mOcrSelectPage');assert.match(a.document.querySelector('#mOcrDeleteSelected').textContent,/\(2\)/);
+ await a.click('#mOcrClearSelection');assert.match(a.document.querySelector('#mOcrDeleteSelected').textContent,/\(0\)/);
+ a.releaseDeletion();await tick();
+ assert.deepEqual(deletes(a).map(r=>r.body.path),['/library/0.pdf']);
+});
+test('Failure preserves both new selections and unconfirmed batch files',async()=>{
+ const a=await ocr({holdDeletion:true,fail:'/library/0.pdf'});await a.select('/library/0.pdf');a.approve();await a.click('#mOcrDeleteSelected');
+ await a.select('/library/2.pdf');a.releaseDeletion();await tick();
+ assert.deepEqual(deletes(a).map(r=>r.body.path),['/library/0.pdf']);
+ assert.ok(a.document.querySelector('[data-ocr-select="/library/0.pdf"]').hasAttribute('checked'));
+ assert.ok(a.document.querySelector('[data-ocr-select="/library/2.pdf"]').hasAttribute('checked'));
+});
+test('Individual deletion also allows preparing the next selection',async()=>{
+ const a=await ocr({holdDeletion:true});a.approve();await a.click('[data-ocr-delete="/library/0.pdf"]');
+ await a.select('/library/2.pdf');a.releaseDeletion();await tick();
+ assert.deepEqual(deletes(a).map(r=>r.body.path),['/library/0.pdf']);
+ assert.ok(a.document.querySelector('[data-ocr-select="/library/2.pdf"]').hasAttribute('checked'));
 });

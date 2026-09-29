@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Instala Eliminar seleccionados en OCR sobre versiones comprobadas."""
+"""Permite preparar selecciones OCR mientras se elimina otra tanda."""
 import argparse
 from datetime import datetime
 import hashlib
@@ -11,8 +11,9 @@ import subprocess
 import tempfile
 
 FILE = 'app/ui2/assets/maintenance.js'
-TARGET_SHA256 = 'f5d6bdc5b5acc2ab7c887cf5541ca834f3f78a18120e6e9d51a66afdb89218c6'
+TARGET_SHA256 = '99674108df21cb2442a6a39aa7f0f9ad417c88a87726b4b18631a2df28f10bf7'
 KNOWN = {
+    'f5d6bdc5b5acc2ab7c887cf5541ca834f3f78a18120e6e9d51a66afdb89218c6',
     '0504ef6edd5299159bf22670d9e2a094bf0e6800698adb741698213ce7388b98',
     'cebb05b5741e2b95732f732e23092c0c82e69a38c7de6c149443be03899d97b1',
 }
@@ -49,7 +50,7 @@ def main():
     if sha(target) != TARGET_SHA256:
         raise ValueError('La revisión descargada no coincide con este instalador. No se modificó LexIA.')
     if sha(current) == TARGET_SHA256:
-        print('El botón Eliminar seleccionados ya está instalado.')
+        print('La selección durante la eliminación ya está instalada.')
         return
     if sha(current) not in KNOWN:
         raise ValueError('maintenance.js tiene otros cambios locales. Enviá ese archivo para adaptar la actualización. No se modificó LexIA.')
