@@ -93,6 +93,41 @@ def test_catalog_daily_count_uses_real_creation_date(tmp_path: Path) -> None:
     assert catalog["added_today"] == 1
 
 
+def test_windows_library_history_uses_creation_index_without_blocking_recents(tmp_path: Path) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    with sqlite3.connect(database) as con:
+        con.executescript("""CREATE TABLE documents (
+            path TEXT PRIMARY KEY, name TEXT, category TEXT, updated_at TEXT,
+            created_at TEXT, extraction_method TEXT, total_pages INTEGER,
+            extraction_error TEXT, ocr_pages INTEGER, is_deleted INTEGER);
+            CREATE INDEX idx_documents_active_created_at ON documents(created_at)
+                WHERE is_deleted=0;
+        """)
+        con.execute("INSERT INTO documents VALUES ('old','Anterior','General',"
+                    "CURRENT_TIMESTAMP,datetime('now','-1 day'),'native',1,NULL,0,0)")
+        con.execute("INSERT INTO documents VALUES ('new','Nuevo','General',"
+                    "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'native',1,NULL,0,0)")
+        con.execute("INSERT INTO documents VALUES ('migrated','Sin fecha','General',"
+                    "CURRENT_TIMESTAMP,NULL,'native',1,NULL,0,0)")
+        con.execute("INSERT INTO documents VALUES ('removed','Borrado','General',"
+                    "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'native',1,NULL,0,1)")
+
+    adapter = LiveReadOnlyAdapter.__new__(LiveReadOnlyAdapter)
+    adapter.catalog_path = database
+    adapter.live_cache_seconds = 30
+    adapter.autosync_state_path = tmp_path / "missing_state.json"
+    catalog = adapter._catalog()
+    assert catalog["added_today"] == 1
+    assert {row["name"] for row in catalog["recent_documents"]} == {"Anterior", "Nuevo", "Sin fecha"}
+
+    with sqlite3.connect(database) as con:
+        plan = con.execute("""EXPLAIN QUERY PLAN SELECT COUNT(*) FROM documents
+            WHERE is_deleted=0
+              AND created_at >= datetime('now','localtime','start of day','utc')
+              AND created_at < datetime('now','localtime','start of day','+1 day','utc')""").fetchall()
+    assert any("idx_documents_active_created_at" in row[3] for row in plan)
+
+
 def test_catalog_records_creation_once_and_preserves_it_on_update(tmp_path: Path) -> None:
     database = tmp_path / "catalog-save.sqlite3"
     catalog = DocumentCatalog(database)

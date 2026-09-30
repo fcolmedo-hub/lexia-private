@@ -117,6 +117,20 @@ class LiveReadOnlyAdapter:
                     result["documents"] = int(con.execute(
                         "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
                     ).fetchone()[0])
+                if fast_home:
+                    # The creation index keeps this count off the full catalog
+                    # scan that used to delay the Windows home for minutes.
+                    indexed = con.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='index' "
+                        "AND name='idx_documents_active_created_at'"
+                    ).fetchone()
+                    if indexed:
+                        result["added_today"] = int(con.execute(
+                            """SELECT COUNT(*) FROM documents
+                               WHERE is_deleted=0
+                                 AND created_at >= datetime('now','localtime','start of day','utc')
+                                 AND created_at < datetime('now','localtime','start of day','+1 day','utc')"""
+                        ).fetchone()[0])
                 if not fast_home:
                     document_columns = {
                         str(row[1])
