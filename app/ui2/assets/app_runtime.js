@@ -164,35 +164,18 @@
   }
 
   function removeLiveSearchBadge(){
-    const normalize=value=>String(value||'').replace(/\s+/g,' ').trim().toLowerCase();
-    const nodes=[...document.querySelectorAll('div,aside,section')];
-    for(const node of nodes){
-      const text=normalize(node.textContent);
-      if(!text.includes('live')||!text.includes('búsqueda real'))continue;
-      if(text.length>240)continue;
-
-      let candidate=node;
-      for(let depth=0;depth<5&&candidate&&candidate!==document.body;depth+=1){
-        const style=window.getComputedStyle(candidate);
-        if(style.position==='fixed'||style.position==='sticky'){
-          candidate.remove();
-          return true;
-        }
-        candidate=candidate.parentElement;
-      }
-
-      node.remove();
-      return true;
-    }
-    return false;
+    const badge=document.getElementById('liveBadge');
+    if(!badge)return false;
+    badge.remove();
+    return true;
   }
 
   function installLiveSearchBadgeRemoval(){
-    removeLiveSearchBadge();
     if(window.__lexiaAppLiveBadgeObserverInstalled)return;
     window.__lexiaAppLiveBadgeObserverInstalled=true;
-    const observer=new MutationObserver(()=>removeLiveSearchBadge());
-    observer.observe(document.body,{childList:true,subtree:true});
+    // The badge is already in the static HTML before this script loads. A
+    // document-wide observer repeatedly scanned every node on large screens.
+    removeLiveSearchBadge();
   }
 
   function installNavigatorExactFolderFilter(){

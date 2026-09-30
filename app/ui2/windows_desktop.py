@@ -808,13 +808,10 @@ def ensure_ui_assets(
     )
     changed = changed or asset_changed
 
-    if "assets/windows_live_badge_cleanup.js" not in patched:
-        tag = (
-            '<script src="assets/windows_live_badge_cleanup.js'
-            '?v=windows-live-cleanup-1"></script>\n'
-        )
-        patched = patched.replace("</body>", tag + "</body>", 1) if "</body>" in patched else patched + "\n" + tag
-        changed = True
+    patched, asset_changed = _upsert_asset_script(
+        patched, live_badge_cleanup, "windows-live-cleanup"
+    )
+    changed = changed or asset_changed
 
     # El ejecutable ONEDIR de Windows entra por este archivo, no por
     # launch_ui2.py. Por eso los dos assets de Estándares deben registrarse
