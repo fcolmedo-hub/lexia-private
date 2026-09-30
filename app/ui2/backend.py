@@ -100,45 +100,52 @@ class LiveReadOnlyAdapter:
         }
         if not self.catalog_path.exists():
             return result
+        fast_home = getattr(self, "live_cache_seconds", 0) > 0
+        if fast_home:
+            # Windows already validated the catalog and saved this count before
+            # opening the window. Do not scan the whole database again merely
+            # to show the recent documents and investigation history.
+            try:
+                result["documents"] = max(0, int(
+                    _safe_json(self.autosync_state_path).get("documents_total", 0) or 0
+                ))
+            except (AttributeError, TypeError, ValueError):
+                pass
         try:
             with _ro_connect(self.catalog_path) as con:
-                document_columns = {
-                    str(row[1])
-                    for row in con.execute('PRAGMA table_info("documents")').fetchall()
-                }
-                result["documents"] = int(con.execute(
-                    "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
-                ).fetchone()[0])
-                if "created_at" in document_columns:
-                    result["added_today"] = int(con.execute(
-                        """SELECT COUNT(*) FROM documents
-                           WHERE is_deleted = 0
-                             AND created_at IS NOT NULL
-                             AND date(created_at, 'localtime') = date('now', 'localtime')"""
+                if not result["documents"]:
+                    result["documents"] = int(con.execute(
+                        "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
                     ).fetchone()[0])
-                # The fragment join can scan millions of rows. On Windows the
-                # first home snapshot must return its recents before that count.
-                if getattr(self, "live_cache_seconds", 0) > 0:
-                    result["fragments"] = self._deferred_fragment_count()
-                else:
+                if not fast_home:
+                    document_columns = {
+                        str(row[1])
+                        for row in con.execute('PRAGMA table_info("documents")').fetchall()
+                    }
+                    if "created_at" in document_columns:
+                        result["added_today"] = int(con.execute(
+                            """SELECT COUNT(*) FROM documents
+                               WHERE is_deleted = 0
+                                 AND created_at IS NOT NULL
+                                 AND date(created_at, 'localtime') = date('now', 'localtime')"""
+                        ).fetchone()[0])
                     result["fragments"] = int(con.execute(
                         """SELECT COUNT(*) FROM fragments f
                            JOIN documents d ON d.path=f.document_path
                            WHERE d.is_deleted=0"""
                     ).fetchone()[0])
-
-                rows = con.execute(
-                    """SELECT category, COUNT(*) n
-                       FROM documents
-                       WHERE is_deleted=0
-                       GROUP BY category
-                       ORDER BY n DESC
-                       LIMIT 8"""
-                ).fetchall()
-                result["categories"] = [
-                    {"name": str(r["category"] or "Sin categoría"), "count": int(r["n"])}
-                    for r in rows
-                ]
+                    rows = con.execute(
+                        """SELECT category, COUNT(*) n
+                           FROM documents
+                           WHERE is_deleted=0
+                           GROUP BY category
+                           ORDER BY n DESC
+                           LIMIT 8"""
+                    ).fetchall()
+                    result["categories"] = [
+                        {"name": str(r["category"] or "Sin categoría"), "count": int(r["n"])}
+                        for r in rows
+                    ]
 
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_method,total_pages
@@ -178,12 +185,13 @@ class LiveReadOnlyAdapter:
                     for r in rows
                 ]
 
-                try:
-                    result["ocr_pages"] = int(con.execute(
-                        "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE is_deleted=0"
-                    ).fetchone()[0])
-                except sqlite3.Error:
-                    pass
+                if not fast_home:
+                    try:
+                        result["ocr_pages"] = int(con.execute(
+                            "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE is_deleted=0"
+                        ).fetchone()[0])
+                    except sqlite3.Error:
+                        pass
         except Exception as exc:
             result["error"] = str(exc)
         return result

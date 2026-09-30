@@ -4,7 +4,6 @@ import importlib.util
 import os
 import sqlite3
 import sys
-import threading
 import types
 from pathlib import Path
 from unittest.mock import patch
@@ -230,7 +229,7 @@ def test_live_adapter_cache_reuses_one_snapshot(monkeypatch) -> None:
     assert len(calls) == 1
 
 
-def test_windows_home_returns_recents_while_fragment_count_is_pending(tmp_path: Path, monkeypatch) -> None:
+def test_windows_home_returns_recents_without_full_catalog_scans(tmp_path: Path, monkeypatch) -> None:
     database = tmp_path / "catalog.sqlite3"
     history = tmp_path / "context_query_history.sqlite3"
     with sqlite3.connect(database) as con:
@@ -250,26 +249,34 @@ def test_windows_home_returns_recents_while_fragment_count_is_pending(tmp_path: 
                     "VALUES ('Responsabilidad estatal','Investigación','2026-09-29 19:00')")
     adapter = LiveReadOnlyAdapter()
     adapter.catalog_path = database
+    adapter.autosync_state_path = tmp_path / "autosync_state.json"
+    adapter.autosync_state_path.write_text('{"documents_total": 86787}', encoding="utf-8")
     adapter.context_history_path = history
     adapter.search_history_path = tmp_path / "missing.sqlite3"
     adapter.ocr_path = tmp_path / "ocr.sqlite3"
     adapter.live_cache_seconds = 30
-    entered = threading.Event()
-    release = threading.Event()
+    monkeypatch.setattr(adapter, "_count_active_fragments", lambda: (_ for _ in ()).throw(
+        AssertionError("No recorrer fragmentos al abrir Inicio")
+    ))
+    import backend as backend_module
+    original_connect = backend_module._ro_connect
+    queries = []
 
-    def slow_count():
-        entered.set()
-        release.wait(3)
-        return 1
+    def traced_connect(path):
+        con = original_connect(path)
+        con.set_trace_callback(queries.append)
+        return con
 
-    monkeypatch.setattr(adapter, "_count_active_fragments", slow_count)
-    try:
-        snapshot = adapter.snapshot()
-        assert entered.wait(1)
-        assert snapshot["catalog"]["recent_documents"][0]["name"] == "Fallo reciente"
-        assert snapshot["contexts"]["recent"][0]["query"] == "Responsabilidad estatal"
-    finally:
-        release.set()
+    monkeypatch.setattr(backend_module, "_ro_connect", traced_connect)
+    snapshot = adapter.snapshot()
+    assert snapshot["catalog"]["documents"] == 86787
+    assert snapshot["catalog"]["recent_documents"][0]["name"] == "Fallo reciente"
+    assert snapshot["contexts"]["recent"][0]["query"] == "Responsabilidad estatal"
+    assert not any(
+        marker in statement.lower()
+        for statement in queries
+        for marker in ("date(created_at", "sum(ocr_pages)", "group by category", "from fragments", "count(*) from documents")
+    )
 
 
 def test_visible_search_numbers_are_always_incremental() -> None:
