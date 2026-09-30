@@ -124,13 +124,8 @@ def standards_sql() -> int:
     if _canonical_ready(con):
         statements.extend([
             ("canonicos confirmados", "SELECT COUNT(*) FROM canonical_standards WHERE status='confirmed'"),
-            ("canonicos visibles", """SELECT COUNT(*) FROM canonical_standards c
-                WHERE c.status='confirmed' AND EXISTS(
-                    SELECT 1 FROM standard_occurrences o
-                    JOIN standards s ON s.standard_uid=o.standard_uid
-                    WHERE o.canonical_uid=c.canonical_uid
-                      AND s.review_status<>'rejected'
-                      AND s.publication_status IN ('ready','published','blocked'))"""),
+            ("canonicos visibles", "SELECT COUNT(*) FROM canonical_standards c "
+             "WHERE c.status='confirmed' AND " + service._visible_canonical_sql()),
         ])
     try:
         for label, sql in statements:

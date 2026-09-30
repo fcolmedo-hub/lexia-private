@@ -169,6 +169,15 @@ class StandardsService:
     def _base_visibility_sql(self) -> str:
         return "s.review_status<>'rejected' AND s.publication_status IN ('ready','published','blocked')"
 
+    def _visible_canonical_sql(self) -> str:
+        # Keep the subquery independent of each canonical row. On a large
+        # Windows database the correlated EXISTS may scan standards once per
+        # canonical, despite the occurrence index.
+        return ("c.canonical_uid IN (SELECT o.canonical_uid "
+                "FROM standards s JOIN standard_occurrences o "
+                "ON o.standard_uid=s.standard_uid WHERE "
+                + self._base_visibility_sql() + ")")
+
     def count(self) -> int:
         """Return the standards exposed by the dictionary, never fragment counts."""
         if not self.available():
@@ -176,14 +185,8 @@ class StandardsService:
         with _ro_connect(self.db_path) as con:
             if _canonical_ready(con):
                 return int(con.execute(
-                    """SELECT COUNT(*) FROM canonical_standards c
-                       WHERE c.status='confirmed' AND EXISTS(
-                           SELECT 1 FROM standard_occurrences o
-                           JOIN standards s ON s.standard_uid=o.standard_uid
-                           WHERE o.canonical_uid=c.canonical_uid
-                             AND s.review_status<>'rejected'
-                             AND s.publication_status IN ('ready','published','blocked')
-                       )"""
+                    "SELECT COUNT(*) FROM canonical_standards c "
+                    "WHERE c.status='confirmed' AND " + self._visible_canonical_sql()
                 ).fetchone()[0])
             return int(con.execute(
                 "SELECT COUNT(*) FROM standards s WHERE " + self._base_visibility_sql()
@@ -221,14 +224,8 @@ class StandardsService:
                     "SELECT COUNT(*) FROM canonical_standards WHERE status='confirmed'"
                 ).fetchone()[0])
                 visible_canonical = int(con.execute(
-                    """SELECT COUNT(*) FROM canonical_standards c
-                       WHERE c.status='confirmed' AND EXISTS(
-                           SELECT 1 FROM standard_occurrences o
-                           JOIN standards s ON s.standard_uid=o.standard_uid
-                           WHERE o.canonical_uid=c.canonical_uid
-                             AND s.review_status<>'rejected'
-                             AND s.publication_status IN ('ready','published','blocked')
-                       )"""
+                    "SELECT COUNT(*) FROM canonical_standards c "
+                    "WHERE c.status='confirmed' AND " + self._visible_canonical_sql()
                 ).fetchone()[0])
             else:
                 canonical_total = active_occurrences
@@ -441,7 +438,6 @@ class StandardsService:
                 where.append("0")
 
         occurrence_where = [
-            "o.canonical_uid=c.canonical_uid",
             "s.review_status<>'rejected'",
             "s.publication_status IN ('ready','published','blocked')",
         ]
@@ -461,11 +457,12 @@ class StandardsService:
         if treatment:
             occurrence_where.append("s.treatment=?")
             occurrence_params.append(treatment.strip())
+        # Evaluate eligible occurrences once, before filtering canonical rows.
         where.append(
-            """EXISTS(SELECT 1 FROM standard_occurrences o
-                       JOIN standards s ON s.standard_uid=o.standard_uid
-                       JOIN documents d ON d.document_id=s.document_id
-                       WHERE """ + " AND ".join(occurrence_where) + ")"
+            "c.canonical_uid IN (SELECT o.canonical_uid FROM standards s "
+            "JOIN standard_occurrences o ON o.standard_uid=s.standard_uid "
+            "JOIN documents d ON d.document_id=s.document_id WHERE "
+            + " AND ".join(occurrence_where) + ")"
         )
         params.extend(occurrence_params)
 
