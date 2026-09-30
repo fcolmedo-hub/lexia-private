@@ -7,6 +7,9 @@
   const RECENT_KEY='lexia_standards_recent_searches_v1';
   let recentMemory=[];
   let recentStorageAvailable=true;
+  let homeStatsAttempts=0;
+  let homeStatsTimer=0;
+  let homeStatsInFlight=false;
 
   function standardsShell(){return document.getElementById('lexiaStandardsShell');}
   function norm(value){return String(value||'').replace(/\s+/g,' ').trim().toLowerCase();}
@@ -316,12 +319,29 @@
   }
 
   async function updateHomeStandardsCard(){
+    const card=homeStandardsCard();if(!card||homeStatsInFlight)return;
+    homeStatsInFlight=true;
+    let loaded=false;
     try{
-      const card=homeStandardsCard();if(!card)return;
-      const response=await fetch(API+'/api/stats',{headers:{Accept:'application/json'}});if(!response.ok)return;
+      const controller=new AbortController();
+      const timeout=window.setTimeout(()=>controller.abort(),5000);
+      let response;
+      try{response=await fetch(API+'/api/stats',{headers:{Accept:'application/json'},signal:controller.signal});}
+      finally{window.clearTimeout(timeout);}
+      if(!response.ok)return;
       const data=await response.json(),total=Number(data.standards||0);
       setText(card.querySelector('#liveStandards')||card.querySelector('strong'),total.toLocaleString('es-AR'));
+      loaded=true;homeStatsAttempts=0;
+      if(homeStatsTimer){window.clearTimeout(homeStatsTimer);homeStatsTimer=0;}
     }catch(_){}
+    finally{
+      homeStatsInFlight=false;
+      if(!loaded&&homeStatsAttempts<18&&!homeStatsTimer){
+        const delay=Math.min(1000*2**homeStatsAttempts,10000);
+        homeStatsAttempts+=1;
+        homeStatsTimer=window.setTimeout(()=>{homeStatsTimer=0;updateHomeStandardsCard();},delay);
+      }
+    }
   }
 
   function installHomeCardHandler(){
@@ -342,9 +362,17 @@
   function boot(){
     install();installExitHandler();installHomeCardHandler();installSearchUx();adjustDetail();updateHomeStandardsCard();
     window.addEventListener('resize',syncStandardsInset,{passive:true});
-    const observer=new MutationObserver(()=>{install();installSearchUx();adjustDetail();updateHomeStandardsCard();});observer.observe(document.body,{childList:true,subtree:true});
-    window.setTimeout(()=>{install();installSearchUx();adjustDetail();updateHomeStandardsCard();},150);
-    window.setTimeout(()=>{install();installSearchUx();adjustDetail();updateHomeStandardsCard();},700);
+    const refreshMissing=()=>{
+      const nav=document.querySelector('#globalSidebar .nav');
+      if(nav&&!nav.querySelector('[data-lexia-standards-nav]'))install();
+      const shell=standardsShell();
+      if(shell&&shell.dataset.lexiaSearchUx!=='1')installSearchUx();
+      if(document.querySelector('#stdGraphBtn:not([data-lexia-moved="1"])'))adjustDetail();
+      if(document.querySelector('#home .hr-metrics article[data-home-target="search-fragments"]'))updateHomeStandardsCard();
+    };
+    const observer=new MutationObserver(refreshMissing);observer.observe(document.body,{childList:true,subtree:true});
+    window.setTimeout(refreshMissing,150);
+    window.setTimeout(refreshMissing,700);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();

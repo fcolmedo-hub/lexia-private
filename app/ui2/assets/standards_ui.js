@@ -372,7 +372,7 @@
   function open(){state.open=true;setNavActive(true);document.documentElement.classList.add('lexia-standards-open');shell().classList.add('open');loadInventory();}
   function close(){if(!state.open)return;state.open=false;setNavActive(false);document.documentElement.classList.remove('lexia-standards-open');document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}
-  function boot(){installStyles();shell();installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;watchViewport();const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
+  function boot(){installStyles();shell();const navReady=installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;watchViewport();if(!navReady){const observer=new MutationObserver(()=>{if(installNav())observer.disconnect();});observer.observe(document.body,{childList:true,subtree:true});}}}
   window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;window.lexiaStandardsLoadInventory=loadInventory;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
