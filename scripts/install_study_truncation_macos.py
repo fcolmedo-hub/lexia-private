@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Instala límite ampliado y aviso previo al envío en macOS, preservando cambios locales."""
+"""Instala límite ampliado y aviso previo en macOS y Windows, preservando cambios locales."""
 
 import argparse
 from datetime import datetime
@@ -34,6 +34,48 @@ def git(*args):
     if result.returncode:
         raise RuntimeError(result.stderr.decode("utf-8", "replace").strip())
     return result.stdout
+
+
+def normalized(raw):
+    return raw.decode("utf-8-sig").replace("\r\n", "\n").encode("utf-8")
+
+
+def preserve_format(payload, original):
+    newline = b"\r\n" if original.count(b"\r\n") > original.count(b"\n") / 2 else b"\n"
+    prefix = b"\xef\xbb\xbf" if original.startswith(b"\xef\xbb\xbf") else b""
+    return prefix + payload.replace(b"\n", newline)
+
+
+def merge_study_html(local, base, target):
+    # El cambio del PR solo afecta al controlador de Estudiar. Una combinación
+    # de todo el HTML puede chocar con cambios locales contiguos de Windows.
+    # Se sustituye exclusivamente un controlador reconocido, sin tocar el resto.
+    start = b"  const study=replace('startStudy',"
+    end = b"\n  replace('copyContext',"
+
+    def bounds(data):
+        if data.count(start) != 1 or data.count(end) != 1:
+            raise ValueError("No se reconoce un controlador único de Estudiar.")
+        first = data.index(start)
+        last = data.index(end)
+        if last <= first:
+            raise ValueError("No se reconocen los límites del controlador de Estudiar.")
+        return first, last
+
+    local_start, local_end = bounds(local)
+    base_start, base_end = bounds(base)
+    target_start, target_end = bounds(target)
+    before = base[base_start:base_end]
+    after = target[target_start:target_end]
+    # Este atajo no debe utilizarse si una revisión futura cambia otras zonas.
+    if base[:base_start] + after + base[base_end:] != target:
+        raise ValueError("La revisión modifica otras zonas del HTML.")
+    current = local[local_start:local_end]
+    if current == after:
+        return local
+    if current != before:
+        raise ValueError("El controlador de Estudiar también tiene cambios locales.")
+    return local[:local_start] + after + local[local_end:]
 
 
 def main():
@@ -81,17 +123,31 @@ def main():
             local_path = folder / f"{number}-local"
             base_path = folder / f"{number}-base"
             target_path = folder / f"{number}-target"
-            for output, data in ((local_path, old), (base_path, base), (target_path, target)):
+            try:
+                local_normal, base_normal, target_normal = map(normalized, (old, base, target))
+            except UnicodeError:
+                conflicts.append(f"{relative}: no tiene una codificación UTF-8 válida")
+                continue
+            for output, data in ((local_path, local_normal), (base_path, base_normal), (target_path, target_normal)):
                 output.write_bytes(data)
             result = subprocess.run(
                 ["git", "merge-file", "-p", str(local_path), str(base_path), str(target_path)],
                 capture_output=True,
             )
             if result.returncode or b"\x00" in result.stdout:
-                conflicts.append(f"{relative}: los cambios locales se cruzan con esta actualización")
-                continue
-            if result.stdout != old:
-                changes.append((relative, path, old, result.stdout))
+                if relative != "app/ui2/index.html":
+                    conflicts.append(f"{relative}: los cambios locales se cruzan con esta actualización")
+                    continue
+                try:
+                    merged = merge_study_html(local_normal, base_normal, target_normal)
+                except ValueError as error:
+                    conflicts.append(f"{relative}: {error}")
+                    continue
+            else:
+                merged = result.stdout
+            payload = preserve_format(merged, old)
+            if payload != old:
+                changes.append((relative, path, old, payload))
 
     if conflicts:
         print("Conflictos detectados:")
