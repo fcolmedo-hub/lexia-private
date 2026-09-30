@@ -189,6 +189,10 @@ class Settings:
     context_builder_max_chars_per_source: int = 2600
     context_builder_max_total_chars: int = 52000
     context_builder_upload_max_chars: int = 95000
+    # Estudiar archivos dispone de un presupuesto propio: ampliar un fallo no
+    # debe multiplicar el tamaño de las investigaciones y sus fuentes.
+    context_builder_study_max_total_chars: int = 220000
+    context_builder_study_max_chars_per_document: int = 200000
     context_builder_exports_path: Path = _EXPORTS_PATH / "context_packages"
 
     # Inteligencia en la nube. La clave nunca se guarda en el repositorio:

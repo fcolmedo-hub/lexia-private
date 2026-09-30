@@ -462,10 +462,10 @@ class KnowledgeContextPackageBuilder(
             )
 
         max_total = int(
-            SETTINGS.context_builder_max_total_chars
+            SETTINGS.context_builder_study_max_total_chars
         )
         per_document_limit = int(
-            SETTINGS.context_builder_upload_max_chars
+            SETTINGS.context_builder_study_max_chars_per_document
         )
 
         reserved = min(
