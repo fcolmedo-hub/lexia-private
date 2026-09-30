@@ -6,6 +6,7 @@ from pathlib import Path
 
 from config.settings import SETTINGS
 from core.document_extractor import DocumentExtractor
+from ai.document_context_limits import require_complete_documents
 from models.search_result import SearchResult
 
 
@@ -250,8 +251,11 @@ Comenzá directamente con el análisis jurídico.
                 "No fue posible extraer texto del documento."
             )
 
-        text = text[: SETTINGS.context_builder_upload_max_chars]
         filename = Path(path).name
+        require_complete_documents(
+            [{"name": filename, "text": text}],
+            int(SETTINGS.context_builder_upload_max_chars),
+        )
         created_at = datetime.now().isoformat(timespec="seconds")
         objective_text = self.TASKS.get(
             objective,
@@ -537,3 +541,4 @@ Citá las afirmaciones relevantes como [FUENTE 1] y, cuando sea posible, indicá
         )
         clean = "_".join(clean.split())[:75]
         return clean or "consulta_lexia"
+

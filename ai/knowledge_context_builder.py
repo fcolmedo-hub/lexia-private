@@ -12,6 +12,7 @@ from ai.legal_query_expander import LegalQueryExpander
 from ai.legal_authority_ranker import LegalAuthorityRanker
 from ai.intelligent_context_selector import IntelligentContextSelector
 from storage.catalog import DocumentCatalog
+from ai.document_context_limits import require_complete_documents
 
 
 class KnowledgeContextPackageBuilder(
@@ -488,21 +489,17 @@ class KnowledgeContextPackageBuilder(
             fair_share,
         )
 
+        # Validate every source with the effective shared budget before
+        # building, saving or sending an incomplete package to the API.
+        require_complete_documents(normalized, per_source_budget)
+
         source_blocks = []
 
         for number, item in enumerate(
             normalized,
             start=1,
         ):
-            source_text = item["text"][
-                :per_source_budget
-            ]
-
-            if len(item["text"]) > len(source_text):
-                source_text += (
-                    "\n\n[CONTENIDO TRUNCADO POR LÍMITE "
-                    "DEL CONTEXTO]"
-                )
+            source_text = item["text"]
 
             source_blocks.append(
                 (
@@ -1233,3 +1230,4 @@ ESTRUCTURA DE LA RESPUESTA
             name,
             **metadata,
         )
+
