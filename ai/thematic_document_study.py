@@ -325,6 +325,7 @@ def _build_thematic_package(builder, catalog, vector_store, documents, objective
     # el tema está concentrado en un solo capítulo del libro.
     chosen = []
     used = 0
+    cut_by_budget = False
     for region in sorted(regions, key=lambda item: item["score"], reverse=True):
         text = _merge_texts(
             [by_index[index]["text_content"] for index in region["indices"]]
@@ -333,13 +334,16 @@ def _build_thematic_package(builder, catalog, vector_store, documents, objective
             continue
         remaining = source_budget - used
         if remaining <= 1200:
+            cut_by_budget = True
             break
         if len(text) > remaining:
+            cut_by_budget = True
             text = text[:remaining].rsplit(" ", 1)[0].rstrip()
             text += "\n\n[CORTE POR LÍMITE DEL PAQUETE]"
         chosen.append({**region, "text": text})
         used += len(text)
         if used >= source_budget or len(chosen) >= 12:
+            cut_by_budget = cut_by_budget or len(chosen) < len(regions)
             break
 
     if not chosen:
@@ -435,6 +439,13 @@ Si los pasajes seleccionados no permiten responder algún aspecto, señalalo exp
             "document": document["name"],
             "queries": variants,
             "regions_selected": len(chosen),
+            "study_selection": {
+                "kind": "thematic",
+                "regions_found": len(regions),
+                "regions_included": len(chosen),
+                "included_characters": sum(len(item["text"]) for item in chosen),
+                "cut_by_budget": cut_by_budget,
+            },
             "semantic_available": bool(semantic),
             "pages": document["pages"],
         },

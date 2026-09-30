@@ -19,15 +19,19 @@ class FakeBuilder:
         self.available = available
         self.included = included
         self.calls = 0
+        self.selection = None
 
     def build_documents_package(self, **_kwargs):
         self.calls += 1
         return ContextPackage(
             title="Fallo", content="Contenido truncado", sources=[],
             created_at="", character_count=18, objective="", query="", facts="",
-            interpretation={"source_lengths": [{
-                "document": "fallo.pdf", "available": self.available, "included": self.included,
-            }]},
+            interpretation=(
+                {"study_selection": self.selection} if self.selection else
+                {"source_lengths": [{
+                    "document": "fallo.pdf", "available": self.available, "included": self.included,
+                }]}
+            ),
             document_count=1, selected_count=1,
         )
 
@@ -110,5 +114,19 @@ class StudyConfirmationTest(TestCase):
         self.builder.available = 180000
         self.builder.included = 180000
         self.request("/api/study-start", {"path": str(self.source)})
+        self.phase("completed")
+        self.assertEqual(len(self.sent), 1)
+
+    def test_thematic_study_waits_even_without_character_truncation(self):
+        self.builder.selection = {
+            "kind": "thematic", "regions_found": 5, "regions_included": 3,
+            "included_characters": 12000, "cut_by_budget": False,
+        }
+        self.request("/api/study-start", {"path": str(self.source), "document_type": "Doctrina"})
+        state = self.phase("awaiting_confirmation")
+        self.assertEqual(state["selection"]["regions_included"], 3)
+        self.assertIsNone(state["truncation"])
+        self.assertEqual(self.sent, [])
+        self.request("/api/study-start", {"confirm_job_id": state["job_id"]})
         self.phase("completed")
         self.assertEqual(len(self.sent), 1)

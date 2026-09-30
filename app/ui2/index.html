@@ -5394,16 +5394,27 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
         const d=await request('/api/study-status'),s=d.state||{};
         status.textContent=s.status||'Estudiando…';
         if(s.phase==='awaiting_confirmation'){
-          const detail=s.truncation||{},fmt=new Intl.NumberFormat('es-AR');
-          const included=Number(detail.included||0),available=Number(detail.available||0);
-          const omitted=Math.max(0,available-included);
-          status.textContent='El archivo excede el límite del estudio: '+fmt.format(available)+
-            ' caracteres disponibles; LexIA enviaría '+fmt.format(included)+' y dejaría afuera '+
-            fmt.format(omitted)+'. La API todavía no fue consultada. El análisis parcial puede omitir partes decisivas.';
+          const fmt=new Intl.NumberFormat('es-AR');
+          const selection=s.selection;
+          if(selection?.kind==='thematic'){
+            status.textContent='LexIA revisó el documento y seleccionó '+
+              fmt.format(selection.regions_included||0)+' pasajes temáticos ('+
+              fmt.format(selection.included_characters||0)+' caracteres) de '+
+              fmt.format(selection.regions_found||0)+' zonas pertinentes. El resto del libro, doctrina o legislación no se enviará.'+
+              (selection.cut_by_budget?' Algunas zonas pertinentes se recortaron por el límite del paquete.':'')+
+              ' La API todavía no fue consultada.';
+          }else{
+            const detail=s.truncation||{};
+            const included=Number(detail.included||0),available=Number(detail.available||0);
+            const omitted=Math.max(0,available-included);
+            status.textContent='El archivo excede el límite del estudio: '+fmt.format(available)+
+              ' caracteres disponibles; LexIA enviaría '+fmt.format(included)+' y dejaría afuera '+
+              fmt.format(omitted)+'. La API todavía no fue consultada. El análisis parcial puede omitir partes decisivas.';
+          }
           const actions=document.createElement('div');
           actions.className='context-actions';
           const confirm=document.createElement('button');
-          confirm.type='button';confirm.className='primary';confirm.textContent='Enviar análisis parcial';
+          confirm.type='button';confirm.className='primary';confirm.textContent=selection?'Enviar pasajes seleccionados':'Enviar análisis parcial';
           const cancel=document.createElement('button');
           cancel.type='button';cancel.className='secondary';cancel.textContent='Cancelar sin costo';
           actions.append(confirm,cancel);
@@ -5412,7 +5423,7 @@ document.querySelectorAll('.setting button').forEach(b=>b.addEventListener('clic
           confirm.addEventListener('click',async()=>{
             confirm.disabled=true;cancel.disabled=true;actions.remove();
             busy(study,true,'Estudiando…');
-            status.textContent='Enviando el análisis parcial confirmado…';
+            status.textContent='Enviando el estudio confirmado…';
             try{await post({confirm_job_id:s.job_id});poll();}
             catch(error){status.textContent=error.message||String(error);busy(study,false,'Estudiar');}
           });

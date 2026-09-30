@@ -1335,7 +1335,7 @@ def _handler_class(application, token):
                 study_pending = None
                 study_state.update({
                     "phase": "idle", "status": "Estudio cancelado. No se consultó la API.",
-                    "percentage": 0, "truncation": None,
+                    "percentage": 0, "truncation": None, "selection": None,
                 })
                 return {"ok": True, "state": dict(study_state)}
 
@@ -1369,6 +1369,7 @@ def _handler_class(application, token):
                 "error": None,
                 "elapsed_seconds": 0.0,
                 "truncation": None,
+                "selection": None,
             })
 
         def worker():
@@ -1391,19 +1392,24 @@ def _handler_class(application, token):
                 if not prepared:
                     lengths = list((package.interpretation or {}).get("source_lengths") or [])
                     truncated = [item for item in lengths if item["available"] > item["included"]]
-                    if truncated:
-                        item = truncated[0]
+                    selection = (package.interpretation or {}).get("study_selection")
+                    if truncated or selection:
+                        item = truncated[0] if truncated else None
                         with study_lock:
                             study_pending = {"package": package, "source": source, "request": request}
                             study_state.update({
                                 "phase": "awaiting_confirmation",
-                                "status": "El fallo excede el límite del estudio. Confirmá si querés analizar solo la parte incluida.",
+                                "status": (
+                                    "El archivo excede el límite del estudio. Confirmá si querés analizar solo la parte incluida."
+                                    if item else "LexIA seleccionó pasajes temáticos del documento. Confirmá antes de enviarlos a la API."
+                                ),
                                 "percentage": 85,
                                 "truncation": {
                                     "available": item["available"],
                                     "included": item["included"],
                                     "omitted": item["available"] - item["included"],
-                                },
+                                } if item else None,
+                                "selection": selection if selection else None,
                             })
                         return
                 with study_lock:

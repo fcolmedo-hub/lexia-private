@@ -12,15 +12,18 @@ import tempfile
 
 
 BASE = "d97696724af0a61af3dbaa3a523ba7ec44820e08"
+PREVIOUS_PREVIEW = "142d2daf34f661c271f2c8402684c7b0df2444ff"
 FILES = (
     "config/settings.py",
     "ai/knowledge_context_builder.py",
+    "ai/thematic_document_study.py",
     "services/ui2_delete_bridge.py",
     "app/ui2/index.html",
 )
 MARKERS = {
     "config/settings.py": "context_builder_study_max_chars_per_document: int = 200000",
     "ai/knowledge_context_builder.py": '"source_lengths": source_lengths',
+    "ai/thematic_document_study.py": '"study_selection": {',
     "services/ui2_delete_bridge.py": '"phase": "awaiting_confirmation"',
     "app/ui2/index.html": "Enviar análisis parcial",
 }
@@ -59,7 +62,16 @@ def main():
                 conflicts.append(f"{relative}: no existe en esta instalación")
                 continue
             old = path.read_bytes()
-            base = git("show", f"{BASE}:{relative}")
+            previous_markers = {
+                "services/ui2_delete_bridge.py": b'"phase": "awaiting_confirmation"',
+                "app/ui2/index.html": "Enviar análisis parcial".encode("utf-8"),
+            }
+            base_ref = (
+                PREVIOUS_PREVIEW
+                if relative in previous_markers and previous_markers[relative] in old
+                else BASE
+            )
+            base = git("show", f"{base_ref}:{relative}")
             target = git("show", f"{source_sha}:{relative}")
             if MARKERS[relative].encode("utf-8") not in target:
                 conflicts.append(f"{relative}: la revisión descargada no contiene el cambio esperado")
