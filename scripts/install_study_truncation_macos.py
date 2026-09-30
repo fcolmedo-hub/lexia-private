@@ -13,6 +13,7 @@ import tempfile
 
 BASE = "d97696724af0a61af3dbaa3a523ba7ec44820e08"
 PREVIOUS_PREVIEW = "142d2daf34f661c271f2c8402684c7b0df2444ff"
+PREVIOUS_THEMATIC_PREVIEW = "7c95bf1787ce018bac8d09ec07220866aa9dcd85"
 FILES = (
     "config/settings.py",
     "ai/knowledge_context_builder.py",
@@ -23,7 +24,7 @@ FILES = (
 MARKERS = {
     "config/settings.py": "context_builder_study_max_chars_per_document: int = 200000",
     "ai/knowledge_context_builder.py": '"source_lengths": source_lengths',
-    "ai/thematic_document_study.py": '"study_selection": {',
+    "ai/thematic_document_study.py": "max_total = int(SETTINGS.context_builder_study_max_total_chars)",
     "services/ui2_delete_bridge.py": '"phase": "awaiting_confirmation"',
     "app/ui2/index.html": "Enviar análisis parcial",
 }
@@ -109,7 +110,9 @@ def main():
                 "app/ui2/index.html": "Enviar análisis parcial".encode("utf-8"),
             }
             base_ref = (
-                PREVIOUS_PREVIEW
+                PREVIOUS_THEMATIC_PREVIEW
+                if relative == "ai/thematic_document_study.py" and b'"study_selection": {' in old
+                else PREVIOUS_PREVIEW
                 if relative in previous_markers and previous_markers[relative] in old
                 else BASE
             )

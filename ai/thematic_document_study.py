@@ -316,9 +316,12 @@ def _build_thematic_package(builder, catalog, vector_store, documents, objective
             "dentro de este documento."
         )
 
-    max_total = int(SETTINGS.context_builder_max_total_chars)
+    max_total = int(SETTINGS.context_builder_study_max_total_chars)
     reserved = min(14000, max(6000, int(max_total * 0.10)))
-    source_budget = max(12000, max_total - reserved)
+    source_budget = min(
+        int(SETTINGS.context_builder_study_max_chars_per_document),
+        max_total - reserved,
+    )
 
     # Elegimos primero por relevancia. Una zona extensa y coherente puede ocupar
     # la mayor parte del presupuesto: no se fuerza diversidad artificial cuando
@@ -338,8 +341,8 @@ def _build_thematic_package(builder, catalog, vector_store, documents, objective
             break
         if len(text) > remaining:
             cut_by_budget = True
-            text = text[:remaining].rsplit(" ", 1)[0].rstrip()
-            text += "\n\n[CORTE POR LÍMITE DEL PAQUETE]"
+            notice = "\n\n[CORTE POR LÍMITE DEL PAQUETE]"
+            text = text[:remaining - len(notice)].rsplit(" ", 1)[0].rstrip() + notice
         chosen.append({**region, "text": text})
         used += len(text)
         if used >= source_budget or len(chosen) >= 12:

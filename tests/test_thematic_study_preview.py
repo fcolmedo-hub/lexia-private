@@ -5,7 +5,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 class ThematicStudyPreviewTest(TestCase):
-    def test_reports_selected_passages_and_budget_cut(self):
+    def package(self, repetitions, document_type="Doctrina"):
         # La selección semántica se sustituye más abajo; esta prueba solo
         # necesita importar el constructor sin levantar Qdrant.
         try:
@@ -16,7 +16,7 @@ class ThematicStudyPreviewTest(TestCase):
             with patch.dict(sys.modules, {"qdrant_client": SimpleNamespace(models=SimpleNamespace())}):
                 from ai import thematic_document_study as thematic
         fragment = {
-            "fragment_index": 0, "text_content": "tema jurídico " * 6000,
+            "fragment_index": 0, "text_content": "tema jurídico " * repetitions,
             "page_start": 1, "page_end": 20,
         }
         document = {
@@ -37,13 +37,29 @@ class ThematicStudyPreviewTest(TestCase):
         ):
             package = thematic._build_thematic_package(
                 builder, object(), object(), [(Path("doctrina.pdf"), "doctrina.pdf")],
-                "Investigación jurídica", "tema jurídico", "Doctrina",
+                "Investigación jurídica", "tema jurídico", document_type,
             )
+        return package
 
+    def test_reports_selected_passages_and_budget_cut(self):
+        package = self.package(20000)
         selection = package.interpretation["study_selection"]
         self.assertEqual(selection["kind"], "thematic")
         self.assertEqual(selection["regions_found"], 1)
         self.assertEqual(selection["regions_included"], 1)
         self.assertTrue(selection["cut_by_budget"])
         self.assertGreater(selection["included_characters"], 0)
+        self.assertLessEqual(selection["included_characters"], 200000)
+        self.assertLessEqual(package.character_count, 220000)
         self.assertIn("CORTE POR LÍMITE DEL PAQUETE", package.content)
+
+    def test_all_thematic_types_include_more_than_previous_budget(self):
+        from config.settings import SETTINGS
+        for document_type in ("Libro", "Doctrina", "Legislación"):
+            with self.subTest(document_type=document_type):
+                package = self.package(6000, document_type)
+                selection = package.interpretation["study_selection"]
+                self.assertGreater(selection["included_characters"], 52000)
+                self.assertFalse(selection["cut_by_budget"])
+                self.assertIn("tema jurídico " * 5999, package.content)
+                self.assertEqual(SETTINGS.context_builder_max_total_chars, 52000)
