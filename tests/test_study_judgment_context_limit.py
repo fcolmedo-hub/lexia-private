@@ -31,4 +31,7 @@ def test_study_uses_its_own_larger_budget(monkeypatch):
     assert source[SETTINGS.context_builder_study_max_chars_per_document] == "\n"
     assert "[CONTENIDO TRUNCADO POR LÍMITE DEL CONTEXTO]" in source
     assert "Páginas detectadas: 110" in package.content
+    assert package.interpretation["source_lengths"] == [{
+        "document": "fallo.pdf", "available": 250000, "included": 200000,
+    }]
     assert SETTINGS.context_builder_max_total_chars == 52000

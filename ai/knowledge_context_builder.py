@@ -489,6 +489,7 @@ class KnowledgeContextPackageBuilder(
         )
 
         source_blocks = []
+        source_lengths = []
 
         for number, item in enumerate(
             normalized,
@@ -497,6 +498,11 @@ class KnowledgeContextPackageBuilder(
             source_text = item["text"][
                 :per_source_budget
             ]
+            source_lengths.append({
+                "document": item["name"],
+                "available": len(item["text"]),
+                "included": len(source_text),
+            })
 
             if len(item["text"]) > len(source_text):
                 source_text += (
@@ -625,6 +631,7 @@ No preguntes qué debe hacerse con los archivos.
                 "per_source_budget": (
                     per_source_budget
                 ),
+                "source_lengths": source_lengths,
             },
             document_count=len(normalized),
             selected_count=len(normalized),
