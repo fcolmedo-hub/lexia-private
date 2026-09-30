@@ -101,14 +101,65 @@ def catalog_sql() -> int:
     return 0
 
 
+def standards_sql() -> int:
+    root = Path.cwd()
+    sys.path.insert(0, str(root))
+    from services.standards_service import StandardsService, _canonical_ready
+
+    service = StandardsService()
+    if not service.available():
+        print("No existe el catálogo de Estándares en la ruta configurada.", flush=True)
+        return 0
+    uri = service.db_path.resolve().as_uri() + "?mode=ro"
+    con = sqlite3.connect(uri, uri=True, timeout=3)
+    con.execute("PRAGMA query_only=ON")
+    visibility = service._base_visibility_sql()
+    statements = [
+        ("incidencias", "SELECT COUNT(*) FROM standards"),
+        ("incidencias activas", "SELECT COUNT(*) FROM standards WHERE review_status<>'rejected'"),
+        ("incidencias visibles", "SELECT COUNT(*) FROM standards s WHERE " + visibility),
+        ("avisos de evidencia", "SELECT COUNT(*) FROM standards s WHERE " + visibility
+         + " AND (s.publication_status='blocked' OR " + service._incomplete_evidence_sql() + ")"),
+    ]
+    if _canonical_ready(con):
+        statements.extend([
+            ("canonicos confirmados", "SELECT COUNT(*) FROM canonical_standards WHERE status='confirmed'"),
+            ("canonicos visibles", """SELECT COUNT(*) FROM canonical_standards c
+                WHERE c.status='confirmed' AND EXISTS(
+                    SELECT 1 FROM standard_occurrences o
+                    JOIN standards s ON s.standard_uid=o.standard_uid
+                    WHERE o.canonical_uid=c.canonical_uid
+                      AND s.review_status<>'rejected'
+                      AND s.publication_status IN ('ready','published','blocked'))"""),
+        ])
+    try:
+        for label, sql in statements:
+            started = time.perf_counter()
+            print(f"INICIO {label}", flush=True)
+            con.set_progress_handler(lambda: int(time.perf_counter()-started > 7), 20000)
+            try:
+                value = con.execute(sql).fetchone()[0]
+                print(f"FIN {label}: {time.perf_counter()-started:.2f} s | total: {value}", flush=True)
+            except sqlite3.Error as exc:
+                print(f"ERROR {label}: {time.perf_counter()-started:.2f} s | {exc}", flush=True)
+            finally:
+                con.set_progress_handler(None, 0)
+    finally:
+        con.close()
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe", choices=[item[1] for item in PROBES])
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--catalog-sql", action="store_true")
+    parser.add_argument("--standards-sql", action="store_true")
     args = parser.parse_args()
     if args.catalog_sql:
         return catalog_sql()
+    if args.standards_sql:
+        return standards_sql()
     if args.probe:
         return probe(args.probe)
     if not (Path.cwd() / "app" / "ui2" / "backend.py").exists():
