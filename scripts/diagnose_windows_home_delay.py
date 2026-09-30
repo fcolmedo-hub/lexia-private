@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import time
@@ -22,6 +23,7 @@ PROBES = (
 def probe(name: str) -> int:
     root = Path.cwd()
     start = time.perf_counter()
+    sys.path.insert(0, str(root))
     sys.path.insert(0, str(root / "app" / "ui2"))
     if name == "standards":
         from services.standards_service import StandardsService
@@ -54,11 +56,59 @@ def probe(name: str) -> int:
     return 0
 
 
+def catalog_sql() -> int:
+    root = Path.cwd()
+    sys.path.insert(0, str(root))
+    sys.path.insert(0, str(root / "app" / "ui2"))
+    os.environ["LEXIA_UI2_LIVE_CACHE_SECONDS"] = "30"
+    from backend import LiveReadOnlyAdapter
+
+    adapter = LiveReadOnlyAdapter()
+    print(f"Caché de Inicio: {getattr(adapter, 'live_cache_seconds', 'sin soporte')} s | "
+          f"recuento diferido de fragmentos: {hasattr(adapter, '_deferred_fragment_count')}", flush=True)
+    if not hasattr(adapter, '_deferred_fragment_count'):
+        print("La versión instalada aún calcula fragmentos antes de mostrar Inicio.", flush=True)
+        return 0
+    uri = adapter.catalog_path.resolve().as_uri() + "?mode=ro"
+    con = sqlite3.connect(uri, uri=True, timeout=3)
+    con.execute("PRAGMA query_only=ON")
+    statements = (
+        ("documentos", "SELECT COUNT(*) FROM documents WHERE is_deleted=0"),
+        ("agregados hoy", "SELECT COUNT(*) FROM documents WHERE is_deleted=0 AND created_at IS NOT NULL AND date(created_at, 'localtime')=date('now', 'localtime')"),
+        ("categorias", "SELECT category,COUNT(*) FROM documents WHERE is_deleted=0 GROUP BY category ORDER BY COUNT(*) DESC LIMIT 8"),
+        ("documentos recientes", "SELECT name,path,category,updated_at,extraction_method,total_pages FROM documents WHERE is_deleted=0 AND (extraction_error IS NULL OR extraction_error='') ORDER BY updated_at DESC LIMIT 8"),
+        ("errores recientes", "SELECT name,path,category,updated_at,extraction_error FROM documents WHERE is_deleted=0 AND extraction_error IS NOT NULL AND extraction_error!='' ORDER BY updated_at DESC LIMIT 6"),
+        ("paginas OCR", "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE is_deleted=0"),
+    )
+    try:
+        for index, (label, sql) in enumerate(statements):
+            if index == 2:
+                start = time.perf_counter()
+                adapter._deferred_fragment_count()
+                print(f"Recuento de fragmentos lanzado en segundo plano: {time.perf_counter()-start:.2f} s", flush=True)
+            start = time.perf_counter()
+            print(f"INICIO {label}", flush=True)
+            con.set_progress_handler(lambda: int(time.perf_counter()-start > 7), 20000)
+            try:
+                rows = con.execute(sql).fetchall()
+                print(f"FIN {label}: {time.perf_counter()-start:.2f} s | filas: {len(rows)}", flush=True)
+            except sqlite3.Error as exc:
+                print(f"ERROR {label}: {time.perf_counter()-start:.2f} s | {exc}", flush=True)
+            finally:
+                con.set_progress_handler(None, 0)
+    finally:
+        con.close()
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe", choices=[item[1] for item in PROBES])
     parser.add_argument("--timeout", type=float, default=10.0)
+    parser.add_argument("--catalog-sql", action="store_true")
     args = parser.parse_args()
+    if args.catalog_sql:
+        return catalog_sql()
     if args.probe:
         return probe(args.probe)
     if not (Path.cwd() / "app" / "ui2" / "backend.py").exists():
