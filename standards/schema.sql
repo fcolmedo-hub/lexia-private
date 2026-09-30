@@ -54,6 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_standards_publication ON standards(publication_st
 CREATE INDEX IF NOT EXISTS idx_standards_speaker ON standards(speaker);
 CREATE INDEX IF NOT EXISTS idx_standards_treatment ON standards(treatment);
 CREATE INDEX IF NOT EXISTS idx_standards_canonical ON standards(canonical_uid);
+CREATE INDEX IF NOT EXISTS idx_standards_visibility_uid
+    ON standards(publication_status, review_status, standard_uid);
 
 -- Historial de decisiones humanas sobre estándares reservados. Permite
 -- publicar, mantener reservada o rechazar una aparición sin perder auditoría.
@@ -87,6 +89,8 @@ CREATE TABLE IF NOT EXISTS canonical_standards (
 
 CREATE INDEX IF NOT EXISTS idx_canonical_representative
     ON canonical_standards(representative_standard_uid);
+CREATE INDEX IF NOT EXISTS idx_canonical_status_uid
+    ON canonical_standards(status, canonical_uid);
 
 CREATE TABLE IF NOT EXISTS standard_occurrences (
     standard_uid TEXT PRIMARY KEY REFERENCES standards(standard_uid) ON DELETE CASCADE,
@@ -100,6 +104,8 @@ CREATE TABLE IF NOT EXISTS standard_occurrences (
 
 CREATE INDEX IF NOT EXISTS idx_occurrences_canonical
     ON standard_occurrences(canonical_uid);
+CREATE INDEX IF NOT EXISTS idx_occurrences_canonical_standard
+    ON standard_occurrences(canonical_uid, standard_uid);
 
 CREATE TABLE IF NOT EXISTS quotes (
     quote_id INTEGER PRIMARY KEY,
@@ -117,6 +123,9 @@ CREATE TABLE IF NOT EXISTS quotes (
 
 CREATE INDEX IF NOT EXISTS idx_quotes_standard ON quotes(standard_uid);
 CREATE INDEX IF NOT EXISTS idx_quotes_pages ON quotes(page_start, page_end);
+CREATE INDEX IF NOT EXISTS idx_quotes_valid_standard
+    ON quotes(standard_uid)
+    WHERE TRIM(quote_text)<>'' AND page_start>0;
 
 -- Historial de citas incorporadas o corregidas durante la revisión humana.
 -- La evidencia extraída por V5 no se sobrescribe: la versión revisada se
