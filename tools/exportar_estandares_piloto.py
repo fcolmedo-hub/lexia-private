@@ -160,14 +160,17 @@ def _load_fragments(
 def export_documents(
     catalog_path: Path,
     requested_paths: list[str],
+    progress=None,
 ) -> tuple[list[ExportedDocument], list[str]]:
     with _connect(catalog_path) as connection:
         rows = _select_documents(connection, requested_paths)
         result: list[ExportedDocument] = []
         found: set[str] = set()
 
-        for row in rows:
+        for position, row in enumerate(rows, start=1):
             path = str(row["path"])
+            if progress is not None:
+                progress(position - 1, len(rows), str(row["name"]))
             found.add(path.casefold())
             result.append(
                 ExportedDocument(
@@ -183,6 +186,8 @@ def export_documents(
                     content_hash=str(row["content_hash"] or ""),
                 )
             )
+            if progress is not None:
+                progress(position, len(rows), str(row["name"]))
 
         missing = [
             path for path in requested_paths if path.casefold() not in found

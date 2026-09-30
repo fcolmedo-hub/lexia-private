@@ -8,5 +8,6 @@ rapidocr-onnxruntime==1.4.4
 Pillow==11.3.0
 psutil==7.0.0
 pytest==8.4.1
+openai
 
 watchdog==6.0.0

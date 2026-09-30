@@ -1,4 +1,5 @@
 import logging
+from services.library_work_priority import DeletionPriorityYield
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -201,6 +202,10 @@ class DocumentPipeline:
                     "Completado",
                 )
 
+        except DeletionPriorityYield:
+            self.jobs.finish(job_id, 'interrupted', stats)
+            raise
+
         except KeyboardInterrupt:
             self.jobs.finish(
                 job_id,
@@ -245,11 +250,14 @@ class DocumentPipeline:
         if state.get("extraction_error"):
             return False
         if state.get("duplicate_of"):
-            return True
+            from services.duplicate_file_safety import identical_duplicates
+            return identical_duplicates(state.get('path') or '', state['duplicate_of'])
         method = str(state.get("extraction_method") or "").strip()
         category = str(state.get("category") or "").strip()
         text_content = str(state.get("text_content") or "").strip()
-        if method in {"duplicate", "ocr_pending"}:
+        if method == 'duplicate':
+            return False
+        if method == "ocr_pending":
             return True
         if text_content and method:
             return True
@@ -305,7 +313,21 @@ class DocumentPipeline:
             stats["skipped"] += 1
             return
 
-        if previous is None:
+        orphan_duplicate = bool(previous and previous.get('duplicate_of')
+                                and not previous.get('text_content')
+                                and not previous.get('vector_indexed_hash')
+                                and not Path(previous['duplicate_of']).exists())
+        if orphan_duplicate:
+            old = self.catalog.get_file_state(previous['duplicate_of'])
+            if (old and not old.get('duplicate_of')
+                    and old.get('content_hash') == document.content_hash == previous_hash):
+                result = self.catalog.relocate_documents_batch(
+                    [(previous['duplicate_of'], document)], recover_deleted=True,
+                )
+                if result.get('relocated') == 1:
+                    stats['relocated'] += 1
+                    return
+        if previous is None or orphan_duplicate:
             relocation = self.catalog.find_relocation_candidate(
                 document.content_hash,
                 active_paths,

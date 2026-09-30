@@ -4,8 +4,10 @@
 
   const API_PORT=(window.LEXIA_STANDARDS_PORT||'8515');
   const API=`http://127.0.0.1:${API_PORT}`;
-  const state={installed:false,open:false,filtersLoaded:false,currentUid:null,page:1,pageSize:0,total:0,searched:false,searchRequest:0,mode:'search'};
+  const state={installed:false,open:false,filtersLoaded:false,currentUid:null,page:1,pageSize:0,total:0,searched:false,searchRequest:0};
   const RECENT_KEY='lexia_standards_recent_searches_v1';
+  const BATCH_KEY='lexia_standards_batch_job_v1';
+  const batch={folder:"",paths:[],selected:new Set(),jobId:'',timer:0,visible:false};
   let recentMemory=[];
   let recentStorageAvailable=true;
   const relLabels={duplicate_of:'Duplica',specializes:'Especializa',generalizes:'Generaliza',exception_to:'Excepción',related_to:'Relacionado',supports:'Apoya',contradicts:'Contradice'};
@@ -29,8 +31,20 @@
       .std-pagination{display:flex;align-items:center;gap:5px;padding:8px 0 0;border-top:1px solid #ecebf5;margin-top:4px}.std-page-info{margin-right:auto;font-size:11px;font-weight:700;color:#626b88;white-space:nowrap}.std-page-button{display:grid;place-items:center;width:29px;height:29px;border:1px solid #d8d3ff;border-radius:8px;padding:0;background:#fff;color:#5146f6;font-family:inherit;font-size:19px;font-weight:700;line-height:1;cursor:pointer}.std-page-button:hover:not(:disabled){background:var(--std-lav)}.std-page-button:focus-visible{outline:2px solid #5146f6;outline-offset:2px}.std-page-button:disabled{opacity:.38;cursor:default}
       .std-empty{padding:30px 10px;text-align:center;color:var(--std-muted)}.std-detail h2{font-size:20px;line-height:1.38;margin:2px 0 8px}.std-detail h3{font-size:13px;text-transform:uppercase;letter-spacing:.055em;color:#555e7d;margin:20px 0 8px}.std-badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.std-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#f1f0fb;color:#4f478f;font-size:11px;font-weight:750}.std-badge.proposed{background:#f5f2ff;color:#6b5bcc;border:1px solid #ded8ff}.std-badge.confirmed{background:#edf1ff;color:#4056ae}.std-badge.rel-contradicts{background:#eeeaff;color:#4d3ac3}.std-badge.rel-specializes{background:#edf2ff;color:#3958b7}.std-badge.rel-exception_to{background:#f4efff;color:#6a45a9}.std-badge.rel-supports{background:#eef5ff;color:#4770aa}.std-badge.rel-related_to{background:#f5f3fb;color:#77708f}
       .std-quote{margin:9px 0;padding:12px 13px;border-left:4px solid #8d83ff;border-radius:8px;background:#faf9ff;font-size:13px;line-height:1.48}.std-relation{padding:10px 0;border-bottom:1px solid #eeedf6}.std-rel-title{font-size:13px;line-height:1.4;margin-top:5px;cursor:pointer}.std-rel-title:hover{color:var(--std-brand)}.std-doc{padding:10px 12px;border-radius:10px;background:#fafaff;border:1px solid #eceaff;font-size:12px;line-height:1.5}.std-doc-link{appearance:none;border:0;background:none;padding:0;color:#5146f6;text-decoration:underline;font:inherit;font-weight:800;cursor:pointer;text-align:left}.std-notice{padding:10px 12px;border-radius:10px;background:#f7f5ff;color:#625c7b;font-size:12px;border:1px solid #e9e5ff;margin-bottom:12px}.std-error{padding:18px;color:#7d2a56;background:#fff4f8;border:1px solid #f0dce6;border-radius:12px}
-      .std-occurrences{display:grid;gap:10px}.std-occurrence{padding:12px;border:1px solid #e7e5f3;border-radius:12px;background:#fcfcff}.std-occurrence-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.std-wording{margin:9px 0 2px;font-size:12.5px;line-height:1.45;color:#353d5d}.std-wording b{color:#202846}.std-source-count{white-space:nowrap;background:#edf1ff;color:#4056ae;border-radius:999px;padding:4px 8px;font-size:10.5px;font-weight:800}.std-suggestion{padding:11px 12px;margin-top:8px;border:1px dashed #cfc8ff;border-radius:11px;background:#faf8ff}.std-suggestion .std-rel-title{font-weight:700}.std-citation-editor{display:grid;gap:9px;padding:12px;border:1px solid #e1def7;border-radius:12px;background:#faf9ff}.std-citation-editor label{display:grid;gap:5px;font-size:11px;font-weight:800;color:#555e7d}.std-citation-editor textarea,.std-citation-editor input{box-sizing:border-box;width:100%;border:1px solid #d8d7e9;border-radius:9px;padding:9px 10px;font:inherit;color:#1a2140;background:#fff}.std-citation-editor textarea{min-height:92px;resize:vertical}.std-citation-pages{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-      @media(max-width:1100px){#lexiaStandardsShell{left:0;top:54px}.std-layout{grid-template-columns:1fr}.std-grid{grid-template-columns:1fr 1fr}.std-grid.secondary{grid-template-columns:1fr 1fr}.std-wrap{padding:18px}}@media(max-width:680px){.std-grid,.std-grid.secondary{grid-template-columns:1fr}.std-title{font-size:23px}.std-wrap{padding:12px}.std-list,.std-detail,.std-search{padding:12px}}
+      .std-occurrences{display:grid;gap:10px}.std-occurrence{padding:12px;border:1px solid #e7e5f3;border-radius:12px;background:#fcfcff}.std-occurrence-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.std-wording{margin:9px 0 2px;font-size:12.5px;line-height:1.45;color:#353d5d}.std-wording b{color:#202846}.std-source-count{white-space:nowrap;background:#edf1ff;color:#4056ae;border-radius:999px;padding:4px 8px;font-size:10.5px;font-weight:800}.std-suggestion{padding:11px 12px;margin-top:8px;border:1px dashed #cfc8ff;border-radius:11px;background:#faf8ff}.std-suggestion .std-rel-title{font-weight:700}.std-citation-editor{display:grid;gap:9px;padding:12px;border:1px solid #e1def7;border-radius:12px;background:#faf9ff}.std-citation-editor label{display:grid;gap:5px;font-size:11px;font-weight:800;color:#555e7d}.std-citation-editor textarea,.std-citation-editor input{box-sizing:border-box;width:100%;border:1px solid #d8d7e9;border-radius:9px;padding:9px 10px;font:inherit;color:#1a2140;background:#fff}.std-citation-editor textarea{min-height:92px;resize:vertical}.std-citation-pages{display:grid;grid-template-columns:1fr 1fr;gap:9px}.std-evidence-actions{margin-top:10px}.std-evidence-actions summary{color:#5146f6;font-size:12px;font-weight:800;cursor:pointer}.std-evidence-actions .std-citation-editor{margin-top:9px}.std-evidence-actions .std-badges{margin-bottom:0}
+      .std-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px}.std-batch{padding:20px;margin-bottom:18px}.std-batch[hidden],.std-batch-select[hidden],.std-batch-progress[hidden]{display:none!important}.std-batch-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:14px 0}.std-batch-toolbar .std-input{max-width:560px}.std-batch h2{margin:0;font-size:19px}.std-batch p{font-size:13px;color:var(--std-muted);line-height:1.5}.std-batch-list{max-height:320px;overflow:auto;border:1px solid var(--std-line);border-radius:10px;padding:8px;background:#fcfcff}.std-batch-row{display:flex;gap:9px;padding:6px 8px;font-size:12px;line-height:1.4;overflow-wrap:anywhere}.std-batch-row:hover{background:#f0efff}.std-batch-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:16px 0}.std-batch-metric{padding:12px;background:#f7f5ff;border-radius:10px;font-size:12px}.std-batch-metric b{display:block;font-size:20px}.std-batch-track{height:12px;background:#e9e6fa;border-radius:8px;overflow:hidden}.std-batch-fill{height:100%;background:#5146f6;width:0;transition:width .25s}.std-batch-log{max-height:240px;overflow:auto;padding:10px 15px;background:#f8f8fd;border:1px solid var(--std-line);border-radius:10px;font-size:12px;line-height:1.6}.std-batch-current{overflow-wrap:anywhere}.std-batch-error{color:#9a3152}.std-batch-note{padding:10px;border:1px solid #dfd9ff;border-radius:9px;background:#faf9ff}
+      .std-batch-tree{max-height:340px;overflow:auto;border:1px solid var(--std-line);border-radius:11px;padding:8px;background:#fcfcff}.std-batch-tree-row{display:flex;align-items:center;gap:5px;min-height:34px}.std-batch-expand{width:28px;min-width:28px;height:28px;border:0;border-radius:6px;background:none;color:var(--std-brand);cursor:pointer}.std-batch-expand[disabled]{opacity:.3;cursor:default}.std-batch-choice{border:0;border-radius:7px;padding:6px 9px;background:none;color:var(--std-ink);font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere}.std-batch-choice:hover,.std-batch-choice.active{background:var(--std-lav);color:var(--std-brand)}.std-batch-children{margin-left:18px;padding-left:9px;border-left:1px solid var(--std-line)}.std-batch-selected{background:#f7f5ff;border-radius:9px;padding:10px;overflow-wrap:anywhere}.std-batch-court{display:grid;gap:12px;margin:16px 0;border:1px solid var(--std-line);border-radius:11px;padding:14px}.std-batch-court legend{font-weight:800}.std-batch-court label{font-size:13px}.std-batch-court #stdBatchManualCourt{display:grid;gap:8px;margin-left:20px}.std-batch-court small{color:var(--std-muted)}.std-batch-children[hidden],#stdBatchManualCourt[hidden],#stdBatchPicker[hidden],.std-batch-court #stdBatchCourtCustom[hidden]{display:none!important}
+      #lexiaStandardsShell.std-batch-active{overflow-y:auto!important;overflow-x:hidden!important}
+      #lexiaStandardsShell.std-batch-active .std-wrap{height:auto!important;min-height:100%!important;display:block!important;overflow:visible!important}
+      #lexiaStandardsShell.std-batch-active .std-layout.has-results{flex:none!important;min-height:auto!important;grid-template-rows:auto!important}
+      .std-batch-tree-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:39px;padding:8px 12px;border:1px solid #d8d3ff;border-radius:9px;background:#fff;color:#5146f6;font:inherit;font-weight:750;text-align:left;cursor:pointer}
+      .std-batch-tree-toggle:hover{background:#f7f5ff}.std-batch-tree[hidden]{display:none!important}
+      #lexiaStandardsShell .std-batch-tree{max-height:min(300px,48vh)!important;margin-top:6px}
+      .std-batch-log,.std-batch-empty-list{overscroll-behavior:contain}
+      .std-batch-log{list-style:none;margin:0;padding:10px 14px}.std-batch-log li{margin:0;padding:2px 0;overflow-wrap:anywhere}
+      [data-batch-empty] summary{font-size:12px;line-height:1.45;cursor:pointer}
+      .std-batch-empty-list{max-height:260px;overflow:auto;margin:8px 0 0;padding-left:22px;font-size:12px;line-height:1.4}.std-batch-empty-list li{padding:3px 0}.std-batch-empty-list .std-doc-link{font-size:12px;font-weight:600;line-height:1.4}
+      @media(max-width:1100px){#lexiaStandardsShell{left:0;top:54px}.std-layout{grid-template-columns:1fr}.std-grid{grid-template-columns:1fr 1fr}.std-grid.secondary{grid-template-columns:1fr 1fr}.std-wrap{padding:18px}}@media(max-width:680px){.std-grid,.std-grid.secondary{grid-template-columns:1fr}.std-title{font-size:23px}.std-wrap{padding:12px}.std-list,.std-detail,.std-search{padding:12px}.std-head{display:block}.std-batch-metrics{grid-template-columns:1fr 1fr}}
     `;
     document.head.appendChild(style);
   }
@@ -40,7 +54,7 @@
   function shell(){
     let node=document.getElementById('lexiaStandardsShell');if(node)return node;
     node=document.createElement('section');node.id='lexiaStandardsShell';node.dataset.lexiaNativeSearch='2';node.setAttribute('aria-label','Estándares jurídicos');
-    node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p><div class="std-inventory" id="stdInventory">Consultando inventario…</div></div></div><div class="std-panel std-search"><div class="std-grid"><div class="std-query-wrap"><input class="std-input" id="stdQ" placeholder="Buscar estándar por texto jurídico…" aria-haspopup="listbox" aria-expanded="false"><button class="std-history-toggle" id="stdHistoryToggle" type="button" aria-label="Mostrar últimas búsquedas" aria-haspopup="listbox" aria-expanded="false">▾</button><div class="std-history-menu" id="stdHistoryMenu" role="listbox"></div></div><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear" type="button">Limpiar</button><button class="std-btn" id="stdSearch" type="button">Buscar</button></div><div id="stdSearchStatus" class="std-search-status" hidden></div></div><div class="std-layout" id="stdLayout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"></div><div id="stdPager"></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
+    node.innerHTML=`<div class="std-wrap"><div class="std-head"><div><div class="std-kicker">LEXIA · JURISPRUDENCIA ESTRUCTURADA</div><h1 class="std-title">Estándares jurídicos</h1><p class="std-sub">Reglas extraídas de jurisprudencia con cita literal, voz judicial y relaciones jurídicas trazables.</p><div class="std-inventory" id="stdInventory">Consultando inventario…</div></div><button class="std-btn" id="stdBatchOpen" type="button">Agregar fallos al extractor</button></div><section class="std-panel std-batch" id="stdBatchPanel" hidden><div class="std-batch-toolbar"><h2>Extraer estándares de fallos</h2><button class="std-btn secondary small" id="stdBatchClose" type="button">Cerrar</button></div><div id="stdBatchSelection" class="std-batch-select"><p>Elegí una carpeta de Jurisprudencia indexada. Se omiten los archivos ya procesados o incluidos en otro lote pendiente. Una aprobación de liquidación o una regulación de honorarios puede terminar correctamente con cero estándares.</p><button id="stdBatchTreeToggle" class="std-batch-tree-toggle" type="button" aria-expanded="false" aria-controls="stdBatchTree"><span>Elegir carpeta de Jurisprudencia</span><span aria-hidden="true">▾</span></button><div id="stdBatchTree" class="std-batch-tree" role="tree" aria-label="Carpetas de Jurisprudencia" hidden></div><p class="std-batch-selected"><b>Carpeta seleccionada:</b> <span id="stdBatchFolderPath">Ninguna</span></p><div class="std-batch-toolbar"><button class="std-btn" id="stdBatchPreview" type="button" disabled>Mostrar fallos de esta carpeta</button></div><div id="stdBatchPicker" hidden><p id="stdBatchCount"></p><div class="std-batch-toolbar"><input id="stdBatchFilter" class="std-input" placeholder="Filtrar la lista de fallos"><button class="std-btn ghost small" id="stdBatchAll" type="button">Seleccionar todos</button><button class="std-btn ghost small" id="stdBatchNone" type="button">Quitar todos</button></div><div id="stdBatchFiles" class="std-batch-list"></div><fieldset class="std-batch-court"><legend>Tribunal que dictó los fallos</legend><label><input type="radio" name="stdBatchCourtMode" value="manual" checked> Todos los fallos fueron dictados por el mismo tribunal</label><div id="stdBatchManualCourt"><select class="std-select" id="stdBatchCourtSelect"><option value="">Elegí un tribunal…</option><option value="__other__">Otro tribunal (escribir)</option></select><input id="stdBatchCourtCustom" class="std-input" placeholder="Nombre completo del tribunal" hidden><small>Los juzgados se reconstruyen desde las carpetas. Completá o corregí el nombre antes de preparar el lote.</small></div><label><input type="radio" name="stdBatchCourtMode" value="api"> Hay tribunales distintos: que la API identifique cada uno</label></fieldset><div class="std-batch-toolbar"><button class="std-btn" id="stdBatchPrepare" type="button">Preparar selección</button></div><p>La preparación es local. Antes del envío verás el total exacto y podrás decidir cuándo iniciar la extracción en la API.</p></div><h3>Lotes recientes</h3><div id="stdBatchRecent" class="std-batch-list"></div></div><div id="stdBatchProgress" class="std-batch-progress" hidden></div><p id="stdBatchMessage" role="status" aria-live="polite"></p></section><div class="std-panel std-search"><div class="std-grid"><div class="std-query-wrap"><input class="std-input" id="stdQ" placeholder="Texto jurídico · AND / OR / NOT" title="Usá AND, OR, NOT, paréntesis y comillas para buscar una frase exacta" aria-haspopup="listbox" aria-expanded="false"><button class="std-history-toggle" id="stdHistoryToggle" type="button" aria-label="Mostrar últimas búsquedas" aria-haspopup="listbox" aria-expanded="false">▾</button><div class="std-history-menu" id="stdHistoryMenu" role="listbox"></div></div><select class="std-select" id="stdCourt"><option value="">Todos los tribunales</option></select><select class="std-select" id="stdSpeaker"><option value="">Todas las voces</option></select><select class="std-select" id="stdTreatment"><option value="">Todos los tratamientos</option></select></div><div class="std-grid secondary"><input class="std-input" id="stdFrom" placeholder="Fecha desde"><input class="std-input" id="stdTo" placeholder="Fecha hasta"><input class="std-input" id="stdTag" placeholder="Tag"><button class="std-btn secondary" id="stdClear" type="button">Limpiar</button><button class="std-btn" id="stdSearch" type="button">Buscar</button></div><div id="stdSearchStatus" class="std-search-status" hidden></div></div><div class="std-layout" id="stdLayout"><section class="std-panel std-list"><div id="stdSummary" class="std-summary"></div><div id="stdResults"></div><div id="stdPager"></div></section><section class="std-panel std-detail"><div id="stdDetail"><div class="std-notice">Seleccioná un estándar para ver la cita literal, el documento fuente y sus relaciones.</div></div></section></div></div>`;
     document.body.appendChild(node);
     const query=node.querySelector('#stdQ'),toggle=node.querySelector('#stdHistoryToggle'),searchButton=node.querySelector('#stdSearch');
     let lastPointerSearchAt=0;
@@ -52,10 +66,145 @@
     query.addEventListener('input',()=>setRecentMenuOpen(false));
     toggle.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();toggleRecentMenu();});
     ['stdFrom','stdTo'].forEach(id=>{const field=node.querySelector('#'+id);field?.addEventListener('input',()=>{field.dataset.lexiaUserEdited='1';});field?.addEventListener('change',()=>{field.dataset.lexiaUserEdited='1';});});
+    installBatchEvents(node);
     refreshRecentMenu();
     return node;
   }
 
+  function batchMessage(message,error=false){const target=document.getElementById('stdBatchMessage');if(target){target.textContent=message;target.classList.toggle('std-batch-error',error);}}
+  async function batchTree(parent='',target=document.getElementById('stdBatchTree')){
+    target.textContent='Cargando carpetas…';
+    try{
+      const result=await api('/api/batch-folder-tree?parent='+encodeURIComponent(parent));
+      target.innerHTML=(result.items||[]).map(item=>`<div role="treeitem" aria-expanded="${item.has_children?'false':'undefined'}"><div class="std-batch-tree-row"><button class="std-batch-expand" type="button" data-tree-expand="${esc(item.path)}" aria-label="Abrir ${esc(item.name)}" ${item.has_children?'':'disabled'}>▸</button><button class="std-batch-choice" type="button" data-tree-select="${esc(item.path)}" title="${esc(item.path)}">📁 ${esc(item.name)} <small>(${Number(item.count||0)})</small></button></div><div class="std-batch-children" role="group" hidden></div></div>`).join('')||'<p>No hay carpetas de Jurisprudencia indexadas.</p>';
+    }catch(error){target.textContent='No se pudieron cargar las carpetas: '+error.message;batchMessage(error.message,true);}
+  }
+  async function batchCourts(){
+    const select=document.getElementById('stdBatchCourtSelect');
+    try{
+      const data=await api('/api/batch-courts');
+      select.querySelectorAll('optgroup').forEach(item=>item.remove());
+      const known=data.catalogued||[];
+      const catalogued=document.createElement('optgroup');catalogued.label='Tribunales ya catalogados';
+      for(const value of known){const option=document.createElement('option');option.value=value;option.textContent=value;catalogued.appendChild(option);}
+      select.appendChild(catalogued);
+      const courts=document.createElement('optgroup');courts.label='Juzgados de Jurisprudencia · revisar nombre';
+      for(const item of data.courts||[]){
+        const option=document.createElement('option');option.value='__path__:'+item.path;option.textContent=item.label;
+        option.dataset.suggested=item.suggested||'';option.title=item.path;courts.appendChild(option);
+      }
+      select.appendChild(courts);
+    }catch(error){batchMessage('No se pudieron cargar las sugerencias de tribunal: '+error.message,true);}
+  }
+  function selectedBatchCourt(){
+    const mode=document.querySelector('input[name="stdBatchCourtMode"]:checked')?.value||'manual';
+    if(mode==='api')return {court_mode:'api',court:''};
+    const select=document.getElementById('stdBatchCourtSelect');
+    return {court_mode:'manual',court:select.value==='__other__'||select.value.startsWith('__path__:')?document.getElementById('stdBatchCourtCustom').value.trim():select.value};
+  }
+  async function batchRecent(){
+    const target=document.getElementById('stdBatchRecent');
+    try{const data=await api('/api/batch-recent');target.innerHTML=(data.items||[]).map(item=>`<button class="std-batch-row std-doc-link" type="button" data-batch-job="${esc(item.job_id)}">${esc(item.job_id)} · ${Number(item.total||0)} fallos · ${Number(item.standards||0)} estándares · ${esc(item.phase||'')}</button>`).join('')||'<p>Sin lotes anteriores.</p>';}
+    catch(error){target.textContent=error.message;}
+  }
+  function renderBatchFiles(){
+    const filter=norm(document.getElementById('stdBatchFilter').value),list=document.getElementById('stdBatchFiles');
+    const visible=batch.paths.filter(path=>norm(path).includes(filter));
+    list.innerHTML=visible.slice(0,300).map(path=>`<label class="std-batch-row"><input type="checkbox" data-batch-path="${esc(path)}" ${batch.selected.has(path)?'checked':''}><span>${esc(path)}</span></label>`).join('')||'<div class="std-empty">No hay fallos con ese filtro.</div>';
+    document.getElementById('stdBatchCount').textContent=`${batch.selected.size} seleccionados de ${batch.paths.length} disponibles${visible.length>300?' · se muestran los primeros 300 del filtro':''}`;
+  }
+  async function batchPreview(){
+    const folder=batch.folder;if(!folder){batchMessage('Elegí una carpeta del árbol.',true);return;}batchMessage('Comprobando el catálogo y los lotes existentes…');
+    try{const result=await api('/api/batch-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder})});batch.paths=result.items||[];batch.selected=new Set(batch.paths);document.getElementById('stdBatchPicker').hidden=false;renderBatchFiles();batchMessage(result.truncated?`Se muestran los primeros ${result.limit} fallos. Elegí una subcarpeta para incluir los demás.`:`${batch.paths.length} fallos elegibles.`);}
+    catch(error){batchMessage(error.message,true);}
+  }
+  async function batchPrepare(){
+    if(!batch.selected.size){batchMessage('Seleccioná al menos un fallo.',true);return;}
+    const court=selectedBatchCourt();
+    if(court.court_mode==='manual'&&!court.court){batchMessage('Elegí o escribí el tribunal común, o seleccioná extracción por la API.',true);return;}
+    const button=document.getElementById('stdBatchPrepare');button.disabled=true;batchMessage('Creando el lote y comenzando la preparación local…');
+    try{const job=await api('/api/batch-prepare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder:batch.folder,paths:[...batch.selected],...court})});batch.jobId=job.job_id;try{localStorage.setItem(BATCH_KEY,batch.jobId);}catch(_){}renderBatchJob(job);scheduleBatchPoll();}
+    catch(error){batchMessage(error.message,true);}finally{button.disabled=false;}
+  }
+  function renderBatchJob(job){
+    const progress=document.getElementById('stdBatchProgress');if(!progress)return;
+    const signature=JSON.stringify(job);
+    if(!progress.hidden&&progress.dataset.renderSignature===signature)return;
+    const outerScroll=shell(),outerTop=outerScroll.scrollTop;
+    const previousLog=progress.querySelector('.std-batch-log');
+    const previousTop=previousLog?.scrollTop||0,previousHeight=previousLog?.scrollHeight||0;
+    const previousEmpty=progress.querySelector('[data-batch-empty]');
+    const emptyOpen=previousEmpty?.open||false,emptyTop=previousEmpty?.querySelector('.std-batch-empty-list')?.scrollTop||0;
+    document.getElementById('stdBatchSelection').hidden=true;progress.hidden=false;
+    const phases={preparing:'Preparación local',ready_to_send:'Preparación terminada',submitting:'Envío a la API',extracting:'Extracción en la API',validating:'Validación e importación',preparing_relations:'Preparación de relaciones',relations_ready:'Relaciones preparadas',relations_submitting:'Envío de relaciones',relations_extracting:'Comparación de relaciones',completed:'Trabajo completo',error:'Atención'};
+    const actions=job.phase==='ready_to_send'?'<button class="std-btn" data-batch-action="send">Enviar fallos a la API</button>':job.phase==='relations_ready'?'<button class="std-btn" data-batch-action="relations">Enviar comparaciones de relaciones</button>':job.phase==='error'?`<button class="std-btn secondary" data-batch-action="${esc(job.error_action||'resume_prepare')}">Reintentar esta etapa</button>`:'';
+    const remote=['extracting','relations_extracting'].includes(job.phase);
+    const logLines=(job.log||[]).slice().reverse().map(line=>{const past=job.phase!=='error'&&/Falta el SDK oficial|El servicio se cerró durante el trabajo/i.test(line);return `<li>${past?'Error anterior (resuelto): ':''}${esc(line)}</li>`;}).join('');
+    progress.innerHTML=`<p class="std-batch-note">Lote ${esc(job.job_id)} · ${job.chunks} parte(s) de hasta 250 fallos. Tribunal: ${job.court_mode==='api'?'identificación individual por la API':esc(job.court||'sin informar')}. Un fallo puede terminar con cero estándares sin que exista un error. La API informa respuestas completadas; durante la extracción remota no identifica cuál fallo está procesando.</p><h2>${esc(phases[job.phase]||job.phase)} · etapa ${Number(job.step||1)} de ${Number(job.steps||1)}</h2><p>${esc(job.message||'')}</p><div class="std-batch-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Number(job.percent||0)}" aria-label="Avance total"><div class="std-batch-fill" style="width:${Number(job.percent||0)}%"></div></div><p>${Number(job.percent||0)}% total · ${Number(job.step_percent||0)}% de esta etapa</p><div class="std-batch-metrics"><div class="std-batch-metric"><b>${Number(job.completed_files||0)}/${Number(job.total||0)}</b>fallos importados</div><div class="std-batch-metric"><b>${Number(job.standards||0)}</b>estándares extraídos</div><div class="std-batch-metric"><b>${Number(job.without_standards||0)}</b>fallos sin estándar</div><div class="std-batch-metric"><b>${job.phase==='validating'?Number(job.file_standards||0):'—'}</b>estándares del fallo en validación</div><div class="std-batch-metric"><b>${Number(job.requests_completed||0)}</b>respuestas de la API${Number(job.requests_failed||0)?' · '+Number(job.requests_failed)+' fallidas':''}</div></div>${(job.without_standards_files||[]).length?`<details class="std-batch-note" data-batch-empty><summary>Ver ${job.without_standards_files.length} fallos procesados sin estándar</summary><ul class="std-batch-empty-list">${job.without_standards_files.map(item=>`<li><button class="std-doc-link" type="button" data-batch-document="${esc(item.path)}" title="Abrir ${esc(item.path)}">${esc(item.name||item.path)}</button></li>`).join('')}</ul></details>`:''}<p class="std-batch-current">${remote?'La API no informa el fallo actual.':'Fallo actual: '+esc(job.file||'—')}</p><div class="std-batch-toolbar">${actions}<button class="std-btn ghost" id="stdBatchNew" type="button">Elegir otros fallos</button></div><h3>Actividad</h3><ul class="std-batch-log">${logLines}</ul>`;
+    const currentLog=progress.querySelector('.std-batch-log');
+    if(currentLog&&previousLog&&previousTop>12)currentLog.scrollTop=previousTop+currentLog.scrollHeight-previousHeight;
+    const currentEmpty=progress.querySelector('[data-batch-empty]');
+    if(currentEmpty&&emptyOpen){currentEmpty.open=true;currentEmpty.querySelector('.std-batch-empty-list').scrollTop=emptyTop;}
+    batchMessage(job.phase==='error'?(job.error||job.message||''): '');
+    outerScroll.scrollTop=outerTop;
+    progress.dataset.renderSignature=signature;
+    if(job.phase==='completed'){loadInventory();}
+  }
+  async function batchPoll(){
+    if(!batch.visible||!batch.jobId)return;
+    try{const job=await api('/api/batch-status?job_id='+encodeURIComponent(batch.jobId));renderBatchJob(job);}
+    catch(error){batchMessage('No se pudo actualizar el lote: '+error.message,true);}
+    scheduleBatchPoll();
+  }
+  function scheduleBatchPoll(){window.clearTimeout(batch.timer);if(batch.visible&&batch.jobId)batch.timer=window.setTimeout(batchPoll,2500);}
+  async function batchAction(action){
+    if(action==='send'){
+      let current;
+      try{current=await api('/api/batch-status?job_id='+encodeURIComponent(batch.jobId));}
+      catch(error){batchMessage('No se pudo verificar qué partes ya fueron enviadas: '+error.message,true);return;}
+      const pending=Number(current.api_parts_pending||0), sent=Math.max(0,Number(current.chunks||0)-pending);
+      const description=current.phase==='error'
+        ?`${sent} parte(s) ya enviadas se retomarán sin repetir el envío. Quedan ${pending} parte(s) pendientes${pending?' que se enviarán luego a la API con costo':''}. ¿Querés continuar?`
+        :`¿Querés enviar ${pending} parte(s) a la API? Este envío tendrá costo.`;
+      if(!window.confirm(description))return;
+    }else if(action==='relations'&&!window.confirm('¿Querés enviar las comparaciones de relaciones a la API? Este envío tendrá costo.'))return;
+    try{const job=await api('/api/batch-action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:batch.jobId,action})});renderBatchJob(job);scheduleBatchPoll();}
+    catch(error){batchMessage(error.message,true);}
+  }
+  async function batchOpen(){
+    const panel=document.getElementById('stdBatchPanel');panel.hidden=false;batch.visible=true;shell().classList.add('std-batch-active');
+    if(!batch.jobId){try{batch.jobId=localStorage.getItem(BATCH_KEY)||'';}catch(_){}}
+    if(batch.jobId){try{renderBatchJob(await api('/api/batch-status?job_id='+encodeURIComponent(batch.jobId)));scheduleBatchPoll();return;}catch(_){batch.jobId='';}}
+    document.getElementById('stdBatchSelection').hidden=false;document.getElementById('stdBatchProgress').hidden=true;batchCourts();batchRecent();
+  }
+  function installBatchEvents(node){
+    node.querySelector('#stdBatchOpen').addEventListener('click',batchOpen);
+    node.querySelector('#stdBatchClose').addEventListener('click',()=>{batch.visible=false;window.clearTimeout(batch.timer);node.querySelector('#stdBatchPanel').hidden=true;node.classList.remove('std-batch-active');});
+    node.querySelector('#stdBatchTreeToggle').addEventListener('click',()=>{
+      const tree=node.querySelector('#stdBatchTree'),toggle=node.querySelector('#stdBatchTreeToggle');
+      tree.hidden=!tree.hidden;toggle.setAttribute('aria-expanded',String(!tree.hidden));
+      if(!tree.hidden&&!tree.dataset.loaded){tree.dataset.loaded='1';batchTree();}
+    });
+    node.querySelector('#stdBatchTree').addEventListener('click',event=>{
+      const select=event.target.closest('[data-tree-select]');
+      if(select){batch.folder=select.dataset.treeSelect;node.querySelector('#stdBatchFolderPath').textContent=batch.folder;node.querySelector('#stdBatchPreview').disabled=false;node.querySelector('#stdBatchTree').hidden=true;node.querySelector('#stdBatchTreeToggle').setAttribute('aria-expanded','false');node.querySelector('#stdBatchTreeToggle span:first-child').textContent='Cambiar carpeta: '+select.textContent.trim();node.querySelectorAll('.std-batch-choice').forEach(item=>item.classList.toggle('active',item===select));node.querySelector('#stdBatchPicker').hidden=true;batch.paths=[];batch.selected.clear();batchMessage('Carpeta elegida. Mostrá los fallos disponibles para revisar la selección.');return;}
+      const expand=event.target.closest('[data-tree-expand]');if(!expand)return;
+      const group=expand.closest('[role="treeitem"]'),children=group.querySelector(':scope > .std-batch-children');
+      if(!children.hidden){children.hidden=true;expand.textContent='▸';group.setAttribute('aria-expanded','false');return;}
+      children.hidden=false;expand.textContent='▾';group.setAttribute('aria-expanded','true');
+      if(!children.dataset.loaded){children.dataset.loaded='1';batchTree(expand.dataset.treeExpand,children);}
+    });
+    node.querySelector('#stdBatchCourtSelect').addEventListener('change',event=>{const input=node.querySelector('#stdBatchCourtCustom');input.hidden=event.target.value!=='__other__'&&!event.target.value.startsWith('__path__:');input.value=event.target.selectedOptions[0]?.dataset.suggested||'';if(!input.hidden)input.focus();});
+    node.querySelectorAll('input[name="stdBatchCourtMode"]').forEach(radio=>radio.addEventListener('change',()=>{node.querySelector('#stdBatchManualCourt').hidden=node.querySelector('input[name="stdBatchCourtMode"]:checked')?.value==='api';}));
+    node.querySelector('#stdBatchPreview').addEventListener('click',batchPreview);
+    node.querySelector('#stdBatchFilter').addEventListener('input',renderBatchFiles);
+    node.querySelector('#stdBatchAll').addEventListener('click',()=>{batch.selected=new Set(batch.paths);renderBatchFiles();});
+    node.querySelector('#stdBatchNone').addEventListener('click',()=>{batch.selected.clear();renderBatchFiles();});
+    node.querySelector('#stdBatchFiles').addEventListener('change',event=>{const path=event.target.dataset.batchPath;if(!path)return;if(event.target.checked)batch.selected.add(path);else batch.selected.delete(path);document.getElementById('stdBatchCount').textContent=`${batch.selected.size} seleccionados de ${batch.paths.length} disponibles`;});
+    node.querySelector('#stdBatchPrepare').addEventListener('click',batchPrepare);
+    node.querySelector('#stdBatchRecent').addEventListener('click',async event=>{const id=event.target.closest('[data-batch-job]')?.dataset.batchJob;if(!id)return;batch.jobId=id;try{localStorage.setItem(BATCH_KEY,id);}catch(_){}try{renderBatchJob(await api('/api/batch-status?job_id='+encodeURIComponent(id)));scheduleBatchPoll();}catch(error){batchMessage(error.message,true);}});
+    node.querySelector('#stdBatchProgress').addEventListener('click',event=>{const documentButton=event.target.closest('[data-batch-document]');if(documentButton){const query=new URLSearchParams({job_id:batch.jobId,path:documentButton.dataset.batchDocument});api('/api/batch-open-document?'+query.toString()).catch(error=>alert(error.message==='document_not_found'?'No se encontró este fallo en la computadora.':'No se pudo abrir el fallo: '+error.message));return;}const action=event.target.closest('[data-batch-action]');if(action)batchAction(action.dataset.batchAction);if(event.target.id==='stdBatchNew'){batch.jobId='';try{localStorage.removeItem(BATCH_KEY);}catch(_){}node.querySelector('#stdBatchProgress').hidden=true;node.querySelector('#stdBatchSelection').hidden=false;window.clearTimeout(batch.timer);batchCourts();batchRecent();}});
+  }
   function fillSelect(id,values){const select=document.getElementById(id);if(!select)return;for(const value of values||[]){if([...select.options].some(o=>o.value===value))continue;const option=document.createElement('option');option.value=value;option.textContent=value;select.appendChild(option);}}
 
   function pageSizeForViewport(){
@@ -77,10 +226,9 @@
     const target=document.getElementById('stdInventory');if(!target)return;
     try{
       const data=await api('/api/stats');
-      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),reserved=Number(data.reserved_occurrences??Math.max(0,stored-visible)),rejected=Number(data.rejected_occurrences??0);
-      const base=`${visible} ${visible===1?'regla publicada':'reglas publicadas'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
-      target.innerHTML=(reserved?`${esc(base)} · <button class="std-inventory-button" id="stdReservedBtn" type="button">Revisar ${reserved} ${reserved===1?'reservada':'reservadas'}</button>`:esc(base))+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
-      target.querySelector('#stdReservedBtn')?.addEventListener('click',()=>reservedQueue({page:1}));
+      const visible=Number(data.visible_canonical_standards??data.standards??0),stored=Number(data.canonical_standards_total??visible),occurrences=Number(data.occurrences_total??stored),rejected=Number(data.rejected_occurrences??0);
+      const base=`${visible} ${visible===1?'regla en el diccionario':'reglas en el diccionario'} · ${occurrences} ${occurrences===1?'aparición almacenada':'apariciones almacenadas'}`;
+      target.textContent=base+(rejected?` · ${rejected} ${rejected===1?'rechazada':'rechazadas'}`:'');
     }catch(_){target.textContent='Inventario no disponible.';}
   }
 
@@ -140,7 +288,6 @@
   }
 
   async function search(options={}){
-    state.mode='search';
     const node=shell(),p=new URLSearchParams(),requestedPage=Math.max(1,Number(options.page||1)),pageSize=pageSizeForViewport();
     const criteria=readCriteria();for(const [key,value] of Object.entries(criteria))p.set(key,value);
     p.set('limit',String(pageSize));p.set('offset',String((requestedPage-1)*pageSize));
@@ -164,79 +311,55 @@
     }catch(error){if(status){status.hidden=false;status.classList.add('error');status.textContent='No fue posible consultar el diccionario. '+String(error.message||error);}}
   }
 
-  async function reservedQueue(options={}){
-    state.mode='reserved';
-    const node=shell(),requestedPage=Math.max(1,Number(options.page||1)),pageSize=pageSizeForViewport(),p=new URLSearchParams({limit:String(pageSize),offset:String((requestedPage-1)*pageSize)});
-    const request=++state.searchRequest,layout=node.querySelector('#stdLayout'),status=node.querySelector('#stdSearchStatus'),results=node.querySelector('#stdResults'),pager=node.querySelector('#stdPager'),summary=node.querySelector('#stdSummary'),target=node.querySelector('#stdDetail');
-    results.replaceChildren();pager?.replaceChildren();summary?.replaceChildren();layout?.classList.add('has-results');layout?.style.setProperty('display','grid','important');
-    if(status){status.hidden=true;status.classList.remove('error');status.textContent='';}
-    if(target)target.innerHTML='<div class="std-notice">Seleccioná un estándar reservado para revisar su evidencia antes de decidir.</div>';
-    try{
-      const data=await api('/api/reserved?'+p.toString()),items=Array.isArray(data.items)?data.items:[],total=Number(data.total||0);
-      if(request!==state.searchRequest)return;
-      const pageCount=Math.max(1,Math.ceil(total/pageSize));if(total>0&&requestedPage>pageCount)return reservedQueue({page:pageCount});
-      state.page=requestedPage;state.pageSize=pageSize;state.total=total;state.searched=true;
-      if(summary)summary.innerHTML=`<div><div class="std-summary-title">Revisión pendiente</div><div class="std-meta">Página ${requestedPage} de ${pageCount}</div></div><span class="std-summary-count">${total} ${total===1?'reservado':'reservados'}</span>`;
-      if(!items.length){results.innerHTML='<div class="std-empty">No quedan estándares reservados para revisar.</div>';return;}
-      const offset=(requestedPage-1)*pageSize;
-      results.innerHTML=items.map((item,index)=>`<article class="std-item" data-reserved-uid="${esc(item.standard_uid)}"><div class="std-number">${offset+index+1}</div><div><div class="std-statement">${esc(item.statement)}</div><div class="std-meta"><span>${esc(item.document_name||'Documento no informado')}</span><span>· ${esc(item.reserve_reason||'Pendiente')}</span></div><div class="std-uid">${esc(item.standard_uid)}</div></div></article>`).join('');
-      results.querySelectorAll('[data-reserved-uid]').forEach(item=>item.addEventListener('click',()=>reservedDetail(item.dataset.reservedUid)));
-      renderPager(pager,{page:requestedPage,pageCount,offset,count:items.length,total,onPage:page=>reservedQueue({page})});
-    }catch(error){results.innerHTML=`<div class="std-error">No fue posible abrir la revisión pendiente. ${esc(error.message)}</div>`;}
-  }
+  async function openDocument(uid){try{await api('/api/open-document?uid='+encodeURIComponent(uid));}catch(error){alert(error.message==='document_not_found'?'No se encontró el archivo fuente en esta computadora.':'No fue posible abrir el documento fuente: '+error.message);}}
 
-  async function reservedDetail(uid){
-    state.currentUid=uid;document.querySelectorAll('.std-item').forEach(item=>item.classList.toggle('active',item.dataset.reservedUid===uid));
-    const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando evidencia…</div>';
-    try{
-      const data=await api('/api/reserved-standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">El estándar ya no está reservado.</div>';return;}
-      const quoteRows=Array.isArray(data.quotes)?data.quotes:[],publishable=quoteRows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),draft=[...quoteRows].reverse().find(q=>q.validation==='manual_review')||quoteRows[0]||{};
-      const quotes=quoteRows.map(q=>`<div class="std-quote">${esc(q.quote_text)}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-error">No tiene cita registrada. Abrí el fallo y completá la cita antes de publicarlo.</div>';
-      const publicationWarning=publishable?'':'<div class="std-error">La publicación está bloqueada hasta registrar una cita literal y su página.</div>';
-      target.innerHTML=`<div class="std-notice">${esc(data.reserve_reason||'Pendiente de revisión')}</div><h2>${esc(data.statement)}</h2><div class="std-badges"><span class="std-badge proposed">${esc(data.review_status)}</span><span class="std-badge proposed">${esc(data.publication_status)}</span>${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-doc"><button class="std-doc-link" data-open-reserved="${esc(data.standard_uid)}">${esc(data.document_name||'Documento fuente')}</button><div class="std-meta">${esc(data.court||'Tribunal no informado')}${data.judgment_date?' · '+esc(data.judgment_date):''} · ${esc(data.speaker||'')} · ${esc(data.treatment||'')}</div></div><h3>Cita para validar</h3>${quotes}<h3>Completar o corregir cita</h3><div class="std-citation-editor"><label>Cita literal<textarea id="stdReviewQuote">${esc(draft.quote_text||'')}</textarea></label><div class="std-citation-pages"><label>Página inicial<input id="stdReviewPageStart" type="number" min="1" value="${esc(draft.page_start||'')}"></label><label>Página final (opcional)<input id="stdReviewPageEnd" type="number" min="1" value="${esc(draft.page_end||'')}"></label></div><div><button class="std-btn secondary small" data-save-citation>Guardar cita</button></div></div>${publicationWarning}<div class="std-badges"><button class="std-btn small" data-publication="publish" ${publishable?'':'disabled title="Completá una cita literal con página"'}>Publicar</button><button class="std-btn ghost small" data-publication="reserve">Mantener reservado</button><button class="std-btn danger small" data-publication="reject">Rechazar</button></div>`;
-      target.querySelector('[data-open-reserved]')?.addEventListener('click',()=>openDocument(uid));
-      target.querySelector('[data-save-citation]')?.addEventListener('click',()=>saveReservedCitation(uid));
-      target.querySelectorAll('[data-publication]').forEach(button=>button.addEventListener('click',()=>publicationDecision(uid,button.dataset.publication)));
-    }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir el estándar reservado. ${esc(error.message)}</div>`;}
-  }
-
-  async function saveReservedCitation(uid){
-    const quote=document.getElementById('stdReviewQuote')?.value.trim()||'',pageStart=document.getElementById('stdReviewPageStart')?.value.trim()||'',pageEnd=document.getElementById('stdReviewPageEnd')?.value.trim()||'',button=document.querySelector('[data-save-citation]');
+  async function saveOccurrenceCitation(button,canonicalUid){
+    const card=button.closest('.std-occurrence'),uid=card?.dataset.standardUid;
+    const quote=card?.querySelector('[data-evidence-quote]')?.value.trim()||'',pageStart=card?.querySelector('[data-evidence-page-start]')?.value.trim()||'',pageEnd=card?.querySelector('[data-evidence-page-end]')?.value.trim()||'';
     if(!quote||!pageStart){alert('Completá la cita literal y la página inicial.');return;}
-    if(button)button.disabled=true;
+    button.disabled=true;
     try{
       await api('/api/standard-citation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,quote,page_start:pageStart,page_end:pageEnd})});
-      await reservedDetail(uid);
+      await detail(canonicalUid);
     }catch(error){alert('No fue posible guardar la cita: '+error.message);}
-    finally{if(button&&button.isConnected)button.disabled=false;}
+    finally{if(button.isConnected)button.disabled=false;}
   }
 
-  async function publicationDecision(uid,decision){
-    const messages={publish:'¿Publicar este estándar en el diccionario?',reject:'¿Rechazar este estándar? Se conservará únicamente su trazabilidad.'};
-    if(messages[decision]&&!window.confirm(messages[decision]))return;
+  async function decideOccurrence(button,canonicalUid,decision){
+    const uid=button.closest('.std-occurrence')?.dataset.standardUid;
+    const message=decision==='publish'?'¿Confirmar que verificaste la evidencia en el fallo?':'¿Excluir esta aparición del diccionario? Se conservará su trazabilidad.';
+    if(!window.confirm(message))return;
+    button.disabled=true;
     try{
       await api('/api/publication-decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({standard_uid:uid,decision})});
       await loadInventory();
-      if(decision==='reserve')alert('El estándar se mantiene reservado.');
-      await reservedQueue({page:state.page});
-    }catch(error){alert('No fue posible registrar la revisión: '+error.message);}
+      if(decision==='reject')await search({page:state.page,remember:false});
+      else await detail(canonicalUid);
+    }catch(error){alert('No fue posible registrar la decisión: '+error.message);}
+    finally{if(button.isConnected)button.disabled=false;}
   }
-
-  async function openDocument(uid){try{await api('/api/open-document?uid='+encodeURIComponent(uid));}catch(error){alert(error.message==='document_not_found'?'No se encontró el archivo fuente en esta computadora.':'No fue posible abrir el documento fuente: '+error.message);}}
 
   async function detail(uid){
     state.currentUid=uid;document.querySelectorAll('.std-item').forEach(item=>item.classList.toggle('active',item.dataset.uid===uid));
     const target=document.getElementById('stdDetail');if(!target)return;target.innerHTML='<div class="std-empty">Cargando estándar…</div>';
     try{
       const data=await api('/api/standard?uid='+encodeURIComponent(uid));if(!data){target.innerHTML='<div class="std-empty">Estándar no encontrado.</div>';return;}
-      const renderQuotes=quotes=>(quotes||[]).map(q=>`<div class="std-quote">${esc(q.quote_text)}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('')||'<div class="std-empty">Sin citas registradas.</div>';
-      const occurrences=(data.occurrences||[data]).map((occ,index)=>{const different=norm(occ.statement)!==norm(data.statement);return `<article class="std-occurrence"><div class="std-occurrence-head"><div><button class="std-doc-link" data-open-occurrence="${esc(occ.standard_uid)}">${esc(occ.document_name||'Documento fuente')}</button><div class="std-meta">${esc(occ.court||'Tribunal no informado')}${occ.judgment_date?' · '+esc(occ.judgment_date):''} · ${esc(occ.speaker||'')} · ${esc(occ.treatment||'')}</div></div><span class="std-source-count">Fuente ${index+1}</span></div>${different?`<div class="std-wording"><b>Formulación del fallo:</b> ${esc(occ.statement)}</div>`:''}${renderQuotes(occ.quotes)}</article>`;}).join('');
+      const renderQuotes=(quotes,reviewStatus,publicationStatus)=>{const rows=quotes||[],complete=rows.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0),warning=complete?(reviewStatus==='needs_review'||publicationStatus==='blocked'?'<div class="std-error">La extracción marcó una incidencia; comprobá la evidencia en el fallo.</div>':''):`<div class="std-error">${rows.some(q=>String(q.quote_text||'').trim())?'Falta la página de la cita.':'Falta una cita literal y su página.'} Comprobá la evidencia en el fallo.</div>`;return warning+rows.map(q=>`<div class="std-quote">${esc(q.quote_text||'Sin cita literal')}<div class="std-meta">Página ${esc(q.page_start||'—')}${q.page_end&&q.page_end!==q.page_start?'–'+esc(q.page_end):''} · ${esc(q.validation||'')}</div></div>`).join('');};
+      const occurrences=(data.occurrences||[data]).map((occ,index)=>{
+        const different=norm(occ.statement)!==norm(data.statement),quotes=occ.quotes||[],complete=quotes.some(q=>String(q.quote_text||'').trim()&&Number(q.page_start)>0);
+        const attention=!complete||occ.review_status==='needs_review'||occ.publication_status==='blocked';
+        const draft=[...quotes].reverse().find(q=>q.validation==='manual_review')||quotes[0]||{};
+        const editor=attention?`<details class="std-evidence-actions"><summary>Completar evidencia o excluir</summary><div class="std-citation-editor"><label>Cita literal<textarea data-evidence-quote>${esc(draft.quote_text||'')}</textarea></label><div class="std-citation-pages"><label>Página inicial<input data-evidence-page-start type="number" min="1" value="${esc(draft.page_start||'')}"></label><label>Página final (opcional)<input data-evidence-page-end type="number" min="1" value="${esc(draft.page_end||'')}"></label></div><div class="std-badges"><button class="std-btn secondary small" type="button" data-save-occurrence>Guardar cita</button>${complete?'<button class="std-btn small" type="button" data-decide-occurrence="publish">Confirmar evidencia</button>':''}<button class="std-btn danger small" type="button" data-decide-occurrence="reject">Excluir esta aparición</button></div></div></details>`:'';
+        return `<article class="std-occurrence" data-standard-uid="${esc(occ.standard_uid)}"><div class="std-occurrence-head"><div><button class="std-doc-link" data-open-occurrence="${esc(occ.standard_uid)}">${esc(occ.document_name||'Documento fuente')}</button><div class="std-meta">${esc(occ.court||'Tribunal no informado')}${occ.judgment_date?' · '+esc(occ.judgment_date):''} · ${esc(occ.speaker||'')} · ${esc(occ.treatment||'')}</div></div><span class="std-source-count">Fuente ${index+1}</span></div>${different?`<div class="std-wording"><b>Formulación del fallo:</b> ${esc(occ.statement)}</div>`:''}${renderQuotes(quotes,occ.review_status,occ.publication_status)}${editor}</article>`;
+      }).join('');
       const relations=(data.relations||[]).map(rel=>{const count=Number(rel.other?.document_count||0);return `<div class="std-relation"><div><span class="std-badge rel-${esc(rel.relation_type)}">${esc(relLabels[rel.relation_type]||rel.relation_type)}</span><span class="std-badge ${esc(rel.status)}">${esc(rel.status)}</span></div><div class="std-rel-title" data-related-uid="${esc(rel.other?.standard_uid||'')}">${esc(rel.other?.statement||'')}</div><div class="std-meta">${count>1?count+' fallos':esc(rel.other?.document_name||'')} · ${esc(rel.other?.speaker||'')}</div></div>`;}).join('')||'<div class="std-empty">Sin relaciones visibles.</div>';
       const suggestions=(data.canonical_suggestions||[]).map(item=>`<div class="std-suggestion"><div><span class="std-badge proposed">Posible misma regla</span>${item.confidence?`<span class="std-badge">Confianza ${esc(item.confidence)}</span>`:''}</div><div class="std-rel-title" data-related-uid="${esc(item.other?.standard_uid||'')}">${esc(item.other?.statement||'')}</div><div class="std-meta">Requiere confirmación antes de consolidarse.</div><div class="std-badges"><button class="std-btn small" data-confirm-relation="${esc(item.relation_id)}">Confirmar</button><button class="std-btn ghost small" data-reject-relation="${esc(item.relation_id)}">Rechazar</button></div></div>`).join('');
-      const occurrenceCount=Number(data.occurrence_count||1),documentCount=Number(data.document_count||1);const notice=occurrenceCount>1?`Estándar canónico confirmado: ${occurrenceCount} apariciones en ${documentCount} fallos, conservadas con su propia redacción y cita.`:'Estándar canónico con una aparición validada. Las nuevas equivalencias se agregarán sin perder su fallo ni su redacción.';
+      const occurrenceCount=Number(data.occurrence_count||1),documentCount=Number(data.document_count||1);const notice=occurrenceCount>1?`Estándar canónico: ${occurrenceCount} apariciones en ${documentCount} fallos, conservadas con su propia redacción y evidencia.`:'Estándar canónico con una aparición. Las nuevas equivalencias se agregarán sin perder su fallo ni su redacción.';
       target.innerHTML=`<div class="std-notice">${esc(notice)}</div><h2>${esc(data.statement)}</h2><div class="std-badges"><span class="std-badge confirmed">Canónico confirmado</span><span class="std-badge">${documentCount} ${documentCount===1?'fallo':'fallos'}</span>${(data.tags||[]).map(tag=>`<span class="std-badge">${esc(tag)}</span>`).join('')}</div><div class="std-uid">${esc(data.canonical_uid||data.standard_uid)}</div><h3>Fallos, formulaciones y citas</h3><div class="std-occurrences">${occurrences}</div>${suggestions?`<h3>Equivalencias pendientes</h3>${suggestions}`:''}<h3>Relaciones directas</h3>${relations}`;
       target.querySelectorAll('[data-related-uid]').forEach(node=>node.addEventListener('click',()=>detail(node.dataset.relatedUid)));
       target.querySelectorAll('[data-open-occurrence]').forEach(node=>node.addEventListener('click',()=>openDocument(node.dataset.openOccurrence)));
+      target.querySelectorAll('[data-save-occurrence]').forEach(node=>node.addEventListener('click',()=>saveOccurrenceCitation(node,uid)));
+      target.querySelectorAll('[data-decide-occurrence]').forEach(node=>node.addEventListener('click',()=>decideOccurrence(node,uid,node.dataset.decideOccurrence)));
       target.querySelectorAll('[data-confirm-relation]').forEach(node=>node.addEventListener('click',event=>{event.stopPropagation();canonicalDecision(node.dataset.confirmRelation,'confirm',uid);}));
       target.querySelectorAll('[data-reject-relation]').forEach(node=>node.addEventListener('click',event=>{event.stopPropagation();canonicalDecision(node.dataset.rejectRelation,'reject',uid);}));
     }catch(error){target.innerHTML=`<div class="std-error">No fue posible abrir el estándar. ${esc(error.message)}</div>`;}
@@ -245,11 +368,11 @@
   function findMaintenanceNav(){const candidates=[...document.querySelectorAll('button,a,[role="button"],li,div')];return candidates.find(node=>norm(node.textContent)==='mantenimiento'&&node.children.length<8)||null;}
   function installNav(){if(document.querySelector('[data-lexia-standards-nav="1"]'))return true;const maintenance=findMaintenanceNav();if(!maintenance)return false;const button=maintenance.cloneNode(true);button.dataset.lexiaStandardsNav='1';button.removeAttribute('id');button.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));const walker=document.createTreeWalker(button,NodeFilter.SHOW_TEXT);let textNode=null;while(walker.nextNode()){if(norm(walker.currentNode.nodeValue)==='mantenimiento'){textNode=walker.currentNode;break;}}if(textNode)textNode.nodeValue=textNode.nodeValue.replace(/Mantenimiento/i,'Estándares');else button.textContent='Estándares';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();open();},true);maintenance.parentNode.insertBefore(button,maintenance);return true;}
   function setNavActive(active){const nav=document.querySelector('[data-lexia-standards-nav="1"]');if(!nav)return;nav.classList.toggle('active',active);nav.setAttribute('aria-current',active?'page':'false');}
-  function watchViewport(){let timer=0;window.addEventListener('resize',()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>{const next=pageSizeForViewport();if(!state.open||!state.searched||!state.pageSize||next===state.pageSize)return;const first=(state.page-1)*state.pageSize,page=Math.floor(first/next)+1;if(state.mode==='reserved')reservedQueue({page});else search({page,remember:false});},180);});}
+  function watchViewport(){let timer=0;window.addEventListener('resize',()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>{const next=pageSizeForViewport();if(!state.open||!state.searched||!state.pageSize||next===state.pageSize)return;const first=(state.page-1)*state.pageSize,page=Math.floor(first/next)+1;search({page,remember:false});},180);});}
   function open(){state.open=true;setNavActive(true);document.documentElement.classList.add('lexia-standards-open');shell().classList.add('open');loadInventory();}
   function close(){if(!state.open)return;state.open=false;setNavActive(false);document.documentElement.classList.remove('lexia-standards-open');document.getElementById('lexiaStandardsShell')?.classList.remove('open');}
   function watchOtherNavigation(){document.addEventListener('click',event=>{if(!state.open)return;const nav=event.target.closest?.('#globalSidebar .nav button,.sidebar .nav button');if(!nav||nav.matches('[data-lexia-standards-nav="1"]'))return;close();},true);}
-  function boot(){installStyles();shell();installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;watchViewport();const observer=new MutationObserver(()=>installNav());observer.observe(document.body,{childList:true,subtree:true});}}
-  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;window.lexiaStandardsLoadInventory=loadInventory;window.lexiaStandardsOpenReserved=()=>reservedQueue({page:1});
+  function boot(){installStyles();shell();const navReady=installNav();watchOtherNavigation();document.addEventListener('click',event=>{if(!event.target.closest?.('#lexiaStandardsShell .std-query-wrap'))setRecentMenuOpen(false);});if(!state.installed){state.installed=true;watchViewport();if(!navReady){const observer=new MutationObserver(()=>{if(installNav())observer.disconnect();});observer.observe(document.body,{childList:true,subtree:true});}}}
+  window.lexiaStandardsSearch=search;window.lexiaStandardsResetSearch=resetSearch;window.lexiaStandardsLoadInventory=loadInventory;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();

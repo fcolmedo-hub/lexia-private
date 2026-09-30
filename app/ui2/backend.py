@@ -100,48 +100,73 @@ class LiveReadOnlyAdapter:
         }
         if not self.catalog_path.exists():
             return result
+        fast_home = getattr(self, "live_cache_seconds", 0) > 0
+        if fast_home:
+            # Windows already validated the catalog and saved this count before
+            # opening the window. Do not scan the whole database again merely
+            # to show the recent documents and investigation history.
+            try:
+                result["documents"] = max(0, int(
+                    _safe_json(self.autosync_state_path).get("documents_total", 0) or 0
+                ))
+            except (AttributeError, TypeError, ValueError):
+                pass
         try:
             with _ro_connect(self.catalog_path) as con:
-                document_columns = {
-                    str(row[1])
-                    for row in con.execute('PRAGMA table_info("documents")').fetchall()
-                }
-                result["documents"] = int(con.execute(
-                    "SELECT COUNT(*) FROM documents WHERE COALESCE(is_deleted, 0) = 0"
-                ).fetchone()[0])
-                if "created_at" in document_columns:
-                    result["added_today"] = int(con.execute(
-                        """SELECT COUNT(*) FROM documents
-                           WHERE COALESCE(is_deleted, 0) = 0
-                             AND created_at IS NOT NULL
-                             AND date(created_at, 'localtime') = date('now', 'localtime')"""
+                if not result["documents"]:
+                    result["documents"] = int(con.execute(
+                        "SELECT COUNT(*) FROM documents WHERE is_deleted = 0"
                     ).fetchone()[0])
-                result["fragments"] = int(con.execute(
-                    """SELECT COUNT(*)
-                       FROM fragments f
-                       JOIN documents d ON d.path=f.document_path
-                       WHERE COALESCE(d.is_deleted, 0)=0"""
-                ).fetchone()[0])
-
-                rows = con.execute(
-                    """SELECT category, COUNT(*) n
-                       FROM documents
-                       WHERE COALESCE(is_deleted, 0)=0
-                       GROUP BY category
-                       ORDER BY n DESC
-                       LIMIT 8"""
-                ).fetchall()
-                result["categories"] = [
-                    {"name": str(r["category"] or "Sin categoría"), "count": int(r["n"])}
-                    for r in rows
-                ]
+                if fast_home:
+                    # The creation index keeps this count off the full catalog
+                    # scan that used to delay the Windows home for minutes.
+                    indexed = con.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='index' "
+                        "AND name='idx_documents_active_created_at'"
+                    ).fetchone()
+                    if indexed:
+                        result["added_today"] = int(con.execute(
+                            """SELECT COUNT(*) FROM documents
+                               WHERE is_deleted=0
+                                 AND created_at >= datetime('now','localtime','start of day','utc')
+                                 AND created_at < datetime('now','localtime','start of day','+1 day','utc')"""
+                        ).fetchone()[0])
+                if not fast_home:
+                    document_columns = {
+                        str(row[1])
+                        for row in con.execute('PRAGMA table_info("documents")').fetchall()
+                    }
+                    if "created_at" in document_columns:
+                        result["added_today"] = int(con.execute(
+                            """SELECT COUNT(*) FROM documents
+                               WHERE is_deleted = 0
+                                 AND created_at IS NOT NULL
+                                 AND date(created_at, 'localtime') = date('now', 'localtime')"""
+                        ).fetchone()[0])
+                    result["fragments"] = int(con.execute(
+                        """SELECT COUNT(*) FROM fragments f
+                           JOIN documents d ON d.path=f.document_path
+                           WHERE d.is_deleted=0"""
+                    ).fetchone()[0])
+                    rows = con.execute(
+                        """SELECT category, COUNT(*) n
+                           FROM documents
+                           WHERE is_deleted=0
+                           GROUP BY category
+                           ORDER BY n DESC
+                           LIMIT 8"""
+                    ).fetchall()
+                    result["categories"] = [
+                        {"name": str(r["category"] or "Sin categoría"), "count": int(r["n"])}
+                        for r in rows
+                    ]
 
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_method,total_pages
                        FROM documents
-                       WHERE COALESCE(is_deleted, 0)=0
+                       WHERE is_deleted=0
                          AND (extraction_error IS NULL OR extraction_error='')
-                       ORDER BY datetime(updated_at) DESC
+                       ORDER BY updated_at DESC
                        LIMIT 8"""
                 ).fetchall()
                 result["recent_documents"] = [
@@ -159,10 +184,10 @@ class LiveReadOnlyAdapter:
                 rows = con.execute(
                     """SELECT name,path,category,updated_at,extraction_error
                        FROM documents
-                       WHERE COALESCE(is_deleted, 0)=0
+                       WHERE is_deleted=0
                          AND extraction_error IS NOT NULL
                          AND extraction_error!=''
-                       ORDER BY datetime(updated_at) DESC
+                       ORDER BY updated_at DESC
                        LIMIT 6"""
                 ).fetchall()
                 result["recent_errors"] = [
@@ -174,15 +199,50 @@ class LiveReadOnlyAdapter:
                     for r in rows
                 ]
 
-                try:
-                    result["ocr_pages"] = int(con.execute(
-                        "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE COALESCE(is_deleted, 0)=0"
-                    ).fetchone()[0])
-                except sqlite3.Error:
-                    pass
+                if not fast_home:
+                    try:
+                        result["ocr_pages"] = int(con.execute(
+                            "SELECT COALESCE(SUM(ocr_pages),0) FROM documents WHERE is_deleted=0"
+                        ).fetchone()[0])
+                    except sqlite3.Error:
+                        pass
         except Exception as exc:
             result["error"] = str(exc)
         return result
+
+    def _count_active_fragments(self) -> int:
+        with _ro_connect(self.catalog_path) as con:
+            return int(con.execute(
+                """SELECT COUNT(*) FROM fragments f
+                   JOIN documents d ON d.path=f.document_path
+                   WHERE d.is_deleted=0"""
+            ).fetchone()[0])
+
+    def _deferred_fragment_count(self) -> int:
+        if not hasattr(self, "_fragment_lock"):
+            self._fragment_lock = threading.Lock()
+            self._fragment_value = 0
+            self._fragment_checked_at = 0.0
+            self._fragment_running = False
+        with self._fragment_lock:
+            if not self._fragment_running and time.monotonic() - self._fragment_checked_at >= 300:
+                self._fragment_running = True
+                threading.Thread(target=self._refresh_fragment_count, daemon=True).start()
+            return self._fragment_value
+
+    def _refresh_fragment_count(self) -> None:
+        try:
+            value = self._count_active_fragments()
+        except (OSError, sqlite3.Error):
+            value = None
+        with self._fragment_lock:
+            if value is not None:
+                self._fragment_value = value
+                self._fragment_checked_at = time.monotonic()
+                self._snapshot_cache = None
+            else:
+                self._fragment_checked_at = time.monotonic() - 270
+            self._fragment_running = False
 
     @staticmethod
     def _generic_history(path: Path, limit: int = 5) -> dict:

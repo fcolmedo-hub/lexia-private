@@ -10,7 +10,7 @@ import unicodedata
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = REPO_ROOT / "runtime" / "standards" / "standards.sqlite3"
@@ -101,6 +101,10 @@ def build_candidates(
     cross_min_shared_terms: int,
     top_k_terms: int,
     exclude_candidate_ids: set[str] | None = None,
+    *,
+    max_posting_size: int | None = None,
+    max_pair_pool: int | None = None,
+    progress: Callable[[str, int, int], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Preselector deliberadamente orientado a recall.
 
@@ -149,11 +153,21 @@ def build_candidates(
             inverted.setdefault(term, set()).add(uid)
 
     pair_shared: Counter[tuple[str, str]] = Counter()
-    for members in inverted.values():
+    postings = sorted(inverted.values(), key=len)
+    for position, members in enumerate(postings, start=1):
+        if max_posting_size is not None and len(members) > max_posting_size:
+            continue
         ordered = sorted(members)
         for i in range(len(ordered)):
             for j in range(i + 1, len(ordered)):
-                pair_shared[(ordered[i], ordered[j])] += 1
+                pair = (ordered[i], ordered[j])
+                if max_pair_pool is not None and len(pair_shared) >= max_pair_pool and pair not in pair_shared:
+                    continue
+                pair_shared[pair] += 1
+        if progress and position % 100 == 0:
+            progress("index", position, len(postings))
+        if max_pair_pool is not None and len(pair_shared) >= max_pair_pool:
+            break
 
     # Garantiza todos los pares dentro del mismo documento.
     by_document: dict[int, list[str]] = {}
@@ -169,7 +183,11 @@ def build_candidates(
 
     excluded = exclude_candidate_ids or set()
     output: list[dict[str, Any]] = []
-    for (a_uid, b_uid), shared_terms in all_pairs.items():
+    normalized = {str(row["standard_uid"]): normalize(row["statement"]) for row in rows}
+    excerpts: dict[str, str] = {}
+    for position, ((a_uid, b_uid), shared_terms) in enumerate(all_pairs.items(), start=1):
+        if progress and position % 5000 == 0:
+            progress("score", position, len(all_pairs))
         candidate_id = pair_uid(a_uid, b_uid)
         if candidate_id in excluded:
             continue
@@ -178,7 +196,7 @@ def build_candidates(
         same_document = int(a["document_id"]) == int(b["document_id"])
 
         token_score = weighted_jaccard(counters[a_uid], counters[b_uid], idf)
-        char_score = SequenceMatcher(None, normalize(a["statement"]), normalize(b["statement"])).ratio()
+        char_score = SequenceMatcher(None, normalized[a_uid], normalized[b_uid]).ratio()
         score = round(0.72 * token_score + 0.28 * char_score, 6)
 
         if same_document:
@@ -188,6 +206,10 @@ def build_candidates(
                 continue
             inclusion_reason = "cross_document_lexical"
 
+        if a_uid not in excerpts:
+            excerpts[a_uid] = quote_excerpt(conn, a_uid)
+        if b_uid not in excerpts:
+            excerpts[b_uid] = quote_excerpt(conn, b_uid)
         output.append(
             {
                 "candidate_id": candidate_id,
@@ -204,7 +226,7 @@ def build_candidates(
                     "document_name": a["document_name"],
                     "court": a["court"],
                     "judgment_date": a["judgment_date"],
-                    "evidence_excerpt": quote_excerpt(conn, a_uid),
+                    "evidence_excerpt": excerpts[a_uid],
                 },
                 "b": {
                     "standard_uid": b_uid,
@@ -215,7 +237,7 @@ def build_candidates(
                     "document_name": b["document_name"],
                     "court": b["court"],
                     "judgment_date": b["judgment_date"],
-                    "evidence_excerpt": quote_excerpt(conn, b_uid),
+                    "evidence_excerpt": excerpts[b_uid],
                 },
             }
         )

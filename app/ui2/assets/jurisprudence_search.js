@@ -519,11 +519,26 @@
       }).join('');
     };
 
+    const showPendingRecent=selector=>{
+      const box=document.querySelector(selector);
+      if(!box)return;
+      const title=box.querySelector('.hr-card-title');
+      let list=box.querySelector('.hr-scroll-list');
+      if(!list){
+        list=document.createElement('div');
+        list.className='hr-scroll-list';
+        title?.after(list);
+      }
+      list.innerHTML='<div class="hr-row lexia-home-loading"><div>Esperando los datos de LexIA…</div></div>';
+    };
+
     const update=async()=>{
       if(updateInFlight)return false;
       updateInFlight=true;
+      const controller=new AbortController();
+      const timeout=window.setTimeout(()=>controller.abort(),12000);
       try{
-        const response=await fetch('/api/live',{cache:'no-store'});
+        const response=await fetch('/api/live',{cache:'no-store',signal:controller.signal});
         const data=await response.json();
         if(!response.ok||!data.ok)return false;
         const catalog=data.catalog||{}, searches=data.searches||{}, contexts=data.contexts||{};
@@ -547,22 +562,25 @@
       }catch(_){
         return false;
       }finally{
+        window.clearTimeout(timeout);
         updateInFlight=false;
       }
     };
 
     ensureRecentIconStyles();
     neutralizeDemoValues();
+    showPendingRecent('#home .hr-lower .hr-card:nth-child(1)');
+    showPendingRecent('#home .hr-lower .hr-card:nth-child(2)');
     if(fastWindowsStartup){
       if(startupDocuments>0){
         setText(card('search-file'),'strong',format(startupDocuments));
         setText(card('search-file'),'p','Catálogo validado al iniciar');
       }
       const retryDelays=[0,1000,2500,5000,10000,20000];
-      const retry=attempt=>window.setTimeout(async()=>{
+      const retry=(attempt,delay)=>window.setTimeout(async()=>{
         const completed=await update();
-        if(!completed&&attempt+1<retryDelays.length)retry(attempt+1);
-      },retryDelays[attempt]);
+        retry(completed?0:Math.min(attempt+1,retryDelays.length-1),completed?30000:null);
+      },delay??retryDelays[attempt]);
       retry(0);
       window.addEventListener('focus',()=>update());
       document.addEventListener('visibilitychange',()=>{

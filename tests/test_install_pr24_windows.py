@@ -1,0 +1,162 @@
+import subprocess
+from pathlib import Path
+
+from scripts.install_pr24_windows import changes, merge
+
+
+def _git(root: Path, *args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+
+def test_merge_keeps_unrelated_local_edit_and_newlines():
+    before = b"first\nsecond\nthird\n"
+    after = b"first\nsecond changed\nthird\n"
+    current = b"first\r\nsecond\r\nthird local\r\n"
+    assert merge(current, before, after) == b"first\r\nsecond changed\r\nthird local\r\n"
+
+
+def test_multiple_merge_conflicts_report_a_useful_error():
+    before = b"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n"
+    local = b"one\nlocal two\nthree\nfour\nfive\nlocal six\nseven\neight\n"
+    after = b"one\nnew two\nthree\nfour\nfive\nnew six\nseven\neight\n"
+    try:
+        merge(local, before, after)
+    except ValueError as error:
+        assert "cambios locales se cruzan" in str(error)
+    else:
+        raise AssertionError("Se esperaba una descripción del conflicto")
+
+
+def test_preflight_is_atomic_when_another_file_conflicts(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    (root / "one.txt").write_text("first\nsecond\nthird\n")
+    (root / "two.txt").write_text("alpha\nbeta\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    (root / "one.txt").write_text("first\nsecond changed\nthird\n")
+    (root / "two.txt").write_text("alpha new\nbeta\n")
+    (root / "new.txt").write_text("new file\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "update")
+    target = _git(root, "rev-parse", "HEAD")
+    (root / "new.txt").unlink()
+    (root / "one.txt").write_text("first\nsecond\nthird local\n")
+    (root / "two.txt").write_text("alpha local\nbeta\n")
+    try:
+        changes(root, base, target)
+    except ValueError as error:
+        assert "two.txt" in str(error)
+    else:
+        raise AssertionError("Se esperaba un conflicto")
+    assert (root / "one.txt").read_text() == "first\nsecond\nthird local\n"
+    assert not (root / "new.txt").exists()
+
+    (root / "two.txt").write_text("alpha\nbeta\n")
+    planned = changes(root, base, target)
+    assert planned["one.txt"] == b"first\nsecond changed\nthird local\n"
+    assert planned["two.txt"] == b"alpha new\nbeta\n"
+    assert planned["new.txt"] == b"new file\n"
+
+
+def test_previous_pr_files_merge_without_overwriting_local_edits(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    (root / "ui.txt").write_text("old UI\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    (root / "ui.txt").write_text("previous UI\n")
+    (root / "pipeline.txt").write_text("first\nsecond\n")
+    (root / "selector.txt").write_text("first\nsecond\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "previous")
+    previous = _git(root, "rev-parse", "HEAD")
+    (root / "ui.txt").write_text("new UI\n")
+    (root / "selector.txt").write_text("new first\nsecond\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "target")
+    target = _git(root, "rev-parse", "HEAD")
+    (root / "ui.txt").write_bytes(b"previous UI\r\n")
+    (root / "pipeline.txt").write_text("first\nsecond local\n")
+    (root / "selector.txt").write_text("first\nsecond local\n")
+
+    planned = changes(root, base, target, previous)
+
+    assert planned["ui.txt"] == b"new UI\r\n"
+    assert planned["selector.txt"] == b"new first\nsecond local\n"
+    assert "pipeline.txt" not in planned
+    assert (root / "ui.txt").read_bytes() == b"previous UI\r\n"
+
+
+def test_preflight_accepts_installed_previous_feature_and_keeps_local_edits(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    path = root / "ui.txt"
+    path.write_text("old header\nold queue\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    path.write_text("old header\nprevious queue\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "previous")
+    previous = _git(root, "rev-parse", "HEAD")
+    path.write_text("new header\nprevious queue\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "feature")
+    feature = _git(root, "rev-parse", "HEAD")
+    path.write_text("new header\nmain list\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "target")
+    target = _git(root, "rev-parse", "HEAD")
+    path.write_text("new header\nprevious queue\nlocal footer changed\n")
+
+    planned = changes(root, base, target, previous, feature)
+
+    assert planned["ui.txt"] == b"new header\nmain list\nlocal footer changed\n"
+    assert path.read_text() == "new header\nprevious queue\nlocal footer changed\n"
+
+
+def test_preflight_upgrades_installed_pr24_files_added_after_early_feature(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q")
+    _git(root, "config", "user.email", "test@example.com")
+    _git(root, "config", "user.name", "Test")
+    (root / "pipeline.txt").write_text("old extraction\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "base")
+    base = _git(root, "rev-parse", "HEAD")
+    previous = base
+    (root / "pipeline.txt").write_text("feature extraction\nlocal footer\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "feature")
+    feature = _git(root, "rev-parse", "HEAD")
+    (root / "pipeline.txt").write_text("installed extraction\nlocal footer\n")
+    (root / "new_test.txt").write_text("installed test\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "installed")
+    installed = _git(root, "rev-parse", "HEAD")
+    (root / "pipeline.txt").write_text("current extraction\nlocal footer\n")
+    (root / "new_test.txt").write_text("current test\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "target")
+    target = _git(root, "rev-parse", "HEAD")
+    (root / "pipeline.txt").write_text("installed extraction\nlocal footer changed\n")
+    (root / "new_test.txt").write_text("installed test\n")
+
+    planned = changes(root, base, target, previous, feature, installed)
+
+    assert planned["pipeline.txt"] == b"current extraction\nlocal footer changed\n"
+    assert planned["new_test.txt"] == b"current test\n"
+    assert (root / "pipeline.txt").read_text() == "installed extraction\nlocal footer changed\n"

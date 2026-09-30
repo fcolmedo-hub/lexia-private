@@ -330,6 +330,7 @@ class DocumentCatalog:
                     modified_ns,
                     content_hash,
                     is_deleted,
+                    vector_indexed_hash,
                     duplicate_of,
                     text_content,
                     extraction_error,
@@ -677,6 +678,8 @@ class DocumentCatalog:
     def relocate_documents_batch(
         self,
         relocations: list[tuple[str | Path, Document]],
+        *,
+        recover_deleted: bool = False,
     ) -> dict:
         result = {
             "requested": len(relocations),
@@ -761,11 +764,11 @@ class DocumentCatalog:
                         """
                         SELECT *
                         FROM documents
-                        WHERE is_deleted = 0
+                        WHERE (is_deleted = 0 OR ?)
                           AND path IN (
                             SELECT old_path FROM lexia_relocation_map
                           )
-                        """
+                        """, (int(recover_deleted),)
                     ).fetchall()
                 }
                 _probe["load_old_rows"] = perf_counter() - _t0
@@ -779,6 +782,16 @@ class DocumentCatalog:
                             "error": "old_not_active",
                         })
                         continue
+                    if recover_deleted:
+                        old = old_rows[old_resolved]
+                        current = connection.execute('SELECT * FROM documents WHERE path = ?', (new_resolved,)).fetchone()
+                        if (old['duplicate_of'] or not document.content_hash
+                                or old['content_hash'] != document.content_hash
+                                or current is None or current['is_deleted']
+                                or current['duplicate_of'] != old_resolved
+                                or current['content_hash'] != document.content_hash
+                                or current['text_content'] or current['vector_indexed_hash']):
+                            raise ValueError('El catálogo cambió durante la reparación. No se modificó.')
                     valid.append((old_resolved, new_resolved, document))
 
                 if not valid:
@@ -814,7 +827,7 @@ class DocumentCatalog:
                             document.size,
                             document.modified_ns,
                             old_rows[old_resolved]["content_hash"],
-                            old_rows[old_resolved]["vector_indexed_hash"],
+                            None if old_rows[old_resolved]['is_deleted'] else old_rows[old_resolved]["vector_indexed_hash"],
                             old_rows[old_resolved]["text_content"],
                             old_rows[old_resolved]["extraction_error"],
                             _relocated_metadata_json(
@@ -955,6 +968,7 @@ class DocumentCatalog:
                     for old_resolved, new_resolved, _document in valid
                     if (
                         old_rows[old_resolved]["duplicate_of"] is None
+                        and not old_rows[old_resolved]['is_deleted']
                         and old_rows[old_resolved]["vector_indexed_hash"]
                     )
                 ]
@@ -1281,6 +1295,23 @@ class DocumentCatalog:
                     for fragment in document.fragments
                 ],
             )
+
+    def release_orphan_duplicate(self, path: str | Path, original: str | Path, content_hash: str) -> None:
+        """Keep an existing file pending extraction when its original row is gone."""
+        path, original = str(Path(path).resolve()), str(Path(original).resolve())
+        with self._connect() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            if connection.execute('SELECT 1 FROM documents WHERE path=?', (original,)).fetchone():
+                raise ValueError('El registro original cambió durante la comprobación.')
+            updated = connection.execute(
+                """UPDATE documents SET duplicate_of=NULL, extraction_method='',
+                       extraction_error=NULL, updated_at=CURRENT_TIMESTAMP
+                   WHERE path=? AND duplicate_of=? AND content_hash=? AND is_deleted=0
+                     AND COALESCE(text_content, '')='' AND COALESCE(vector_indexed_hash, '')=''""",
+                (path, original, content_hash),
+            ).rowcount
+            if updated != 1:
+                raise ValueError('El catálogo cambió durante la reparación. No se modificó.')
 
     def purge_document(self, path: str | Path) -> dict:
         """Elimina definitivamente un documento y sus derivados del catalogo."""
@@ -1738,12 +1769,23 @@ class DocumentCatalog:
             sql += " AND path != ?"
             params.append(exclude_path)
 
-        sql += " ORDER BY updated_at ASC LIMIT 1"
+        sql += " ORDER BY updated_at ASC"
 
         with self._connect() as connection:
-            row = connection.execute(sql, params).fetchone()
+            rows = connection.execute(sql, params).fetchall()
 
-        return row["path"] if row else None
+        for row in rows:
+            candidate = Path(row['path'])
+            try:
+                if candidate.is_file() and not (exclude_path and candidate.samefile(exclude_path)):
+                    if exclude_path:
+                        from services.duplicate_file_safety import identical_duplicates
+                        if not identical_duplicates(exclude_path, candidate):
+                            continue
+                    return row['path']
+            except OSError:
+                continue
+        return None
 
     def processing_stats(self) -> dict[str, int]:
         with self._connect() as connection:

@@ -8,7 +8,7 @@ ASSETS = ROOT / "app" / "ui2" / "assets"
 def test_windows_loader_includes_maintenance_and_manual_source_polish():
     source = (ASSETS / "windows_search_results_polish.js").read_text(encoding="utf-8")
     assert "windows_maintenance_status_detail.js?v=maintenance-status-1" in source
-    assert "windows_maintenance_duplicates.js?v=maintenance-duplicates-2" in source
+    assert "windows_maintenance_duplicates.js?v=maintenance-duplicates-3" in source
     assert "windows_research_manual_sources_merge.js?v=manual-sources-merge-6" in source
 
 
@@ -30,13 +30,16 @@ def test_duplicate_review_reads_catalog_and_deletes_only_explicit_duplicate():
     assert 'd.duplicate_of IS NOT NULL' in source
     assert 'self.path == "/duplicates"' in source
     assert 'self.path == "/delete-duplicate"' in source
-    assert "secure_document_deletion.delete(path)" in source
+    assert "secure_document_deletion.delete(path, require_duplicate=True)" in source
+    assert 'self.path == "/delete-duplicates"' in source
+    assert 'self.path == "/duplicate-job"' in source
 
 
 def test_duplicate_maintenance_panel_requires_user_delete_action():
     source = (ASSETS / "windows_maintenance_duplicates.js").read_text(encoding="utf-8")
     assert "LexIA no elimina nada automáticamente" in source
     assert "data-dup-delete" in source
+    assert "Eliminar todos los duplicados encontrados" in source
     assert "data-dup-open-original" in source
     assert "Abrir duplicado" in source
     assert "MutationObserver" not in source

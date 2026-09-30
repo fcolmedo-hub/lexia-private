@@ -93,6 +93,41 @@ def test_catalog_daily_count_uses_real_creation_date(tmp_path: Path) -> None:
     assert catalog["added_today"] == 1
 
 
+def test_windows_library_history_uses_creation_index_without_blocking_recents(tmp_path: Path) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    with sqlite3.connect(database) as con:
+        con.executescript("""CREATE TABLE documents (
+            path TEXT PRIMARY KEY, name TEXT, category TEXT, updated_at TEXT,
+            created_at TEXT, extraction_method TEXT, total_pages INTEGER,
+            extraction_error TEXT, ocr_pages INTEGER, is_deleted INTEGER);
+            CREATE INDEX idx_documents_active_created_at ON documents(created_at)
+                WHERE is_deleted=0;
+        """)
+        con.execute("INSERT INTO documents VALUES ('old','Anterior','General',"
+                    "CURRENT_TIMESTAMP,datetime('now','-1 day'),'native',1,NULL,0,0)")
+        con.execute("INSERT INTO documents VALUES ('new','Nuevo','General',"
+                    "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'native',1,NULL,0,0)")
+        con.execute("INSERT INTO documents VALUES ('migrated','Sin fecha','General',"
+                    "CURRENT_TIMESTAMP,NULL,'native',1,NULL,0,0)")
+        con.execute("INSERT INTO documents VALUES ('removed','Borrado','General',"
+                    "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'native',1,NULL,0,1)")
+
+    adapter = LiveReadOnlyAdapter.__new__(LiveReadOnlyAdapter)
+    adapter.catalog_path = database
+    adapter.live_cache_seconds = 30
+    adapter.autosync_state_path = tmp_path / "missing_state.json"
+    catalog = adapter._catalog()
+    assert catalog["added_today"] == 1
+    assert {row["name"] for row in catalog["recent_documents"]} == {"Anterior", "Nuevo", "Sin fecha"}
+
+    with sqlite3.connect(database) as con:
+        plan = con.execute("""EXPLAIN QUERY PLAN SELECT COUNT(*) FROM documents
+            WHERE is_deleted=0
+              AND created_at >= datetime('now','localtime','start of day','utc')
+              AND created_at < datetime('now','localtime','start of day','+1 day','utc')""").fetchall()
+    assert any("idx_documents_active_created_at" in row[3] for row in plan)
+
+
 def test_catalog_records_creation_once_and_preserves_it_on_update(tmp_path: Path) -> None:
     database = tmp_path / "catalog-save.sqlite3"
     catalog = DocumentCatalog(database)
@@ -196,6 +231,8 @@ def test_windows_home_refresh_is_single_flight_and_bounded() -> None:
     assert "if(fastWindowsStartup&&startupDocuments>0&&Number(catalog.documents||0)<=0)return false" in javascript
     assert "&& /\\/api\\/live(?:[?#]|$)/.test(requestedUrl)" in javascript
     assert "const retryDelays=[0,1000,2500,5000,10000,20000]" in javascript
+    assert "retry(completed?0:Math.min(attempt+1,retryDelays.length-1),completed?30000:null)" in javascript
+    assert "const timeout=window.setTimeout(()=>controller.abort(),12000)" in javascript
     assert "window.addEventListener('lexia:catalog-changed'" in javascript
     assert "if(fastWindowsStartup)" in javascript
     assert "window.addEventListener('lexia:catalog-changed',()=>update());\n      return;" in javascript
@@ -225,6 +262,56 @@ def test_live_adapter_cache_reuses_one_snapshot(monkeypatch) -> None:
     assert adapter.snapshot()["catalog"]["documents"] == 86790
     assert adapter.snapshot()["catalog"]["documents"] == 86790
     assert len(calls) == 1
+
+
+def test_windows_home_returns_recents_without_full_catalog_scans(tmp_path: Path, monkeypatch) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    history = tmp_path / "context_query_history.sqlite3"
+    with sqlite3.connect(database) as con:
+        con.executescript("""CREATE TABLE documents (
+            path TEXT PRIMARY KEY, name TEXT, category TEXT, updated_at TEXT,
+            created_at TEXT, extraction_method TEXT, total_pages INTEGER,
+            extraction_error TEXT, ocr_pages INTEGER, is_deleted INTEGER);
+            CREATE TABLE fragments (document_path TEXT, fragment_index INTEGER);
+            CREATE INDEX active_updated ON documents(updated_at DESC) WHERE is_deleted=0;
+        """)
+        con.execute("INSERT INTO documents VALUES ('fallo','Fallo reciente','Jurisprudencia',"
+                    "'2026-09-29 19:00',NULL,'native',1,NULL,0,0)")
+    with sqlite3.connect(history) as con:
+        con.execute("CREATE TABLE context_query_history (id INTEGER PRIMARY KEY, query TEXT, "
+                    "objective TEXT, created_at TEXT)")
+        con.execute("INSERT INTO context_query_history(query,objective,created_at) "
+                    "VALUES ('Responsabilidad estatal','Investigación','2026-09-29 19:00')")
+    adapter = LiveReadOnlyAdapter()
+    adapter.catalog_path = database
+    adapter.autosync_state_path = tmp_path / "autosync_state.json"
+    adapter.autosync_state_path.write_text('{"documents_total": 86787}', encoding="utf-8")
+    adapter.context_history_path = history
+    adapter.search_history_path = tmp_path / "missing.sqlite3"
+    adapter.ocr_path = tmp_path / "ocr.sqlite3"
+    adapter.live_cache_seconds = 30
+    monkeypatch.setattr(adapter, "_count_active_fragments", lambda: (_ for _ in ()).throw(
+        AssertionError("No recorrer fragmentos al abrir Inicio")
+    ))
+    import backend as backend_module
+    original_connect = backend_module._ro_connect
+    queries = []
+
+    def traced_connect(path):
+        con = original_connect(path)
+        con.set_trace_callback(queries.append)
+        return con
+
+    monkeypatch.setattr(backend_module, "_ro_connect", traced_connect)
+    snapshot = adapter.snapshot()
+    assert snapshot["catalog"]["documents"] == 86787
+    assert snapshot["catalog"]["recent_documents"][0]["name"] == "Fallo reciente"
+    assert snapshot["contexts"]["recent"][0]["query"] == "Responsabilidad estatal"
+    assert not any(
+        marker in statement.lower()
+        for statement in queries
+        for marker in ("date(created_at", "sum(ocr_pages)", "group by category", "from fragments", "count(*) from documents")
+    )
 
 
 def test_visible_search_numbers_are_always_incremental() -> None:

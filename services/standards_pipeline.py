@@ -7,14 +7,15 @@ import uuid
 from argparse import Namespace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from services.standards_relation_engine import apply_relation_decisions, load_jsonl
 from tools.exportar_estandares_piloto import (
     _load_requested_paths,
     export_documents,
 )
-from tools.preseleccionar_fallos_estandares import imported_documents
+from tools.preseleccionar_fallos_estandares import imported_documents, pending_documents
+from tools.tribunales_estandares import load_courts, metadata_with_court
 from tools.importar_estandares_sqlite import import_validated_run
 from tools.preparar_canonicalizacion_estandares import build_candidates
 from tools.preparar_estandares_v2 import dump_jsonl
@@ -48,6 +49,7 @@ class StandardsPipeline:
         db_path: Path,
         runs_root: Path,
         run_id: str | None = None,
+        progress: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.db_path = db_path.resolve()
@@ -55,6 +57,11 @@ class StandardsPipeline:
         self.run_id = run_id or self._new_run_id()
         self.run_dir = self.runs_root / self.run_id
         self.state_path = self.run_dir / "state.json"
+        self.progress = progress
+
+    def _progress(self, **values: Any) -> None:
+        if self.progress is not None:
+            self.progress(values)
 
     @staticmethod
     def _new_run_id() -> str:
@@ -92,6 +99,8 @@ class StandardsPipeline:
         *,
         catalog_path: Path,
         paths_file: Path,
+        court: str | None = None,
+        courts_file: Path | None = None,
         model: str,
         reasoning_effort: str,
         max_output_tokens: int = 4000,
@@ -131,12 +140,18 @@ class StandardsPipeline:
         if not requested_paths:
             raise RuntimeError("La selección de fallos está vacía")
         print(f"Leyendo {len(requested_paths)} fallo(s) del catálogo para preparar el lote…", file=sys.stderr, flush=True)
-        documents, missing = export_documents(catalog_path, requested_paths)
+        documents, missing = export_documents(
+            catalog_path, requested_paths,
+            progress=lambda current, total, file: self._progress(
+                stage="export", current=current, total=total, file=file, standards=0),
+        )
         if missing:
             preview = "\n".join(f"- {path}" for path in missing[:20])
             raise RuntimeError(
                 "Hay fallos no indexados como Jurisprudencia o sin fragmentos:\n" + preview
             )
+        courts = load_courts(requested_paths, court=court, courts_file=courts_file)
+        courts_by_path = {path.casefold(): value for path, value in courts.items()}
 
         imported_paths, imported_hashes = imported_documents(self.db_path)
         repeated = [document.path for document in documents
@@ -147,6 +162,13 @@ class StandardsPipeline:
                 "Fallos ya importados en el diccionario (por ruta o contenido):\n"
                 + "\n".join(f"- {path}" for path in repeated[:20])
             )
+        pending_paths, pending_hashes = pending_documents(self.runs_root, exclude_run_id=self.run_id)
+        pending = [document.path for document in documents
+                   if document.path.casefold() in pending_paths
+                   or (document.content_hash and document.content_hash.casefold() in pending_hashes)]
+        if pending:
+            raise RuntimeError("Fallos ya preparados o enviados a la API en otro lote:\n"
+                               + "\n".join(f"- {path}" for path in pending[:20]))
 
         source_dir = self.run_dir / "source"
         prepared_dir = self.run_dir / "prepared_v5"
@@ -161,7 +183,7 @@ class StandardsPipeline:
                 "document_path": document.path,
                 "document_name": document.name,
                 "total_pages": document.total_pages,
-                "metadata": document.metadata,
+                "metadata": metadata_with_court(document.metadata, courts_by_path.get(document.path.casefold())),
                 "content_hash": document.content_hash,
                 "fragments": document.fragments,
             })
@@ -174,6 +196,8 @@ class StandardsPipeline:
         prompt_rows: list[dict[str, Any]] = []
         units = 0
         for row in source_rows:
+            self._progress(stage="prepare", current=len(prepared_rows)+1, total=len(source_rows),
+                           file=row["document_name"], standards=0)
             prepared, document_text = prepare_document_v5(row)
             prepared_rows.append(prepared)
             if len(prepared_rows) == 1 or len(prepared_rows) % 10 == 0 or len(prepared_rows) == len(source_rows):
@@ -188,6 +212,8 @@ class StandardsPipeline:
                 "document_name": prepared["document_name"],
                 "prompt": prompt_template + "\n\n" + document_text,
             })
+            self._progress(stage="prepare", current=len(prepared_rows), total=len(source_rows),
+                           file=row["document_name"], standards=0)
         dump_jsonl(prepared_dir / "fallos.jsonl", prepared_rows)
         dump_jsonl(prepared_dir / "prompts.jsonl", prompt_rows)
 
@@ -198,6 +224,9 @@ class StandardsPipeline:
             "catalog_path": str(catalog_path.resolve()),
             "paths_file": str(paths_file.resolve()),
             "selection_encoding": encoding,
+            "court_source": "courts_file" if courts_file is not None else "court" if court is not None else "api",
+            "courts_file": str(courts_file.resolve()) if courts_file is not None else None,
+            "courts": sorted(set(courts.values())),
             "model": model,
             "reasoning_effort": reasoning_effort,
             "documents": len(prepared_rows),
@@ -225,6 +254,14 @@ class StandardsPipeline:
         state = self.load_state()
         if state.get("stage") != "extraction_ready_to_submit":
             raise RuntimeError("La extracción no está lista para enviar")
+        pending_paths, pending_hashes = pending_documents(self.runs_root, exclude_run_id=self.run_id, submitted_only=True)
+        source_rows = load_jsonl(self.run_dir / "source" / "fallos.jsonl")
+        repeated = [str(row["document_path"]) for row in source_rows
+                    if str(row["document_path"]).casefold() in pending_paths
+                    or (row.get("content_hash") and str(row["content_hash"]).casefold() in pending_hashes)]
+        if repeated:
+            raise RuntimeError("Estos fallos ya fueron enviados a la API en otro lote:\n"
+                               + "\n".join(f"- {path}" for path in repeated[:20]))
         code = submit_extraction_batch(Namespace(workdir=self.run_dir / "extraction_batch"))
         if code != 0:
             raise RuntimeError("No se pudo enviar el lote de extracción")
@@ -243,7 +280,7 @@ class StandardsPipeline:
             raise RuntimeError("No se pudo consultar el estado del lote")
         return self.load_state()
 
-    def collect_extraction(self) -> dict[str, Any]:
+    def collect_extraction(self, *, prepare_relations: bool = True) -> dict[str, Any]:
         state = self.load_state()
         if state.get("stage") != "extraction_submitted":
             raise RuntimeError("No hay una extracción enviada pendiente de recoger")
@@ -254,9 +291,9 @@ class StandardsPipeline:
         if code != 0:
             raise RuntimeError("El lote de extracción contiene respuestas fallidas o inválidas")
         self._transition("extraction_collected")
-        return self._validate_import_and_prepare_relations()
+        return self._validate_import_and_prepare_relations(prepare_relations=prepare_relations)
 
-    def _validate_import_and_prepare_relations(self) -> dict[str, Any]:
+    def _validate_import_and_prepare_relations(self, *, prepare_relations: bool = True) -> dict[str, Any]:
         prepared_path = self.run_dir / "prepared_v5" / "fallos.jsonl"
         documents = load_jsonl(prepared_path)
         by_id = {int(row["pilot_id"]): row for row in documents}
@@ -266,14 +303,24 @@ class StandardsPipeline:
         validation = {
             "documents": 0,
             "standards": 0,
+            "documents_without_standards": [],
             "evidence_total": 0,
             "evidence_resolved": 0,
             "invalid_evidence": 0,
             "needs_review": 0,
             "format_errors": 0,
+            "metadata_issues": 0,
+            "courts_from_api": 0,
         }
-        for response_path in sorted(responses_dir.glob("*_respuesta.txt")):
+        response_paths = sorted(responses_dir.glob("*_respuesta.txt"))
+        for position, response_path in enumerate(response_paths, start=1):
             pilot_id = int(response_path.name.split("_", 1)[0])
+            document = by_id.get(pilot_id)
+            if document is None:
+                validation["format_errors"] += 1
+                continue
+            self._progress(stage="validate", current=position, total=len(response_paths),
+                           file=document["document_name"], standards=validation["standards"])
             try:
                 result = validate_result(
                     by_id[pilot_id], response_path.read_text(encoding="utf-8")
@@ -281,6 +328,19 @@ class StandardsPipeline:
             except Exception:
                 validation["format_errors"] += 1
                 continue
+            document = by_id[pilot_id]
+            metadata = document["metadata"]
+            proposals = result.get("document_metadata", {})
+            for key, value in proposals.items():
+                if key == "court" and metadata.get("_lexia_court_source") == "batch_input":
+                    continue
+                stored_key = "date" if key == "judgment_date" else key
+                metadata[stored_key] = value
+                metadata[f"_lexia_{key}_source"] = "api_with_unit_ids"
+                metadata[f"_lexia_{key}_evidence"] = result["document_metadata_evidence"][key]
+                if key == "court":
+                    validation["courts_from_api"] += 1
+            validation["metadata_issues"] += len(result.get("document_metadata_issues", []))
             (validated_dir / f"{pilot_id:03d}_validado.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
@@ -288,16 +348,33 @@ class StandardsPipeline:
             values = result["validation"]
             validation["documents"] += 1
             validation["standards"] += int(values["standards_count"])
+            if not values["standards_count"]:
+                validation["documents_without_standards"].append({
+                    "name": document["document_name"],
+                    "path": document["document_path"],
+                })
             validation["evidence_total"] += int(values["evidence_total"])
             validation["evidence_resolved"] += int(values["evidence_resolved"])
             validation["invalid_evidence"] += int(values["invalid_evidence"])
             validation["needs_review"] += int(bool(values["needs_review"]))
+            self._progress(stage="validate", current=position, total=len(response_paths),
+                           file=document["document_name"], standards=validation["standards"],
+                           file_standards=int(values["standards_count"]),
+                           without_standards=len(validation["documents_without_standards"]))
         if validation["format_errors"]:
             raise RuntimeError(
                 f"Hay {validation['format_errors']} respuestas con formato inválido; no se importó el lote"
             )
 
+        # La importación lee fallos.jsonl. Se guardan aquí los datos validados,
+        # para que una reanudación use exactamente la misma atribución.
+        updated_path = prepared_path.with_suffix(".jsonl.tmp")
+        dump_jsonl(updated_path, documents)
+        updated_path.replace(prepared_path)
+
         state = self.load_state()
+        self._progress(stage="import", current=0, total=len(documents), file="Importando estándares",
+                       standards=validation["standards"])
         imported = import_validated_run(
             validated_dir=validated_dir,
             fallos_path=prepared_path,
@@ -308,7 +385,9 @@ class StandardsPipeline:
             reasoning_effort=str(state.get("reasoning_effort") or "medium"),
         )
         self._transition("standards_imported", validation=validation, import_result=imported)
-        return self.prepare_relations()
+        self._progress(stage="import", current=len(documents), total=len(documents), file="Importación completa",
+                       standards=validation["standards"])
+        return self.prepare_relations() if prepare_relations else self.load_state()
 
     def prepare_relations(self) -> dict[str, Any]:
         state = self.load_state()
@@ -324,11 +403,25 @@ class StandardsPipeline:
                 {str(row[0]) for row in conn.execute("SELECT candidate_id FROM relation_decisions")}
                 if decisions_table else set()
             )
-            candidates = build_candidates(conn, 0.08, 1, 24, excluded)
+            def report(stage: str, current: int, total: int) -> None:
+                if stage == "index":
+                    percent = round(30 * current / max(total, 1))
+                    message = f"Indexando términos: {current}/{total}"
+                else:
+                    percent = 30 + round(60 * current / max(total, 1))
+                    message = f"Comparando pares: {current}/{total}"
+                self._progress(stage="relations_build", current=percent, total=100, file=message)
+
+            candidates = build_candidates(
+                conn, 0.08, 1, 24, excluded,
+                max_posting_size=80, max_pair_pool=50_000, progress=report,
+            )
         finally:
             conn.close()
 
         candidates_path = self.run_dir / "relation_candidates.jsonl"
+        self._progress(stage="relations_build", current=90, total=100,
+                       file=f"Guardando {len(candidates)} pares candidatos")
         dump_jsonl(candidates_path, candidates)
         if not candidates:
             return self._transition(
@@ -348,6 +441,8 @@ class StandardsPipeline:
         ))
         if code != 0:
             raise RuntimeError("No se pudo preparar el lote de relaciones")
+        self._progress(stage="relations_build", current=100, total=100,
+                       file=f"{len(candidates)} pares listos")
         return self._transition(
             "relations_ready_to_submit", relation_candidates=len(candidates)
         )

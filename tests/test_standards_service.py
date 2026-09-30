@@ -60,9 +60,8 @@ def test_blank_search_returns_every_visible_standard(tmp_path):
 
     result = service.search()
 
-    assert result['total'] == 2
-    assert result['total'] == 2
-    assert {item['representative_standard_uid'] for item in result['items']} == {'STD-A', 'STD-B'}
+    assert result['total'] == 3
+    assert {item['representative_standard_uid'] for item in result['items']} == {'STD-A', 'STD-B', 'STD-C'}
 
 
 def test_search_accepts_free_form_legal_punctuation(tmp_path):
@@ -83,10 +82,37 @@ def test_search_uses_recall_oriented_terms(tmp_path):
     assert {item['representative_standard_uid'] for item in result['items']} == {'STD-A', 'STD-B'}
 
 
+def test_boolean_search_and_exact_phrase_in_canonical_dictionary(tmp_path):
+    service = StandardsService(make_db(tmp_path))
+
+    assert service.search(text='reserva AND legal')['total'] == 1
+    assert service.search(text='reserva OR exportación')['total'] == 2
+    assert service.search(text='reserva NOT exportación')['total'] == 1
+    assert service.search(text='NOT exportación')['total'] == 2
+    assert service.search(text='"reserva legal"')['total'] == 1
+    assert service.search(text='(reserva OR exportación) AND tributaria')['total'] == 2
+
+
+def test_boolean_search_in_ungrouped_dictionary_and_invalid_expression(tmp_path):
+    db = make_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute('DELETE FROM canonical_standards')
+    service = StandardsService(db)
+
+    assert service.search(text='reserva AND legal')['total'] == 2
+    assert service.search(text='NOT exportación')['total'] == 3
+    try:
+        service.search(text='reserva AND (')
+    except ValueError as exc:
+        assert 'término' in str(exc) or 'paréntesis' in str(exc)
+    else:
+        assert False, 'La expresión incompleta debe mostrar un error'
+
+
 def test_count_matches_searchable_standards(tmp_path):
     service = StandardsService(make_db(tmp_path))
 
-    assert service.count() == 2
+    assert service.count() == 3
 
 
 def test_inventory_distinguishes_stored_and_published_standards(tmp_path):
@@ -94,10 +120,11 @@ def test_inventory_distinguishes_stored_and_published_standards(tmp_path):
 
     assert service.inventory() == {
         'canonical_standards_total': 3,
-        'visible_canonical_standards': 2,
+        'visible_canonical_standards': 3,
         'occurrences_total': 4,
-        'visible_occurrences': 3,
-        'reserved_occurrences': 1,
+        'visible_occurrences': 4,
+        'reserved_occurrences': 0,
+        'evidence_attention_occurrences': 3,
         'rejected_occurrences': 0,
     }
 
@@ -108,13 +135,37 @@ def test_reserved_queue_includes_evidence_and_reason(tmp_path):
     result = service.reserved_standards()
     detail = service.get_reserved_standard('STD-C')
 
-    assert result['total'] == 1
-    assert result['items'][0]['standard_uid'] == 'STD-C'
-    assert result['items'][0]['reserve_reason'] == 'Requiere validación jurídica'
+    assert result['total'] == 3
+    assert {item['standard_uid'] for item in result['items']} == {'STD-B', 'STD-C', 'STD-D'}
+    assert next(item for item in result['items'] if item['standard_uid']=='STD-C')['reserve_reason'] == 'Falta una cita literal y su página'
     assert detail is not None
     assert detail['document_name'] == 'Fallo B'
     assert detail['quotes'] == []
     assert service.get_reserved_standard('STD-A') is None
+
+
+def test_evidence_queue_identifies_missing_page_and_excludes_rejected(tmp_path):
+    db = make_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute("INSERT INTO quotes(standard_uid,evidence_index,quote_text,page_start) VALUES('STD-C',1,'Pasaje literal',NULL)")
+        con.execute("UPDATE standards SET review_status='rejected',publication_status='hidden' WHERE standard_uid='STD-B'")
+        rebuild_canonical_groups(con)
+    service = StandardsService(db)
+
+    items = service.reserved_standards()['items']
+    assert {item['standard_uid'] for item in items} == {'STD-C', 'STD-D'}
+    assert next(item for item in items if item['standard_uid']=='STD-C')['reserve_reason'] == 'Falta la página de la cita'
+    assert service.get_standard('STD-B') is None
+
+
+def test_complete_quote_with_extraction_incidence_still_has_a_warning(tmp_path):
+    db = make_db(tmp_path)
+    with sqlite3.connect(db) as con:
+        con.execute("INSERT INTO quotes(standard_uid,evidence_index,quote_text,page_start) VALUES('STD-C',1,'Pasaje literal',7)")
+    service = StandardsService(db)
+    assert service.inventory()['evidence_attention_occurrences'] == 3
+    item = next(row for row in service.reserved_standards()['items'] if row['standard_uid']=='STD-C')
+    assert item['reserve_reason'] == 'Revisá la incidencia de la extracción'
 
 
 def test_detail_quotes_and_publication_policy(tmp_path):
@@ -129,7 +180,7 @@ def test_detail_quotes_and_publication_policy(tmp_path):
     assert detail['tags'] == ['tributario']
     assert [r['relation_type'] for r in detail['relations']] == ['supports']
     assert detail['canonical_suggestions'][0]['other']['statement'].startswith('Los derechos')
-    assert service.get_standard('STD-C') is None
+    assert service.get_standard('STD-C') is not None
 
 
 def test_graph_and_investigation_source(tmp_path):

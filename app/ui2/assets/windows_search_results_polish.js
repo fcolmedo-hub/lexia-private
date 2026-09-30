@@ -50,7 +50,7 @@
 
   if (!document.querySelector('script[data-lexia-windows-maintenance-duplicates]')) {
     const maintenanceDuplicates = document.createElement('script');
-    maintenanceDuplicates.src = 'assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-2';
+    maintenanceDuplicates.src = 'assets/windows_maintenance_duplicates.js?v=maintenance-duplicates-3';
     maintenanceDuplicates.async = false;
     maintenanceDuplicates.dataset.lexiaWindowsMaintenanceDuplicates = '1';
     (document.body || document.documentElement).appendChild(maintenanceDuplicates);

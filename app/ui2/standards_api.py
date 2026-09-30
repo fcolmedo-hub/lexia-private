@@ -182,7 +182,7 @@ def _manual_standard(payload: dict) -> dict:
         "message": (
             "Estándar almacenado y listo para publicarse. La vinculación automática por IA queda pendiente."
             if citation_complete
-            else "Estándar almacenado como reservado. Completá una cita literal con página antes de publicarlo."
+            else "Estándar incorporado con evidencia incompleta. Podés completar la cita literal y la página desde el diccionario."
         ),
     }
 
@@ -381,8 +381,8 @@ def _publication_decision(payload: dict) -> dict:
     decision = str(payload.get("decision") or "").strip().lower()
     if not standard_uid:
         raise ValueError("El estándar reservado es inválido.")
-    if decision not in {"publish", "reserve", "reject"}:
-        raise ValueError("La decisión debe ser publish, reserve o reject.")
+    if decision not in {"publish", "reject"}:
+        raise ValueError("La decisión debe ser publish o reject.")
 
     con = sqlite3.connect(SERVICE.db_path, timeout=5)
     try:
@@ -400,13 +400,9 @@ def _publication_decision(payload: dict) -> dict:
             raise ValueError("El estándar ya fue rechazado.")
 
         if decision == "publish":
-            if not _has_publishable_citation(con, standard_uid):
-                raise ValueError("No se puede publicar: falta una cita literal con página.")
             new_review, new_publication = "validated", "ready"
         elif decision == "reject":
             new_review, new_publication = "rejected", "hidden"
-        else:
-            new_review, new_publication = previous_review, previous_publication
 
         _ensure_publication_decisions_schema(con)
         con.execute(
@@ -444,6 +440,13 @@ def _publication_decision(payload: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _batch_origin_allowed(self) -> bool:
+        origin = self.headers.get("Origin", "")
+        if not origin or origin == "null":  # Desktop WebView/file origin.
+            return True
+        parsed = urlparse(origin)
+        return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}
+
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -466,9 +469,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         try:
+            if parsed.path.startswith("/api/batch-") and not self._batch_origin_allowed():
+                return self._json({"ok": False, "error": "origin_not_allowed"}, 403)
             length = int(self.headers.get("Content-Length") or "0")
             raw = self.rfile.read(length) if length > 0 else b"{}"
             payload = json.loads(raw.decode("utf-8"))
+            if parsed.path.startswith("/api/batch-"):
+                from services import standards_batch_ui as batch_ui
+                if parsed.path == "/api/batch-preview":
+                    return self._json(batch_ui.preview(str(payload.get("folder") or "")))
+                if parsed.path == "/api/batch-prepare":
+                    return self._json(batch_ui.prepare(payload))
+                if parsed.path == "/api/batch-action":
+                    return self._json(batch_ui.act(str(payload.get("job_id") or ""), str(payload.get("action") or "")))
             if parsed.path == "/api/manual-standard":
                 return self._json(_manual_standard(payload))
             if parsed.path == "/api/canonical-decision":
@@ -487,6 +500,27 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         try:
+            if parsed.path.startswith("/api/batch-") and not self._batch_origin_allowed():
+                return self._json({"ok": False, "error": "origin_not_allowed"}, 403)
+            if parsed.path.startswith("/api/batch-"):
+                from services import standards_batch_ui as batch_ui
+                if parsed.path == "/api/batch-folders":
+                    return self._json({"items": batch_ui.folders(_one(qs, "q"))})
+                if parsed.path == "/api/batch-folder-tree":
+                    return self._json({"items": batch_ui.folder_tree(_one(qs, "parent"))})
+                if parsed.path == "/api/batch-courts":
+                    return self._json(batch_ui.court_suggestions())
+            if parsed.path == "/api/batch-status":
+                return self._json(batch_ui.status(_one(qs, "job_id")))
+            if parsed.path == "/api/batch-open-document":
+                path = batch_ui.selected_document_path(_one(qs, "job_id"), _one(qs, "path"))
+                resolved = _resolve_document_path({"document_path": path})
+                if resolved is None:
+                    return self._json({"ok": False, "error": "document_not_found"}, 404)
+                _open_document(resolved)
+                return self._json({"ok": True})
+            if parsed.path == "/api/batch-recent":
+                    return self._json({"items": batch_ui.recent()})
             if parsed.path == "/api/health":
                 return self._json({
                     "ok": True,
@@ -557,6 +591,8 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                 })
             return self._json({"ok": False, "error": "not_found"}, 404)
+        except ValueError as exc:
+            return self._json({"ok": False, "error": str(exc)}, 400)
         except Exception as exc:
             return self._json({"ok": False, "error": str(exc)}, 500)
 

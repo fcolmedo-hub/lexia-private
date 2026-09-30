@@ -19,7 +19,8 @@ python tools/aplicar_relaciones_estandares.py --apply
 
 Si aún no hay una selección, se puede generar un TXT revisable de hasta 250
 fallos de una carpeta. Sólo incluye Jurisprudencia indexada con texto y excluye
-los documentos ya presentes en el diccionario. Para lotes nuevos, usa la
+los documentos ya presentes en el diccionario y los fallos de lotes preparados
+o enviados cuya extracción aún no se importó. Para lotes nuevos, usa la
 huella SHA-256 del PDF indexado para reconocer una copia en Mac y Windows,
 aunque las rutas sean distintas. También evita dos copias idénticas dentro de
 la misma selección. Se ordena por ruta y no se
@@ -32,14 +33,36 @@ python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --li
 1. Preparar localmente los fallos seleccionados y el lote V5:
 
    ```text
-   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt
+   python tools/actualizar_diccionario_estandares.py prepare --paths-file seleccion-estandares.txt --court "Cámara de Apelaciones en lo Civil y Comercial de Santa Fe, Sala I"
    ```
+
+   `--court` (también `--tribunal`) fija el tribunal de todos los fallos del lote.
+   Escribí el nombre completo, incluida la sala cuando corresponda. Si el lote
+   mezcla tribunales, podés usar `--courts-file
+   tribunales.csv` en lugar de `--court`: el CSV en UTF-8 lleva encabezado
+   `document_path,court` y una fila por cada ruta exacta de la selección.
+   `prepare` rechaza rutas adicionales, repetidas, sin tribunal o ausentes.
+   También podés omitir ambos parámetros: la API propondrá el tribunal en la
+   misma extracción de estándares. El tribunal informado manualmente tiene
+   prioridad. El tribunal del catálogo se omite porque puede ser incorrecto.
+   Los datos informados quedan en `prepared_v5/fallos.jsonl` y `state.json`
+   antes de ejecutar `submit-extraction`.
 
 2. Enviar explícitamente la extracción y anotar el `run_id` informado:
 
    ```text
    python tools/actualizar_diccionario_estandares.py submit-extraction --run-id <run-id>
    ```
+
+   Si el lote ya tiene un `batch_id` registrado localmente, repetir este
+   comando continúa con el mismo lote y no crea otro envío. Antes de enviar,
+   LexIA comprueba además los fallos de otros lotes pendientes por ruta o
+   huella del contenido.
+
+   Esta prevención consulta la base y los registros locales de la instalación.
+   Un envío hecho en otra computadora sólo se detecta si se trasladó su base o
+   el registro del lote a esta instalación. Si el catálogo no tiene huella,
+   la comparación se hace únicamente por ruta.
 
 3. Consultar el lote y, cuando termine, recogerlo. La recolección valida la
    evidencia por `unit_ids`, importa los estándares y prepara únicamente las
@@ -49,6 +72,14 @@ python tools/preseleccionar_fallos_estandares.py --path-contains "Santa Fe" --li
    python tools/actualizar_diccionario_estandares.py batch-status --run-id <run-id>
    python tools/actualizar_diccionario_estandares.py collect-extraction --run-id <run-id>
    ```
+
+   La misma respuesta de la API propone tribunal, sala, fecha del fallo y
+   número de expediente, cada uno con `unit_ids` que señalan el texto fuente.
+   LexIA guarda sólo los valores que aparecen literalmente en esas unidades;
+   normaliza fechas reconocidas a `AAAA-MM-DD`. Un dato ausente, ambiguo o sin
+   respaldo queda vacío. Las propuestas, unidades y problemas detectados se
+   conservan en `validated_v5/*_validado.json`; los valores aceptados y su
+   procedencia se guardan en `prepared_v5/fallos.jsonl` antes de importar.
 
 4. Si existen relaciones nuevas, enviarlas y recogerlas:
 
@@ -112,40 +143,32 @@ Las importaciones V5 y la aplicación de nuevas decisiones de relaciones
 actualizan esta capa automáticamente. El proceso es idempotente y no modifica
 ni elimina las apariciones originales.
 
-## Revisión de estándares reservados
+## Evidencia incompleta
 
-Una aparición está almacenada pero reservada cuando todavía no cumple
-`review_status=validated` y `publication_status=ready|published`. La interfaz
-muestra el inventario completo y permite abrir una bandeja de revisión con el
-fallo, la cita, la página, la voz y el tratamiento.
-
-Las decisiones disponibles son:
-
-- `publish`: valida la aparición y la deja lista para el diccionario;
-- `reserve`: conserva sus estados actuales y registra que fue revisada;
-- `reject`: la excluye del producto sin borrar el registro ni su trazabilidad.
-
-Cada decisión queda en `standard_publication_decisions`. Después de publicar o
-rechazar se reconstruye la capa canónica dentro de la misma transacción; no se
-realiza ninguna llamada a la API ni se reextrae el fallo.
-
-La publicación exige al menos una cita literal no vacía y una página positiva.
-La bandeja permite agregar o corregir esa evidencia sin sobrescribir la cita
-extraída por V5: la versión humana se guarda como `manual_review` y la edición
-queda auditada en `standard_citation_decisions`.
+Las apariciones extraídas y las cargas manuales se muestran en el diccionario
+aunque falte una cita literal, su página u otra validación de extracción. Las rechazadas y las versiones
+automáticas reemplazadas permanecen ocultas. La interfaz indica qué evidencia
+falta dentro de cada aparición de la lista general. El usuario
+puede abrir el fallo, completar la cita, confirmar una incidencia con evidencia
+completa o excluir la aparición del diccionario.
+La cita agregada se registra como `manual_review` con auditoría en
+`standard_citation_decisions`; una exclusión se registra en
+`standard_publication_decisions`. El estado histórico `needs_review/blocked`
+permanece en SQLite para preservar su procedencia, sin bloquear la lectura.
+No se inventan citas ni números de página.
 
 ## Formas de ingresar estándares
 
 Hay dos vías complementarias:
 
 1. **Carga manual inmediata.** «Nuevo estándar» recibe la regla, el fallo, la
-   voz, el tratamiento y la evidencia. Con cita y página queda visible; si la
-   evidencia está incompleta se almacena como reservado. Esta vía no consume
+   voz, el tratamiento y la evidencia. Si falta cita o página queda visible
+   con una advertencia de evidencia incompleta. Esta vía no consume
    API.
 2. **Extracción por lotes V5.** Cada fallo puede producir cero, una o varias
    apariciones. Los fallos nuevos se acumulan en una cola y se preparan juntos
    cuando alcanzan el umbral operativo; el envío a la API siempre requiere una
-   acción explícita. Después de validar citas, las apariciones se comparan con
+   acción explícita. Después de recoger la extracción, las apariciones se comparan con
    el diccionario y sólo los pares candidatos pasan al clasificador de
    relaciones, evitando comparaciones de todos contra todos.
 

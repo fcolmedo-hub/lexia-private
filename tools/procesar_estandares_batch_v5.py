@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,23 @@ DEFAULT_WORKDIR = REPO_ROOT / "runtime" / "standards_pilot" / "batch_luna_v5"
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
+        "document_metadata": {
+            "type": "object",
+            "properties": {
+                name: {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": ["string", "null"]},
+                        "unit_ids": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["value", "unit_ids"],
+                    "additionalProperties": False,
+                }
+                for name in ("court", "chamber", "judgment_date", "case_number")
+            },
+            "required": ["court", "chamber", "judgment_date", "case_number"],
+            "additionalProperties": False,
+        },
         "standards": {
             "type": "array",
             "items": {
@@ -43,7 +61,7 @@ SCHEMA: dict[str, Any] = {
             },
         }
     },
-    "required": ["standards"],
+    "required": ["document_metadata", "standards"],
     "additionalProperties": False,
 }
 
@@ -68,7 +86,10 @@ def require_sdk():
     try:
         from openai import OpenAI
     except ImportError as exc:
-        raise RuntimeError("Falta el SDK oficial: python -m pip install --upgrade openai") from exc
+        raise RuntimeError(
+            f"Falta el SDK oficial en el Python de LexIA ({sys.executable}). "
+            f"Instalalo con: \"{sys.executable}\" -m pip install openai"
+        ) from exc
     return OpenAI()
 
 
@@ -187,6 +208,11 @@ def load_state(workdir: Path) -> dict[str, Any]:
 
 
 def cmd_submit(args: argparse.Namespace) -> int:
+    # If the API accepted an earlier attempt but the caller did not record its
+    # stage transition, resume with the recorded batch instead of paying twice.
+    if (args.workdir / "batch_state.json").is_file():
+        print(json.dumps(load_state(args.workdir), ensure_ascii=False, indent=2))
+        return 0
     client = require_sdk()
     request_path = args.workdir / "batch_input.jsonl"
     if not request_path.exists():

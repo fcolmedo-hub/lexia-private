@@ -1,7 +1,33 @@
 import sqlite3
+import json
 from pathlib import Path
 
-from tools.preseleccionar_fallos_estandares import candidates
+from tools.preseleccionar_fallos_estandares import candidates, pending_documents, within_folder
+
+
+def test_pending_runs_retain_path_and_hash_until_imported(tmp_path: Path):
+    run = tmp_path / "runs" / "run-1"
+    (run / "source").mkdir(parents=True)
+    (run / "source" / "fallos.jsonl").write_text(json.dumps({
+        "document_path": "/old/fallo.pdf", "content_hash": "a" * 64,
+    }) + "\n")
+    (run / "state.json").write_text(json.dumps({"stage": "extraction_ready_to_submit"}))
+    assert pending_documents(tmp_path / "runs") == ({"/old/fallo.pdf"}, {"a" * 64})
+    assert pending_documents(tmp_path / "runs", submitted_only=True) == (set(), set())
+    (run / "extraction_batch").mkdir()
+    (run / "extraction_batch" / "batch_state.json").write_text('{"batch_id":"batch_1"}')
+    assert pending_documents(tmp_path / "runs", submitted_only=True)[1] == {"a" * 64}
+    catalog = tmp_path / "catalog.sqlite3"
+    with sqlite3.connect(catalog) as connection:
+        connection.executescript("""
+            CREATE TABLE documents(path TEXT,category TEXT,is_deleted INTEGER,content_hash TEXT);
+            CREATE TABLE fragments(document_path TEXT,text_content TEXT);
+        """)
+        connection.execute("INSERT INTO documents VALUES(?,?,?,?)", ("/new/copia.pdf", "Jurisprudencia", 0, "a" * 64))
+        connection.execute("INSERT INTO fragments VALUES(?,?)", ("/new/copia.pdf", "fallo"))
+    assert candidates(catalog, tmp_path / "missing.sqlite3", "copia", 10, runs_root=tmp_path / "runs") == []
+    (run / "state.json").write_text(json.dumps({"stage": "standards_imported"}))
+    assert pending_documents(tmp_path / "runs") == (set(), set())
 
 
 def test_selection_uses_indexed_judgments_in_folder_and_skips_imported(tmp_path: Path):
@@ -60,3 +86,24 @@ def test_selection_excludes_same_pdf_imported_on_other_platform(tmp_path: Path):
             "/Volumes/Jurisprudencia/duplicado.pdf", f"sha256:{digest}", "{}"
         ))
     assert candidates(catalog, db, "Jurisprudencia", 250) == ["D:/Jurisprudencia/copia.pdf"]
+
+
+def test_exact_folder_includes_children_but_not_similarly_named_siblings(tmp_path: Path):
+    catalog = tmp_path / "catalog.sqlite3"
+    with sqlite3.connect(catalog) as connection:
+        connection.executescript("""
+            CREATE TABLE documents(path TEXT,category TEXT,is_deleted INTEGER);
+            CREATE TABLE fragments(document_path TEXT,text_content TEXT);
+            INSERT INTO documents VALUES('/library/Jurisprudencia/Santa Fe/a.pdf','Jurisprudencia',0);
+            INSERT INTO documents VALUES('/library/Jurisprudencia/Santa Fe/Sala 1/b.pdf','Jurisprudencia',0);
+            INSERT INTO documents VALUES('/library/Jurisprudencia/Santa Fe II/c.pdf','Jurisprudencia',0);
+            INSERT INTO fragments VALUES('/library/Jurisprudencia/Santa Fe/a.pdf','fallo');
+            INSERT INTO fragments VALUES('/library/Jurisprudencia/Santa Fe/Sala 1/b.pdf','fallo');
+            INSERT INTO fragments VALUES('/library/Jurisprudencia/Santa Fe II/c.pdf','fallo');
+        """)
+    assert candidates(catalog, tmp_path / "missing.sqlite3", "Santa Fe", 250, folder="/library/Jurisprudencia/Santa Fe") == [
+        "/library/Jurisprudencia/Santa Fe/a.pdf",
+        "/library/Jurisprudencia/Santa Fe/Sala 1/b.pdf",
+    ]
+    assert within_folder(r"D:\LexIA\Jurisprudencia\Santa Fe\fallo.pdf", "d:/lexia/Jurisprudencia/Santa Fe")
+    assert not within_folder(r"D:\LexIA\Jurisprudencia\Santa Fe II\fallo.pdf", "d:/lexia/Jurisprudencia/Santa Fe")
