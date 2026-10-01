@@ -316,15 +316,19 @@ def _build_thematic_package(builder, catalog, vector_store, documents, objective
             "dentro de este documento."
         )
 
-    max_total = int(SETTINGS.context_builder_max_total_chars)
+    max_total = int(SETTINGS.context_builder_study_max_total_chars)
     reserved = min(14000, max(6000, int(max_total * 0.10)))
-    source_budget = max(12000, max_total - reserved)
+    source_budget = min(
+        int(SETTINGS.context_builder_study_max_chars_per_document),
+        max_total - reserved,
+    )
 
     # Elegimos primero por relevancia. Una zona extensa y coherente puede ocupar
     # la mayor parte del presupuesto: no se fuerza diversidad artificial cuando
     # el tema está concentrado en un solo capítulo del libro.
     chosen = []
     used = 0
+    cut_by_budget = False
     for region in sorted(regions, key=lambda item: item["score"], reverse=True):
         text = _merge_texts(
             [by_index[index]["text_content"] for index in region["indices"]]
@@ -333,13 +337,16 @@ def _build_thematic_package(builder, catalog, vector_store, documents, objective
             continue
         remaining = source_budget - used
         if remaining <= 1200:
+            cut_by_budget = True
             break
         if len(text) > remaining:
-            text = text[:remaining].rsplit(" ", 1)[0].rstrip()
-            text += "\n\n[CORTE POR LÍMITE DEL PAQUETE]"
+            cut_by_budget = True
+            notice = "\n\n[CORTE POR LÍMITE DEL PAQUETE]"
+            text = text[:remaining - len(notice)].rsplit(" ", 1)[0].rstrip() + notice
         chosen.append({**region, "text": text})
         used += len(text)
         if used >= source_budget or len(chosen) >= 12:
+            cut_by_budget = cut_by_budget or len(chosen) < len(regions)
             break
 
     if not chosen:
@@ -435,6 +442,13 @@ Si los pasajes seleccionados no permiten responder algún aspecto, señalalo exp
             "document": document["name"],
             "queries": variants,
             "regions_selected": len(chosen),
+            "study_selection": {
+                "kind": "thematic",
+                "regions_found": len(regions),
+                "regions_included": len(chosen),
+                "included_characters": sum(len(item["text"]) for item in chosen),
+                "cut_by_budget": cut_by_budget,
+            },
             "semantic_available": bool(semantic),
             "pages": document["pages"],
         },
