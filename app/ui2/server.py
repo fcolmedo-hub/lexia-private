@@ -2791,6 +2791,7 @@ def _content_search_v2(
       5) optional semantic filler only when it is explicitly requested.
     """
     from time import perf_counter
+    from legislation_intent import legislation_query_intent, expand_normative_abbreviations, is_legislation
     started = perf_counter()
 
     raw, phrases, terms = _content_search_terms(query)
@@ -2798,9 +2799,13 @@ def _content_search_v2(
         raise ValueError("La consulta está vacía.")
 
     legal_intent = _legal_citation_intent(raw)
+    normative_kinds = legislation_query_intent(raw)
+    search_raw = expand_normative_abbreviations(raw)
+    if search_raw != raw:
+        _, phrases, terms = _content_search_terms(search_raw)
 
     try:
-        boolean_query = parse_boolean_query(raw)
+        boolean_query = parse_boolean_query(search_raw)
     except BooleanQuerySyntaxError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -2829,11 +2834,25 @@ def _content_search_v2(
             category=category,
             folder=folder,
         )
+        if normative_kinds and not category:
+            # Retrieve matching legislation before the Boolean result limit,
+            # preserving document-wide AND/OR/NOT and folder constraints.
+            normative_rows = []
+            for spelling in ("Legislación", "Legislacion"):
+                normative_rows.extend(search_boolean_documents(
+                    db_path, boolean_query, limit=limit, category=spelling, folder=folder,
+                ))
+            unique = {row["document_path"]: row for row in [*boolean_rows, *normative_rows]}
+            boolean_rows = sorted(unique.values(), key=lambda row: (
+                not is_legislation(row.get("category")),
+                float(row.get("lexical_bm25") or 0),
+                row["document_name"].casefold(),
+            ))[:limit]
 
         results = []
 
         for rank, row in enumerate(boolean_rows, start=1):
-            results.append({
+            result = {
                 "document_path": row["document_path"],
                 "document_name": row["document_name"],
                 "category": row["category"],
@@ -2854,9 +2873,12 @@ def _content_search_v2(
                 "near_match": bool(
                     row.get("near_match")
                 ),
-            })
+            }
+            if normative_kinds:
+                result["legislation_priority"] = bool(not category and is_legislation(row.get("category")))
+            results.append(result)
 
-        return {
+        payload = {
             "ok": True,
             "query": raw,
             "results": results,
@@ -2867,14 +2889,20 @@ def _content_search_v2(
             "service": "LexIA Boolean Document Search 1.0",
             "search_strategy": "document_boolean_fts5",
         }
+        if normative_kinds:
+            payload["legislation_intent"] = {
+                "kinds": normative_kinds,
+                "prioritized_category": "Legislación" if not category else None,
+            }
+        return payload
 
     # If the user did not quote anything, the full query itself is still an
     # important legal phrase candidate. This strongly favors literal formulations
     # such as "solve et repete", "plazo razonable", "acción de repetición", etc.
     auto_phrase = ""
-    raw_words = [w for w in raw.split() if w]
+    raw_words = [w for w in search_raw.split() if w]
     if not phrases and 2 <= len(raw_words) <= 12:
-        auto_phrase = raw
+        auto_phrase = search_raw
 
     stages = []
 
@@ -2902,7 +2930,7 @@ def _content_search_v2(
     if not stages:
         stages.append(("phrase", _fts_quote(raw)))
 
-    normalized_raw = _content_norm(raw)
+    normalized_raw = _content_norm(search_raw)
     normalized_terms = [_content_norm(t) for t in terms if t]
     normalized_phrases = [_content_norm(p) for p in phrases if p]
 
@@ -2942,7 +2970,7 @@ def _content_search_v2(
                     "THEN 0 ELSE 1 END"
                 )
                 params.extend([document_pattern, document_pattern])
-            if legal_intent and not category:
+            if (legal_intent or normative_kinds) and not category:
                 # Guarantee that statute fragments enter the candidate pool even
                 # when many judgments quote the same article.
                 legal_order_parts.append(
@@ -3017,6 +3045,8 @@ def _content_search_v2(
                     score += 2000
                 score += coverage * 350
                 score -= row_position * 0.5
+                if normative_kinds and not category and is_legislation(row["category"]):
+                    score += 50000
 
                 article_match, _ = _legal_citation_fragment_signals(
                     text, legal_intent
@@ -3080,6 +3110,8 @@ def _content_search_v2(
                                 legislation_match and not category
                             ),
                         })
+                    elif normative_kinds:
+                        candidate["legislation_priority"] = bool(legislation_match and not category)
                     candidates[key] = candidate
 
             # Enough strong phrase/AND hits: don't let broad OR noise swamp them.
@@ -3107,6 +3139,10 @@ def _content_search_v2(
     selected = []
     per_document = {}
     used_keys = set()
+    if normative_kinds and not category:
+        # Keep primary legislation ahead of citation-only material even when
+        # a broad non-legislative phrase has a particularly high lexical score.
+        ordered.sort(key=lambda item: not is_legislation(item.get("category")))
     for item in ordered:
         path = item["document_path"]
         if per_document.get(path, 0) >= 3:
@@ -3201,7 +3237,7 @@ def _content_search_v2(
         "service": "LexIA Content Search 2.1",
         "search_strategy": (
             "fts5_legal_citation_priority"
-            if legal_intent else "fts5_match_centered_hybrid"
+            if legal_intent else "fts5_legislation_keyword_priority" if normative_kinds else "fts5_match_centered_hybrid"
         ),
     }
     if legal_intent:
@@ -3210,6 +3246,11 @@ def _content_search_v2(
                 f" {legal_intent['suffix']}" if legal_intent.get("suffix") else ""
             ),
             "instrument": legal_intent["instrument"],
+            "prioritized_category": "Legislación" if not category else None,
+        }
+    if normative_kinds:
+        payload["legislation_intent"] = {
+            "kinds": normative_kinds,
             "prioritized_category": "Legislación" if not category else None,
         }
     return payload
