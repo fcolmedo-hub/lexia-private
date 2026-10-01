@@ -16,9 +16,10 @@ import tempfile
 
 
 BASE = "400a1013e493438d6c898a9a55bb6861e97fd691"
+PREVIOUS = "7b2ccb5787aa021d6567338216dc12d1811e567a"
 SERVER = "app/ui2/server.py"
 NAVIGATOR = "app/ui2/navigator_3_3_4a.js"
-DATES = "services/file_creation_dates.py"
+DATES = "services/file_dates.py"
 
 
 def git_text(root: Path, revision: str, name: str) -> str:
@@ -37,27 +38,28 @@ def block(text: str, start: str, end: str) -> str:
     return text[first:last]
 
 
-def replace_block(current: str, before: str, after: str) -> str:
+def replace_block(current: str, before: str, after: str, previous: str = "") -> str:
     if before == after:
         raise ValueError("La revisión no contiene la actualización de fechas.")
     if current.count(after) == 1:
         return current
-    if current.count(before) != 1:
-        raise ValueError("El bloque que se actualizará tiene cambios locales diferentes.")
-    return current.replace(before, after, 1)
+    for known in (before, previous):
+        if known and current.count(known) == 1:
+            return current.replace(known, after, 1)
+    raise ValueError("El bloque que se actualizará tiene cambios locales diferentes.")
 
 
-def patched_text(name: str, current: str, before: str, after: str) -> str:
+def patched_text(name: str, current: str, before: str, after: str, previous: str = "") -> str:
     if name == SERVER:
         start, end = "def _navigator_browse_documents(", "\ndef _navigator_document_preview("
-        updated = replace_block(current, block(before, start, end), block(after, start, end))
+        updated = replace_block(current, block(before, start, end), block(after, start, end), block(previous, start, end) if previous else "")
     elif name == NAVIGATOR:
         updated = current
         for start, end in [
             ("  const date=value=>{", "  const post=async"),
             ("        '<div class=\"result-meta\">'", "      '</div>'+\n      '<button type=\"button\" class=\"lexia-nav-file-menu-trigger\""),
         ]:
-            updated = replace_block(updated, block(before, start, end), block(after, start, end))
+            updated = replace_block(updated, block(before, start, end), block(after, start, end), block(previous, start, end) if previous else "")
     elif name == DATES:
         if current and current != after:
             raise ValueError("Ya existe un servicio de fechas diferente.")
@@ -81,9 +83,10 @@ def prepare(root: Path, source: str) -> list[tuple[Path, bytes | None, bytes]]:
         decoded = original.decode("utf-8-sig") if original is not None else ""
         current = decoded.replace("\r\n", "\n")
         before = git_text(root, BASE, name) if name != DATES else ""
+        previous = git_text(root, PREVIOUS, name) if name != DATES else ""
         after = git_text(root, source, name)
         try:
-            updated = patched_text(name, current, before, after)
+            updated = patched_text(name, current, before, after, previous)
         except (ValueError, SyntaxError) as exc:
             raise ValueError(f"{name}: {exc}") from exc
         if updated == current:
@@ -154,14 +157,14 @@ def main() -> int:
     try:
         plan = prepare(root, args.source)
         if not plan:
-            print("Las fechas de creación ya están instaladas. No se modificó LexIA.")
+            print("Las fechas de modificación ya están instaladas. No se modificó LexIA.")
         elif args.check:
             print("Comprobación correcta. Archivos por actualizar:")
             for path, _original, _data in plan:
                 print("-", path.relative_to(root))
         else:
             backup = apply_plan(root, plan)
-            print(f"Fechas de creación instaladas. Respaldo: {backup}")
+            print(f"Fechas de modificación instaladas. Respaldo: {backup}")
             print("Cerrá LexIA completamente y volvé a abrirla.")
         return 0
     except (OSError, ValueError, UnicodeError, SyntaxError) as exc:

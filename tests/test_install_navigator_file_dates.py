@@ -27,9 +27,24 @@ def setup_installation(monkeypatch, tmp_path):
         note = "\n# Keep local server configuration\n" if name.endswith(".py") else "\n// Keep local navigator selection fixes\n"
         path.write_bytes(("\ufeff" + (before[name] + note).replace("\n", "\r\n")).encode())
     (root / "services").mkdir()
-    monkeypatch.setattr(installer, "git_text", lambda _root, revision, name: before[name] if revision == installer.BASE else after[name])
+    previous = {name: subprocess.check_output(["git", "show", f"{installer.PREVIOUS}:{name}"], cwd=ROOT).decode() for name in (installer.SERVER, installer.NAVIGATOR)}
+    monkeypatch.setattr(installer, "git_text", lambda _root, revision, name: before[name] if revision == installer.BASE else previous[name] if revision == installer.PREVIOUS else after[name])
     monkeypatch.setattr(installer.Path, "home", lambda: tmp_path)
     return root
+
+
+def test_upgrade_from_creation_dates_preserves_local_changes(monkeypatch, tmp_path):
+    root = setup_installation(monkeypatch, tmp_path)
+    for name in (installer.SERVER, installer.NAVIGATOR):
+        previous = subprocess.check_output(["git", "show", f"{installer.PREVIOUS}:{name}"], cwd=ROOT)
+        comment = b"\n# Local config\n" if name.endswith(".py") else b"\n// Local config\n"
+        (root / name).write_bytes(previous + comment)
+    plan = installer.prepare(root, "new-revision")
+    assert len(plan) == 3
+    installer.apply_plan(root, plan)
+    assert b"file_modified_at" in (root / installer.NAVIGATOR).read_bytes()
+    assert b"Local config" in (root / installer.SERVER).read_bytes()
+    assert installer.prepare(root, "new-revision") == []
 
 
 def test_install_preserves_customizations_and_has_no_data_migrations(monkeypatch, tmp_path):
@@ -83,7 +98,7 @@ def test_partial_install_failure_restores_original_files(monkeypatch, tmp_path):
     assert not (root / installer.DATES).exists()
 
 
-def test_navigator_displays_local_creation_date_and_unknown_date():
+def test_navigator_displays_local_modification_date_and_unknown_date():
     script = r'''
 const fs=require('fs');
 const text=fs.readFileSync(process.argv[1],'utf8');
@@ -93,9 +108,9 @@ const state={offset:0,selectedFiles:new Set()};
 const esc=value=>String(value??'').replace(/[&<>"']/g, char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const size=value=>'1 KB',number=value=>String(value);
 const render=new Function('state','esc','size','number',dateBlock+card+'return fileCard;')(state,esc,size,number);
-const row={document_path:'/file.pdf',document_name:'File.pdf',size:1000,total_pages:6,updated_at:'2099-12-31',file_created_at:'2026-10-01T01:30:00+00:00'};
-const known=render(row,0),unknown=render({...row,file_created_at:''},1);
-if(!known.includes('Creado: 30/9/2026')||known.includes('2099'))throw new Error(known);
-if(!unknown.includes('Creación no disponible')||unknown.includes('2099'))throw new Error(unknown);
+const row={document_path:'/file.pdf',document_name:'File.pdf',size:1000,total_pages:6,updated_at:'2099-12-31',file_modified_at:'2026-10-01T01:30:00+00:00'};
+const known=render(row,0),unknown=render({...row,file_modified_at:''},1);
+if(!known.includes('Modificado: 30/9/2026')||known.includes('2099'))throw new Error(known);
+if(!unknown.includes('Modificación no disponible')||unknown.includes('2099'))throw new Error(unknown);
 '''
     subprocess.run(["node", "-e", script, str(ROOT / installer.NAVIGATOR)], env={**os.environ, "TZ": "America/Cordoba"}, check=True, capture_output=True, text=True)

@@ -1,4 +1,4 @@
-"""Filesystem creation dates for the navigator; independent of indexing dates."""
+"""Filesystem modification dates for the navigator; independent of indexing dates."""
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 import math
 from pathlib import Path
 import stat
-import sys
 from threading import Lock
 from time import monotonic
 
@@ -17,8 +16,8 @@ _cache: OrderedDict[str, tuple[float, float | None]] = OrderedDict()
 _lock = Lock()
 
 
-def file_creation_timestamp(path: str) -> float | None:
-    """Use birth time, or Windows' legacy creation time on Python < 3.12."""
+def file_modification_timestamp(path: str) -> float | None:
+    """Read the original file's last content modification timestamp."""
     key = str(path or "")
     if not key:
         return None
@@ -32,9 +31,7 @@ def file_creation_timestamp(path: str) -> float | None:
     try:
         info = Path(key).stat()
         if stat.S_ISREG(info.st_mode):
-            value = getattr(info, "st_birthtime", None)
-            if value is None and sys.platform == "win32" and sys.version_info < (3, 12):
-                value = info.st_ctime
+            value = info.st_mtime
             if value is not None and math.isfinite(float(value)):
                 timestamp = float(value)
     except (OSError, ValueError, TypeError, OverflowError):
@@ -49,7 +46,7 @@ def file_creation_timestamp(path: str) -> float | None:
     return timestamp
 
 
-def file_creation_iso(timestamp: float | None) -> str:
+def file_date_iso(timestamp: float | None) -> str:
     if timestamp is None:
         return ""
     try:

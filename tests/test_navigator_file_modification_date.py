@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from services import file_creation_dates as dates
+from services import file_dates as dates
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,22 +19,21 @@ def empty_cache():
     dates._cache.clear()
 
 
-@pytest.mark.parametrize("system,python_version,info,expected", [
-    ("darwin", (3, 11), dict(st_birthtime=1700000000, st_ctime=1900000000), 1700000000),
-    ("win32", (3, 12), dict(st_birthtime=1700000000, st_ctime=1900000000), 1700000000),
-    ("win32", (3, 11), dict(st_ctime=1700000000), 1700000000),
-    ("linux", (3, 12), dict(st_ctime=1900000000, st_mtime=1800000000), None),
-    ("win32", (3, 12), dict(st_ctime=1900000000), None),
+@pytest.mark.parametrize("info,expected", [
+    (dict(st_birthtime=1800000000, st_ctime=1900000000, st_mtime=1700000000), 1700000000),
+    (dict(st_ctime=1900000000, st_mtime=1700000000), 1700000000),
+    (dict(st_mtime=1700000000), 1700000000),
+    (dict(st_mtime=float("nan")), None),
+    (dict(st_mtime=float("inf")), None),
 ])
-def test_true_creation_time_by_platform(monkeypatch, system, python_version, info, expected):
-    monkeypatch.setattr(dates, "sys", SimpleNamespace(platform=system, version_info=python_version))
+def test_modification_ignores_creation_and_metadata_dates(monkeypatch, info, expected):
     monkeypatch.setattr(dates.Path, "stat", lambda _self: SimpleNamespace(st_mode=stat.S_IFREG, **info))
-    assert dates.file_creation_timestamp("test.pdf") == expected
+    assert dates.file_modification_timestamp("test.pdf") == expected
 
 
 def test_missing_file_does_not_break_navigation(tmp_path):
-    assert dates.file_creation_timestamp(str(tmp_path / "missing.pdf")) is None
-    assert dates.file_creation_iso(None) == ""
+    assert dates.file_modification_timestamp(str(tmp_path / "missing.pdf")) is None
+    assert dates.file_date_iso(None) == ""
 
 
 def test_cache_is_lazy_bounded_and_refreshes(monkeypatch):
@@ -45,17 +44,17 @@ def test_cache_is_lazy_bounded_and_refreshes(monkeypatch):
     monkeypatch.setattr(dates, "_CACHE_LIMIT", 2)
     def get_stat(path):
         calls.append(str(path))
-        return SimpleNamespace(st_mode=stat.S_IFREG, st_birthtime=stamp[0])
+        return SimpleNamespace(st_mode=stat.S_IFREG, st_mtime=stamp[0])
     monkeypatch.setattr(dates.Path, "stat", get_stat)
     assert calls == []
-    assert dates.file_creation_timestamp("a.pdf") == stamp[0]
-    assert dates.file_creation_timestamp("a.pdf") == stamp[0]
+    assert dates.file_modification_timestamp("a.pdf") == stamp[0]
+    assert dates.file_modification_timestamp("a.pdf") == stamp[0]
     assert calls == ["a.pdf"]
     stamp[0] += 3600
     clock[0] += 61
-    assert dates.file_creation_timestamp("a.pdf") == stamp[0]
-    dates.file_creation_timestamp("b.pdf")
-    dates.file_creation_timestamp("c.pdf")
+    assert dates.file_modification_timestamp("a.pdf") == stamp[0]
+    dates.file_modification_timestamp("b.pdf")
+    dates.file_modification_timestamp("c.pdf")
     assert len(dates._cache) == 2
     assert "a.pdf" not in dates._cache
 
@@ -88,10 +87,10 @@ def setup_catalog(tmp_path, count=205):
     return database
 
 
-def test_creation_sort_precedes_pagination_and_ignores_reindexing(monkeypatch, tmp_path):
+def test_modification_sort_precedes_pagination_and_ignores_reindexing(monkeypatch, tmp_path):
     database = setup_catalog(tmp_path)
     stamps = {f"/library/folder/file-{index:03}.pdf": 1700000000 + index * 3600 for index in range(205)}
-    monkeypatch.setattr(dates, "file_creation_timestamp", lambda path: stamps.get(path))
+    monkeypatch.setattr(dates, "file_modification_timestamp", lambda path: stamps.get(path))
     browse = browse_function(database)
     recent = browse(sort="date_desc", limit=200)
     remaining = browse(sort="date_desc", offset=200)
@@ -100,7 +99,7 @@ def test_creation_sort_precedes_pagination_and_ignores_reindexing(monkeypatch, t
     assert len(recent["items"]) == 200
     assert recent["has_more"]
     assert remaining["items"][-1]["document_name"] == "Missing"
-    assert remaining["items"][-1]["file_created_at"] == ""
+    assert remaining["items"][-1]["file_modified_at"] == ""
     names = [item["document_name"] for item in recent["items"] + remaining["items"]]
     assert len(names) == len(set(names)) == 206
     oldest = browse(sort="date_asc", limit=2)
@@ -113,7 +112,7 @@ def test_creation_sort_precedes_pagination_and_ignores_reindexing(monkeypatch, t
 def test_name_navigation_stats_only_visible_files_and_keeps_filters(monkeypatch, tmp_path):
     database = setup_catalog(tmp_path)
     calls = []
-    monkeypatch.setattr(dates, "file_creation_timestamp", lambda path: calls.append(path) or 1700000000)
+    monkeypatch.setattr(dates, "file_modification_timestamp", lambda path: calls.append(path) or 1700000000)
     browse = browse_function(database)
     result = browse(sort="name_asc", offset=50, limit=3)
     assert len(calls) == len(result["items"]) == 3

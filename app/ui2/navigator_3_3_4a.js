@@ -24,9 +24,9 @@
   };
   const date=value=>{
     const raw=String(value||'').trim();
-    if(!raw)return 'Creación no disponible';
+    if(!raw)return 'Modificación no disponible';
     const parsed=new Date(raw);
-    return Number.isNaN(parsed.getTime())?'Creación no disponible':parsed.toLocaleDateString('es-AR');
+    return Number.isNaN(parsed.getTime())?'Modificación no disponible':parsed.toLocaleDateString('es-AR');
   };
   const post=async(url,body)=>{
     const response=await fetch(url,{
@@ -610,8 +610,8 @@
         '<button type="button" class="result-title lexia-nav-file-title lexia-nav-open-file" data-path="'+path+'" data-nav-path="'+path+'" title="Abrir · '+esc(document.document_path||'')+'">'+
           esc(document.document_name||'Documento')+'</button>'+
         '<div class="result-meta">'+esc(extension)+' · '+esc(size(document.size))+
-          (pages?' · '+number(pages)+' pág.':'')+' · <span title="Fecha de creación del archivo">'+
-          (document.file_created_at?'Creado: ':'')+esc(date(document.file_created_at))+'</span></div>'+
+          (pages?' · '+number(pages)+' pág.':'')+' · <span title="Fecha de modificación del archivo">'+
+          (document.file_modified_at?'Modificado: ':'')+esc(date(document.file_modified_at))+'</span></div>'+
       '</div>'+
       '<button type="button" class="lexia-nav-file-menu-trigger" data-nav-menu="'+menuId+
         '" aria-controls="'+menuId+'" aria-haspopup="menu" aria-expanded="false" title="Opciones del archivo">⋯</button>'+
