@@ -1182,6 +1182,8 @@ def _navigator_browse_documents(
     query="", category="", folder="", selections=None,
     include_subfolders=True, sort="name_asc", limit=200, offset=0,
 ):
+    from services.file_creation_dates import file_creation_timestamp, file_creation_iso
+
     query = str(query or "").strip()
     category = str(category or "").strip()
     folder = str(folder or "").strip()
@@ -1218,12 +1220,12 @@ def _navigator_browse_documents(
         "name_asc": "name COLLATE NOCASE ASC,path COLLATE NOCASE ASC",
         "name_desc": "name COLLATE NOCASE DESC,path COLLATE NOCASE DESC",
         "date_desc": (
-            "CASE WHEN COALESCE(updated_at,'')='' THEN 1 ELSE 0 END ASC,"
-            "updated_at DESC,name COLLATE NOCASE ASC"
+            "file_created_ts IS NULL ASC,file_created_ts DESC,"
+            "name COLLATE NOCASE ASC,path COLLATE NOCASE ASC"
         ),
         "date_asc": (
-            "CASE WHEN COALESCE(updated_at,'')='' THEN 1 ELSE 0 END ASC,"
-            "updated_at ASC,name COLLATE NOCASE ASC"
+            "file_created_ts IS NULL ASC,file_created_ts ASC,"
+            "name COLLATE NOCASE ASC,path COLLATE NOCASE ASC"
         ),
         "size_desc": "COALESCE(size,0) DESC,name COLLATE NOCASE ASC",
         "size_asc": "COALESCE(size,0) ASC,name COLLATE NOCASE ASC",
@@ -1233,18 +1235,22 @@ def _navigator_browse_documents(
     }
     if sort not in sort_options:
         sort = "name_asc"
+    creation_sort = sort in {"date_desc", "date_asc"}
+    creation_sql = "lexia_file_created(path)" if creation_sort else "NULL"
 
     where_sql = " AND ".join(where)
     order_sql = sort_options[sort]
     con = sqlite3.connect(str(db_path), timeout=10)
     con.row_factory = sqlite3.Row
+    con.create_function("lexia_file_created", 1, file_creation_timestamp)
     try:
         total = int(con.execute(
             "SELECT COUNT(*) FROM documents WHERE " + where_sql,
             params,
         ).fetchone()[0] or 0)
         rows = con.execute(
-            "SELECT path,name,category,extension,size,total_pages,updated_at "
+            "SELECT path,name,category,extension,size,total_pages,updated_at,"
+            + creation_sql + " AS file_created_ts "
             "FROM documents WHERE " + where_sql + " "
             "ORDER BY " + order_sql + " LIMIT ? OFFSET ?",
             [*params, limit, offset],
@@ -1263,6 +1269,10 @@ def _navigator_browse_documents(
             "size": int(row["size"] or 0),
             "total_pages": row["total_pages"],
             "updated_at": str(row["updated_at"] or ""),
+            "file_created_at": file_creation_iso(
+                row["file_created_ts"] if creation_sort
+                else file_creation_timestamp(str(row["path"] or ""))
+            ),
             "folder_name": str(parts[-2]) if len(parts) >= 2 else "",
         })
 
