@@ -12,6 +12,37 @@ from PIL import Image, ImageOps
 from rapidocr_onnxruntime import RapidOCR
 
 
+class _MacOCRDetectorCV2:
+    """Keep OpenCV operations, using a safe detector resize on Apple Silicon."""
+
+    def __init__(self, cv2_module):
+        self._cv2 = cv2_module
+
+    def __getattr__(self, name):
+        return getattr(self._cv2, name)
+
+    def resize(self, image, dimensions):
+        # OpenCV 5.0 INTER_LINEAR can SIGSEGV when rounding RGB page sizes
+        # down to multiples of 32 on arm64 macOS (opencv/opencv#29794).
+        # This proxy belongs only to RapidOCR's detector utilities; the global
+        # cv2 module and recognition/classification preprocessing stay intact.
+        return self._cv2.resize(
+            image, dimensions, interpolation=self._cv2.INTER_AREA
+        )
+
+
+def _configure_macos_detector_resize() -> bool:
+    import platform
+
+    if sys.platform != "darwin" or platform.machine().lower() != "arm64":
+        return False
+    from rapidocr_onnxruntime.ch_ppocr_det import utils
+
+    if not isinstance(utils.cv2, _MacOCRDetectorCV2):
+        utils.cv2 = _MacOCRDetectorCV2(utils.cv2)
+    return True
+
+
 def _lines(result) -> list[str]:
     return [] if not result else [
         str(item[1]).strip()
@@ -64,6 +95,7 @@ def main() -> int:
     pages = [int(value) for value in json.loads(sys.argv[2])]
     dpi = int(sys.argv[3])
     output_path = Path(sys.argv[4])
+    _configure_macos_detector_resize()
     engine = RapidOCR()
     document = fitz.open(pdf_path)
     try:
