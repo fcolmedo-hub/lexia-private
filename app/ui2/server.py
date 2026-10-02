@@ -113,8 +113,8 @@ def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
             raise ValueError("estado incompleto")
     except Exception as exc:
         raise _DeleteBridgeError(
-            "La interfaz clásica de LexIA debe permanecer abierta para eliminar. "
-            "No se encontró su puente local de borrado seguro.",
+            "El servicio interno de LexIA no está disponible. "
+            "Cerrá LexIA por completo y volvé a abrirla.",
             503,
         ) from exc
 
@@ -138,7 +138,7 @@ def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
         with urllib_request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
             if not isinstance(body, dict):
-                raise _DeleteBridgeError("El puente de la interfaz clásica respondió incorrectamente.")
+                raise _DeleteBridgeError("El servicio interno de LexIA respondió incorrectamente.")
             return body, int(response.status)
     except urllib_error.HTTPError as exc:
         try:
@@ -152,8 +152,8 @@ def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
         ) from exc
     except urllib_error.URLError as exc:
         raise _DeleteBridgeError(
-            "La interfaz clásica de LexIA debe permanecer abierta para eliminar. "
-            "No se encontró su puente local de borrado seguro.",
+            "El servicio interno de LexIA no está disponible. "
+            "Cerrá LexIA por completo y volvé a abrirla.",
             503,
         ) from exc
 
@@ -4707,7 +4707,7 @@ if __name__ == "__main__":
     host = os.environ.get("LEXIA_UI2_HOST", "0.0.0.0")
     port = int(os.environ.get("LEXIA_UI2_PORT", "8512"))
     print(f"LexIA UI2 3.3.0i: http://{host}:{port}")
-    print("Eliminar usa el servicio vivo de la interfaz clásica. Sin AutoSync secundario.")
+    print("Las operaciones de UI2 usan el servicio interno de LexIA.")
     print("Filtros dinámicos: categorías y carpetas reales del catálogo.")
     print("Navegador: vista previa por hover, menú flotante y prioridad al listado.")
     ThreadingHTTPServer((host, port), Handler).serve_forever()
