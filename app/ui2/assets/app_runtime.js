@@ -499,3 +499,14 @@
   loadCaseWorkspace();
 
 })();
+
+;/* LexIA: exact legislation article preview (compatible installation). */
+(function(){
+  'use strict';
+  if(document.querySelector('script[data-lexia-legal-article-preview]'))return;
+  const locator=document.createElement('script');
+  locator.src='assets/legal_article_preview.js?v=1';
+  locator.async=false;
+  locator.dataset.lexiaLegalArticlePreview='1';
+  (document.body||document.documentElement).appendChild(locator);
+})();

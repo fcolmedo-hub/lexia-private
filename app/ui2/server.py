@@ -33,6 +33,10 @@ from backend import LiveReadOnlyAdapter
 from search_runtime import SearchRuntime
 from search.boolean_query import parse_boolean_query, BooleanQuerySyntaxError
 from search.boolean_document_search import search_boolean_documents
+from legal_citations import (
+    article_reference, law_number as legal_law_number, article_matches,
+    article_excerpt, instrument_in_text, instrument_in_filename,
+)
 
 LIVE = LiveReadOnlyAdapter()
 CASES = CaseRepository(SETTINGS.cases_path)
@@ -113,8 +117,8 @@ def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
             raise ValueError("estado incompleto")
     except Exception as exc:
         raise _DeleteBridgeError(
-            "La interfaz clásica de LexIA debe permanecer abierta para eliminar. "
-            "No se encontró su puente local de borrado seguro.",
+            "El servicio interno de LexIA no está disponible. "
+            "Cerrá LexIA por completo y volvé a abrirla.",
             503,
         ) from exc
 
@@ -138,7 +142,7 @@ def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
         with urllib_request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
             if not isinstance(body, dict):
-                raise _DeleteBridgeError("El puente de la interfaz clásica respondió incorrectamente.")
+                raise _DeleteBridgeError("El servicio interno de LexIA respondió incorrectamente.")
             return body, int(response.status)
     except urllib_error.HTTPError as exc:
         try:
@@ -152,8 +156,8 @@ def _delete_bridge_request(method, endpoint, payload=None, timeout=8):
         ) from exc
     except urllib_error.URLError as exc:
         raise _DeleteBridgeError(
-            "La interfaz clásica de LexIA debe permanecer abierta para eliminar. "
-            "No se encontró su puente local de borrado seguro.",
+            "El servicio interno de LexIA no está disponible. "
+            "Cerrá LexIA por completo y volvé a abrirla.",
             503,
         ) from exc
 
@@ -467,6 +471,50 @@ def _preview_page_png(requested_path, page=1, office=False, snippet="", locate=F
         return pixmap.tobytes("png"), selected, total
     finally:
         document.close()
+
+
+def _legal_article_location(requested_path, snippet, fallback_page=1):
+    """Locate the heading in the real PDF, not the fragment's page range."""
+    import re
+    import fitz
+
+    intent = article_reference(snippet)
+    if not intent:
+        return {"ok": True, "found": False}
+    source = Path(_resolve_catalog_document(requested_path=requested_path))
+    if source.suffix.lower() != ".pdf":
+        return {"ok": True, "found": False}
+    snippet_words = set(_normalize_preview_locator_text(snippet).split())
+    best = None
+    with fitz.open(str(source)) as document:
+        for number, page in enumerate(document, 1):
+            lines, offsets, offset = [], [], 0
+            # Scanned PDFs may carry large page images; only text is needed.
+            flags = fitz.TEXTFLAGS_DICT & ~fitz.TEXT_PRESERVE_IMAGES
+            for block in page.get_text("dict", flags=flags).get("blocks", []):
+                for line in block.get("lines", []):
+                    text = "".join(span.get("text", "") for span in line.get("spans", []))
+                    lines.append(text + "\n")
+                    offsets.append((offset, line["bbox"]))
+                    offset += len(text) + 1
+            text = "".join(lines)
+            for match, _ in article_matches(text, intent, headings_only=True):
+                excerpt = article_excerpt(text[match.start():], intent)
+                words = set(_normalize_preview_locator_text(excerpt).split())
+                overlap = len(words & snippet_words) / max(1, len(snippet_words))
+                bounds = next((box for start, box in reversed(offsets) if start <= match.start()), None)
+                if bounds is None:
+                    continue
+                score = (overlap, -abs(number - int(fallback_page or 1)), -number)
+                if best is None or score > best[0]:
+                    best = (score, {
+                        "ok": True, "found": True, "page": number,
+                        "page_count": document.page_count,
+                        "top": max(0, round(float(bounds[1]) - 12, 1)),
+                        "page_height": page.rect.height,
+                        "heading": re.sub(r"\s+", " ", match.group()).strip(),
+                    })
+    return best[1] if best else {"ok": True, "found": False}
 
 def _lexia321_norm(value):
     import re as _re
@@ -1182,6 +1230,8 @@ def _navigator_browse_documents(
     query="", category="", folder="", selections=None,
     include_subfolders=True, sort="name_asc", limit=200, offset=0,
 ):
+    from services.file_dates import file_modification_timestamp, file_date_iso
+
     query = str(query or "").strip()
     category = str(category or "").strip()
     folder = str(folder or "").strip()
@@ -1218,12 +1268,12 @@ def _navigator_browse_documents(
         "name_asc": "name COLLATE NOCASE ASC,path COLLATE NOCASE ASC",
         "name_desc": "name COLLATE NOCASE DESC,path COLLATE NOCASE DESC",
         "date_desc": (
-            "CASE WHEN COALESCE(updated_at,'')='' THEN 1 ELSE 0 END ASC,"
-            "updated_at DESC,name COLLATE NOCASE ASC"
+            "file_modified_ts IS NULL ASC,file_modified_ts DESC,"
+            "name COLLATE NOCASE ASC,path COLLATE NOCASE ASC"
         ),
         "date_asc": (
-            "CASE WHEN COALESCE(updated_at,'')='' THEN 1 ELSE 0 END ASC,"
-            "updated_at ASC,name COLLATE NOCASE ASC"
+            "file_modified_ts IS NULL ASC,file_modified_ts ASC,"
+            "name COLLATE NOCASE ASC,path COLLATE NOCASE ASC"
         ),
         "size_desc": "COALESCE(size,0) DESC,name COLLATE NOCASE ASC",
         "size_asc": "COALESCE(size,0) ASC,name COLLATE NOCASE ASC",
@@ -1233,18 +1283,22 @@ def _navigator_browse_documents(
     }
     if sort not in sort_options:
         sort = "name_asc"
+    modification_sort = sort in {"date_desc", "date_asc"}
+    modification_sql = "lexia_file_modified(path)" if modification_sort else "NULL"
 
     where_sql = " AND ".join(where)
     order_sql = sort_options[sort]
     con = sqlite3.connect(str(db_path), timeout=10)
     con.row_factory = sqlite3.Row
+    con.create_function("lexia_file_modified", 1, file_modification_timestamp)
     try:
         total = int(con.execute(
             "SELECT COUNT(*) FROM documents WHERE " + where_sql,
             params,
         ).fetchone()[0] or 0)
         rows = con.execute(
-            "SELECT path,name,category,extension,size,total_pages,updated_at "
+            "SELECT path,name,category,extension,size,total_pages,updated_at,"
+            + modification_sql + " AS file_modified_ts "
             "FROM documents WHERE " + where_sql + " "
             "ORDER BY " + order_sql + " LIMIT ? OFFSET ?",
             [*params, limit, offset],
@@ -1263,6 +1317,10 @@ def _navigator_browse_documents(
             "size": int(row["size"] or 0),
             "total_pages": row["total_pages"],
             "updated_at": str(row["updated_at"] or ""),
+            "file_modified_at": file_date_iso(
+                row["file_modified_ts"] if modification_sort
+                else file_modification_timestamp(str(row["path"] or ""))
+            ),
             "folder_name": str(parts[-2]) if len(parts) >= 2 else "",
         })
 
@@ -2550,28 +2608,18 @@ def _legal_citation_intent(query):
     import re as _re
 
     normalized = _content_norm(query)
-    article = _re.search(
-        r"\b(?:art(?:iculo)?s?)\.?\s*"
-        r"(?:n(?:ro|umero)?\.?\s*)?"
-        r"(?P<number>\d+(?:[.\s]\d+)?)"
-        r"(?:\s*(?P<suffix>bis|ter|quater|quinquies))?\b",
-        normalized,
-    )
+    article = article_reference(query)
     if not article:
         return None
 
-    article_number = _re.sub(r"\D", "", article.group("number") or "")
+    article_number = article["article"]
     if not article_number:
         return None
-    article_suffix = str(article.group("suffix") or "").strip()
+    article_suffix = article["suffix"]
 
-    law = _re.search(
-        r"\bley(?:\s+(?:n|no|nro|numero)[°º.\s]*)?\s+"
-        r"(?P<number>\d{1,3}(?:\.\d{3})+|\d{3,6})\b",
-        normalized,
-    )
+    law = legal_law_number(query)
     if law:
-        law_number = _re.sub(r"\D", "", law.group("number") or "")
+        law_number = law
         return {
             "article": article_number,
             "suffix": article_suffix,
@@ -2614,42 +2662,9 @@ def _legal_citation_intent(query):
 
 def _legal_citation_fragment_signals(text, intent):
     """Return exact article/instrument matches for a candidate fragment."""
-    import re as _re
-
     if not intent:
         return False, False
-    normalized = _content_norm(text)
-    compact_numbers = _re.sub(r"(?<=\d)[.\s](?=\d)", "", normalized)
-    article = _re.escape(str(intent["article"]))
-    suffix = _re.escape(str(intent.get("suffix") or ""))
-    article_pattern = (
-        r"\b(?:art(?:iculo)?s?|artyculo|art═culo)\.?\s*"
-        r"(?:n(?:ro|umero)?\.?\s*)?" + article
-    )
-    if suffix:
-        article_pattern += r"\s*" + suffix
-    article_pattern += r"\b"
-    article_match = bool(_re.search(article_pattern, compact_numbers))
-
-    if intent.get("instrument_kind") == "law":
-        law_number = _re.escape(str(intent.get("law_number") or ""))
-        instrument_match = bool(
-            law_number
-            and _re.search(r"\bley\b.{0,36}\b" + law_number + r"\b", compact_numbers)
-        )
-    else:
-        code_name = str(intent.get("code_name") or "")
-        code_terms = [
-            word for word in code_name.split()
-            if word not in {"de", "del", "la", "las", "los", "y"}
-        ]
-        code_window = _re.search(r"\bcodigo\b.{0,100}", normalized)
-        instrument_match = bool(
-            code_terms
-            and code_window
-            and all(word in code_window.group(0) for word in code_terms)
-        )
-    return article_match, instrument_match
+    return bool(article_matches(text, intent)), instrument_in_text(text, intent)
 
 
 def _legal_citation_fts_query(intent):
@@ -2705,43 +2720,72 @@ def _legal_citation_document_pattern(intent):
 
 def _legal_article_excerpt(text, intent, max_chars=520):
     """Return an excerpt anchored at the exact requested article heading."""
-    import re as _re
+    return article_excerpt(text, intent, max_chars) if intent else ""
 
-    raw = str(text or "")
-    if not raw or not intent:
-        return ""
-    digits = str(intent.get("article") or "")
-    if not digits:
-        return ""
-    number_pattern = r"[.\s]*".join(_re.escape(char) for char in digits)
-    suffix = _re.escape(str(intent.get("suffix") or ""))
-    pattern = (
-        r"\b(?:art(?:[íi]culo)?s?|art[yý]culo|art═culo)\.?\s*"
-        r"(?:n(?:ro|úmero|umero)?\.?\s*)?" + number_pattern
+
+def _legal_direct_candidates(con, intent, category, folder):
+    """Find the requested instrument even if its heading isn't an FTS token.
+
+    Only read fragments of matching files. Do not scan/open the PDF library or
+    mutate the catalogue as a side effect of a content search.
+    """
+    if not intent:
+        return {}
+    params = [_legal_citation_document_pattern(intent)] * 2
+    sql = (
+        "SELECT path,name,category FROM documents WHERE COALESCE(is_deleted,0)=0 "
+        "AND (REPLACE(LOWER(name),'.','') LIKE ? "
+        "OR REPLACE(LOWER(path),'.','') LIKE ?)"
     )
-    if suffix:
-        pattern += r"\s*" + suffix
-    pattern += r"\b"
-    match = _re.search(pattern, raw, flags=_re.IGNORECASE)
-    if not match:
-        return ""
-
-    start = match.start()
-    end = min(len(raw), start + max(120, int(max_chars or 520)))
-    following = raw[match.end():end]
-    next_article = _re.search(
-        r"(?:\r?\n|\f)\s*"
-        r"(?:art(?:[íi]culo)?s?|art[yý]culo|art═culo)\.?\s*\d+",
-        following,
-        flags=_re.IGNORECASE,
-    )
-    if next_article:
-        end = match.end() + next_article.start()
-
-    excerpt = _re.sub(r"\s+", " ", raw[start:end]).strip()
-    if end < len(raw) and excerpt:
-        excerpt = excerpt.rstrip(" .…") + " …"
-    return excerpt
+    if category:
+        if _filter_category_key(category) == "legislacion":
+            sql += " AND category COLLATE NOCASE IN ('Legislación','Legislacion')"
+        else:
+            sql += " AND category = ? COLLATE NOCASE"
+            params.append(category)
+    else:
+        sql += " AND (category COLLATE NOCASE IN ('Legislación','Legislacion') "
+        sql += "OR REPLACE(LOWER(path),'\\','/') LIKE '%/legislacion/%' "
+        sql += "OR REPLACE(LOWER(path),'\\','/') LIKE '%/legislación/%')"
+    if folder:
+        sql += " AND REPLACE(path,'\\','/') LIKE ? COLLATE NOCASE ESCAPE '!'"
+        params.append(_filter_like_pattern(folder))
+    candidates = {}
+    fragment_columns = {row[1] for row in con.execute("PRAGMA table_info(fragments)")}
+    for document in con.execute(sql, params):
+        path, name = document["path"], document["name"]
+        if not instrument_in_filename(name, path, intent):
+            continue
+        if "text_content" in fragment_columns:
+            rows = con.execute(
+                "SELECT fragment_index,text_content,page_start,page_end FROM fragments "
+                "WHERE document_path=? ORDER BY fragment_index", (path,),
+            )
+        else:
+            rows = con.execute(
+                "SELECT f.fragment_index,f.text_content,fr.page_start,fr.page_end "
+                "FROM fragments_fts f LEFT JOIN fragments fr "
+                "ON fr.document_path=f.document_path "
+                "AND fr.fragment_index=CAST(f.fragment_index AS INTEGER) "
+                "WHERE f.document_path=? ORDER BY CAST(f.fragment_index AS INTEGER)",
+                (path,),
+            )
+        for row in rows:
+            text = article_excerpt(row["text_content"], intent, headings_only=True)
+            if not text:
+                continue
+            index = int(row["fragment_index"] or 0)
+            candidates[(path, index)] = {
+                "document_path": path, "document_name": name,
+                "category": document["category"], "text": text,
+                "page_start": row["page_start"], "page_end": row["page_end"],
+                "fragment_index": index, "lexical_rank": 1, "semantic_rank": None,
+                "_rank_score": 100000.0, "_source": "fts5",
+                "legal_article_match": True, "legal_instrument_match": True,
+                "article_focused": True,
+                "legislation_priority": not category,
+            }
+    return candidates
 
 
 def _content_search_v2(
@@ -2757,6 +2801,7 @@ def _content_search_v2(
       5) optional semantic filler only when it is explicitly requested.
     """
     from time import perf_counter
+    from legislation_intent import legislation_query_intent, expand_normative_abbreviations, is_legislation
     started = perf_counter()
 
     raw, phrases, terms = _content_search_terms(query)
@@ -2764,9 +2809,13 @@ def _content_search_v2(
         raise ValueError("La consulta está vacía.")
 
     legal_intent = _legal_citation_intent(raw)
+    normative_kinds = legislation_query_intent(raw)
+    search_raw = expand_normative_abbreviations(raw)
+    if search_raw != raw:
+        _, phrases, terms = _content_search_terms(search_raw)
 
     try:
-        boolean_query = parse_boolean_query(raw)
+        boolean_query = parse_boolean_query(search_raw)
     except BooleanQuerySyntaxError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -2795,11 +2844,25 @@ def _content_search_v2(
             category=category,
             folder=folder,
         )
+        if normative_kinds and not category:
+            # Retrieve matching legislation before the Boolean result limit,
+            # preserving document-wide AND/OR/NOT and folder constraints.
+            normative_rows = []
+            for spelling in ("Legislación", "Legislacion"):
+                normative_rows.extend(search_boolean_documents(
+                    db_path, boolean_query, limit=limit, category=spelling, folder=folder,
+                ))
+            unique = {row["document_path"]: row for row in [*boolean_rows, *normative_rows]}
+            boolean_rows = sorted(unique.values(), key=lambda row: (
+                not is_legislation(row.get("category")),
+                float(row.get("lexical_bm25") or 0),
+                row["document_name"].casefold(),
+            ))[:limit]
 
         results = []
 
         for rank, row in enumerate(boolean_rows, start=1):
-            results.append({
+            result = {
                 "document_path": row["document_path"],
                 "document_name": row["document_name"],
                 "category": row["category"],
@@ -2820,9 +2883,12 @@ def _content_search_v2(
                 "near_match": bool(
                     row.get("near_match")
                 ),
-            })
+            }
+            if normative_kinds:
+                result["legislation_priority"] = bool(not category and is_legislation(row.get("category")))
+            results.append(result)
 
-        return {
+        payload = {
             "ok": True,
             "query": raw,
             "results": results,
@@ -2833,14 +2899,20 @@ def _content_search_v2(
             "service": "LexIA Boolean Document Search 1.0",
             "search_strategy": "document_boolean_fts5",
         }
+        if normative_kinds:
+            payload["legislation_intent"] = {
+                "kinds": normative_kinds,
+                "prioritized_category": "Legislación" if not category else None,
+            }
+        return payload
 
     # If the user did not quote anything, the full query itself is still an
     # important legal phrase candidate. This strongly favors literal formulations
     # such as "solve et repete", "plazo razonable", "acción de repetición", etc.
     auto_phrase = ""
-    raw_words = [w for w in raw.split() if w]
+    raw_words = [w for w in search_raw.split() if w]
     if not phrases and 2 <= len(raw_words) <= 12:
-        auto_phrase = raw
+        auto_phrase = search_raw
 
     stages = []
 
@@ -2868,7 +2940,7 @@ def _content_search_v2(
     if not stages:
         stages.append(("phrase", _fts_quote(raw)))
 
-    normalized_raw = _content_norm(raw)
+    normalized_raw = _content_norm(search_raw)
     normalized_terms = [_content_norm(t) for t in terms if t]
     normalized_phrases = [_content_norm(p) for p in phrases if p]
 
@@ -2883,6 +2955,8 @@ def _content_search_v2(
         ).fetchone()
         if not fts_exists:
             raise RuntimeError("El índice FTS5 fragments_fts no existe.")
+
+        candidates.update(_legal_direct_candidates(con, legal_intent, category, folder))
 
         for stage_index, (stage_name, match_query) in enumerate(stages):
             params = [match_query]
@@ -2906,7 +2980,7 @@ def _content_search_v2(
                     "THEN 0 ELSE 1 END"
                 )
                 params.extend([document_pattern, document_pattern])
-            if legal_intent and not category:
+            if (legal_intent or normative_kinds) and not category:
                 # Guarantee that statute fragments enter the candidate pool even
                 # when many judgments quote the same article.
                 legal_order_parts.append(
@@ -2981,6 +3055,8 @@ def _content_search_v2(
                     score += 2000
                 score += coverage * 350
                 score -= row_position * 0.5
+                if normative_kinds and not category and is_legislation(row["category"]):
+                    score += 50000
 
                 article_match, _ = _legal_citation_fragment_signals(
                     text, legal_intent
@@ -3044,6 +3120,8 @@ def _content_search_v2(
                                 legislation_match and not category
                             ),
                         })
+                    elif normative_kinds:
+                        candidate["legislation_priority"] = bool(legislation_match and not category)
                     candidates[key] = candidate
 
             # Enough strong phrase/AND hits: don't let broad OR noise swamp them.
@@ -3071,6 +3149,10 @@ def _content_search_v2(
     selected = []
     per_document = {}
     used_keys = set()
+    if normative_kinds and not category:
+        # Keep primary legislation ahead of citation-only material even when
+        # a broad non-legislative phrase has a particularly high lexical score.
+        ordered.sort(key=lambda item: not is_legislation(item.get("category")))
     for item in ordered:
         path = item["document_path"]
         if per_document.get(path, 0) >= 3:
@@ -3165,7 +3247,7 @@ def _content_search_v2(
         "service": "LexIA Content Search 2.1",
         "search_strategy": (
             "fts5_legal_citation_priority"
-            if legal_intent else "fts5_match_centered_hybrid"
+            if legal_intent else "fts5_legislation_keyword_priority" if normative_kinds else "fts5_match_centered_hybrid"
         ),
     }
     if legal_intent:
@@ -3174,6 +3256,11 @@ def _content_search_v2(
                 f" {legal_intent['suffix']}" if legal_intent.get("suffix") else ""
             ),
             "instrument": legal_intent["instrument"],
+            "prioritized_category": "Legislación" if not category else None,
+        }
+    if normative_kinds:
+        payload["legislation_intent"] = {
+            "kinds": normative_kinds,
             "prioritized_category": "Legislación" if not category else None,
         }
     return payload
@@ -4135,6 +4222,21 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": str(exc)}, 409)
 
+        if path == "/api/legal-article-location":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                if length > 16384:
+                    return self._json({"ok": False, "error": "Solicitud demasiado grande"}, 400)
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                return self._json(_legal_article_location(
+                    str(body.get("path") or ""), str(body.get("snippet") or "")[:4000],
+                    max(1, int(body.get("page") or 1)),
+                ))
+            except (ValueError, FileNotFoundError, PermissionError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 409)
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)}, 500)
+
         if path == "/api/file-details":
             try:
                 length = int(self.headers.get("Content-Length", "0") or 0)
@@ -4338,6 +4440,19 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+
+        if path in {"/", "/index.html"}:
+            try:
+                from windows_parity_frontend import render_index
+                rendered = render_index((HERE / "index.html").read_text(encoding="utf-8-sig")).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(rendered)))
+                self.end_headers()
+                self.wfile.write(rendered)
+                return
+            except (OSError, ValueError) as exc:
+                return self._json({"ok": False, "error": str(exc)}, 503)
 
         if path == "/api/cases":
             try:
@@ -4707,7 +4822,7 @@ if __name__ == "__main__":
     host = os.environ.get("LEXIA_UI2_HOST", "0.0.0.0")
     port = int(os.environ.get("LEXIA_UI2_PORT", "8512"))
     print(f"LexIA UI2 3.3.0i: http://{host}:{port}")
-    print("Eliminar usa el servicio vivo de la interfaz clásica. Sin AutoSync secundario.")
+    print("Las operaciones de UI2 usan el servicio interno de LexIA.")
     print("Filtros dinámicos: categorías y carpetas reales del catálogo.")
     print("Navegador: vista previa por hover, menú flotante y prioridad al listado.")
     ThreadingHTTPServer((host, port), Handler).serve_forever()

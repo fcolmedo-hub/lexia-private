@@ -576,6 +576,7 @@ def _handler_class(application, token):
         "elapsed_seconds": 0.0,
     }
     study_result = None
+    study_pending = None
     research_lock = threading.RLock()
     research_state = {
         "job_id": None,
@@ -1293,18 +1294,42 @@ def _handler_class(application, token):
         return {"ok": True, "job_id": job_id, "state": dict(package_state)}
 
     def start_study(body):
-        nonlocal study_result
-        source = Path(str(body.get("path", "") or "")).expanduser().resolve()
-        if not source.is_file():
-            raise FileNotFoundError("El archivo indicado no existe.")
-        library_root = Path(SETTINGS.library_path).expanduser().resolve()
-        source.relative_to(library_root)
+        nonlocal study_result, study_pending
+        confirm_id = str(body.get("confirm_job_id", "") or "")
+        cancel_id = str(body.get("cancel_job_id", "") or "")
+        if cancel_id:
+            with study_lock:
+                if study_state["phase"] != "awaiting_confirmation" or cancel_id != study_state["job_id"]:
+                    raise ValueError("La confirmación del estudio ya no está vigente.")
+                study_pending = None
+                study_state.update({
+                    "phase": "idle", "status": "Estudio cancelado. No se consultó la API.",
+                    "percentage": 0, "truncation": None, "selection": None,
+                })
+                return {"ok": True, "state": dict(study_state)}
 
+        prepared = None
         with study_lock:
-            if study_state["phase"] in {"queued", "building", "saving", "answering"}:
-                raise RuntimeError("Ya hay un estudio de archivo en curso.")
-            job_id = uuid.uuid4().hex
-            study_result = None
+            if confirm_id:
+                if study_state["phase"] != "awaiting_confirmation" or confirm_id != study_state["job_id"] or study_pending is None:
+                    raise ValueError("La confirmación del estudio ya no está vigente.")
+                prepared = study_pending
+                study_pending = None
+                source = prepared["source"]
+                request = prepared["request"]
+                job_id = confirm_id
+            else:
+                source = Path(str(body.get("path", "") or "")).expanduser().resolve()
+                if not source.is_file():
+                    raise FileNotFoundError("El archivo indicado no existe.")
+                library_root = Path(SETTINGS.library_path).expanduser().resolve()
+                source.relative_to(library_root)
+                if study_state["phase"] in {"queued", "building", "saving", "answering"}:
+                    raise RuntimeError("Ya hay un estudio de archivo en curso.")
+                request = dict(body)
+                job_id = uuid.uuid4().hex
+                study_pending = None
+                study_result = None
             study_state.update({
                 "job_id": job_id,
                 "phase": "queued",
@@ -1312,10 +1337,12 @@ def _handler_class(application, token):
                 "percentage": 5,
                 "error": None,
                 "elapsed_seconds": 0.0,
+                "truncation": None,
+                "selection": None,
             })
 
         def worker():
-            nonlocal study_result
+            nonlocal study_result, study_pending
             started = time.monotonic()
             try:
                 with study_lock:
@@ -1324,13 +1351,36 @@ def _handler_class(application, token):
                         "status": "Analizando el documento con el motor de LexIA...",
                         "percentage": 45,
                     })
-                package = application.context_builder.build_documents_package(
+                package = prepared["package"] if prepared else application.context_builder.build_documents_package(
                     documents=[(source, source.name)],
-                    objective=str(body.get("objective", "Investigación jurídica") or "Investigación jurídica"),
-                    instruction=str(body.get("instruction", "") or ""),
-                    document_type=str(body.get("document_type", "Detección automática") or "Detección automática"),
+                    objective=str(request.get("objective", "Investigación jurídica") or "Investigación jurídica"),
+                    instruction=str(request.get("instruction", "") or ""),
+                    document_type=str(request.get("document_type", "Detección automática") or "Detección automática"),
                 )
                 package.title = "Analisis_" + source.stem
+                if not prepared:
+                    lengths = list((package.interpretation or {}).get("source_lengths") or [])
+                    truncated = [item for item in lengths if item["available"] > item["included"]]
+                    selection = (package.interpretation or {}).get("study_selection")
+                    if truncated or selection:
+                        item = truncated[0] if truncated else None
+                        with study_lock:
+                            study_pending = {"package": package, "source": source, "request": request}
+                            study_state.update({
+                                "phase": "awaiting_confirmation",
+                                "status": (
+                                    "El archivo excede el límite del estudio. Confirmá si querés analizar solo la parte incluida."
+                                    if item else "LexIA seleccionó pasajes temáticos del documento. Confirmá antes de enviarlos a la API."
+                                ),
+                                "percentage": 85,
+                                "truncation": {
+                                    "available": item["available"],
+                                    "included": item["included"],
+                                    "omitted": item["available"] - item["included"],
+                                } if item else None,
+                                "selection": selection if selection else None,
+                            })
+                        return
                 with study_lock:
                     study_state.update({
                         "phase": "saving",
@@ -1344,9 +1394,9 @@ def _handler_class(application, token):
                         "status": "Consultando ChatGPT para analizar el archivo...",
                         "percentage": 92,
                     })
-                instruction = str(body.get("instruction", "") or "").strip()
+                instruction = str(request.get("instruction", "") or "").strip()
                 objective = str(
-                    body.get("objective", "Análisis de jurisprudencia")
+                    request.get("objective", "Análisis de jurisprudencia")
                     or "Análisis de jurisprudencia"
                 ).strip()
                 query = instruction or f"{objective}: {source.name}"
@@ -1370,6 +1420,7 @@ def _handler_class(application, token):
             except Exception as exc:
                 elapsed = time.monotonic() - started
                 with study_lock:
+                    study_pending = None
                     study_state.update({
                         "phase": "error",
                         "status": "El estudio produjo un error",
