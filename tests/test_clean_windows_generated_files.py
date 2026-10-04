@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 spec = importlib.util.spec_from_file_location("cleanup", Path(__file__).parents[1] / "scripts" / "clean_windows_generated_files.py")
@@ -123,6 +124,69 @@ class CleanupTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cleanup.make_plan(self.root)
         self.assertTrue(old.exists())
+
+
+class ProcessTests(unittest.TestCase):
+    root = Path(r"D:\LexIA_2.3_DEV")
+    script = r"C:\Users\Franco Olmedo\Temp\lexia-limpiar-123.py"
+
+    def launcher(self, pid=2976, executable=None):
+        return {"ProcessId": pid, "Name": "python.exe",
+                "ExecutablePath": executable or r"D:\LexIA_2.3_DEV\.venv\Scripts\python.exe",
+                "CommandLine": '"python.exe" -B "' + self.script + '" --root D:\\LexIA_2.3_DEV --apply'}
+
+    def ignored(self, processes, argv=None):
+        if argv is None:
+            argv = ["python.exe", "-B", self.script, "--root", str(self.root), "--apply"]
+        return cleanup.own_launcher_pids(processes, self.root, 3000, 2976, self.script, lambda command: argv)
+
+    def test_exact_parent_redirector_is_ignored(self):
+        self.assertEqual(self.ignored([self.launcher()]), {3000, 2976})
+
+    def test_unrelated_process_with_same_command_is_not_ignored(self):
+        self.assertEqual(self.ignored([self.launcher(5000)]), {3000})
+
+    def test_real_lexia_parent_is_not_ignored(self):
+        self.assertEqual(self.ignored([self.launcher()], ["python.exe", "run_lexia_services.py"]), {3000})
+
+    def test_script_named_as_c_argument_is_not_ignored(self):
+        self.assertEqual(self.ignored([self.launcher()], ["python.exe", "-c", "print('test')", self.script]), {3000})
+
+    def test_other_executable_is_not_ignored(self):
+        self.assertEqual(self.ignored([self.launcher(executable=r"C:\Python\python.exe")]), {3000})
+
+    def test_missing_command_line_is_not_ignored(self):
+        item = self.launcher()
+        item["CommandLine"] = None
+        self.assertEqual(self.ignored([item]), {3000})
+
+    def test_services_remain_blocked_after_parent_exemption(self):
+        service = {"ProcessId": 5555, "Name": "python.exe",
+                   "ExecutablePath": r"D:\LexIA_2.3_DEV\.venv\Scripts\python.exe",
+                   "CommandLine": "python.exe run_lexia_services.py"}
+        with patch.object(cleanup.socket, "socket") as socket_mock, \
+                patch.object(cleanup.subprocess, "run") as run_mock, \
+                patch.object(cleanup, "own_launcher_pids", return_value={3000, 2976}), \
+                patch.object(cleanup.os, "getpid", return_value=3000):
+            socket_mock.return_value.__enter__.return_value.connect_ex.return_value = 1
+            run_mock.return_value.stdout = json.dumps([self.launcher(), service])
+            with self.assertRaisesRegex(ValueError, "5555"):
+                cleanup.check_stopped(self.root)
+
+    def test_parent_only_does_not_block_cleanup(self):
+        with patch.object(cleanup.socket, "socket") as socket_mock, \
+                patch.object(cleanup.subprocess, "run") as run_mock, \
+                patch.object(cleanup, "own_launcher_pids", return_value={3000, 2976}), \
+                patch.object(cleanup.os, "getpid", return_value=3000):
+            socket_mock.return_value.__enter__.return_value.connect_ex.return_value = 1
+            run_mock.return_value.stdout = json.dumps([self.launcher()])
+            self.assertEqual(cleanup.check_stopped(self.root), [2976])
+
+    def test_listening_service_blocks_before_process_checks(self):
+        with patch.object(cleanup.socket, "socket") as socket_mock:
+            socket_mock.return_value.__enter__.return_value.connect_ex.return_value = 0
+            with self.assertRaisesRegex(ValueError, "8512"):
+                cleanup.check_stopped(self.root)
 
 
 if __name__ == "__main__":

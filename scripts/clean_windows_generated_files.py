@@ -3,6 +3,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import ntpath
 import os
 from pathlib import Path
 import socket
@@ -141,6 +142,53 @@ def make_plan(root, protected=()):
     return records, sorted(directories, key=lambda p: len(p.parts), reverse=True), notes
 
 
+def windows_argv(command):
+    """Parse native Windows quoting, including quoted paths containing spaces."""
+    import ctypes
+    from ctypes import wintypes
+    count = ctypes.c_int()
+    parse = ctypes.windll.shell32.CommandLineToArgvW
+    parse.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
+    parse.restype = ctypes.POINTER(ctypes.c_wchar_p)
+    pointer = parse(command, ctypes.byref(count))
+    if not pointer:
+        raise ctypes.WinError()
+    free = ctypes.windll.kernel32.LocalFree
+    free.argtypes = [ctypes.c_void_p]
+    free.restype = ctypes.c_void_p
+    try:
+        return [pointer[i] for i in range(count.value)]
+    finally:
+        free(ctypes.cast(pointer, ctypes.c_void_p))
+
+
+def own_launcher_pids(processes, root, pid, parent_pid, script, parser=windows_argv):
+    """The venv redirector is a separate parent process on Windows.
+
+    Ignore only our direct parent with the expected venv executable and the
+    exact cleanup script argument. Other LexIA Python processes remain blocked.
+    """
+    normalized = lambda value: ntpath.normcase(ntpath.normpath(str(value)))
+    executables = {normalized(root / ".venv" / "Scripts" / name)
+                   for name in ("python.exe", "pythonw.exe")}
+    ignored = {pid}
+    for item in processes:
+        if item["ProcessId"] != parent_pid:
+            continue
+        if normalized(item.get("ExecutablePath") or "") not in executables:
+            continue
+        command = str(item.get("CommandLine") or "")
+        if not command:
+            continue
+        argv = parser(command)
+        arguments = argv[1:]
+        while arguments and arguments[0] in ("-B", "-u", "-E", "-s", "-I"):
+            arguments = arguments[1:]
+        if arguments and normalized(arguments[0]) == normalized(script):
+            ignored.add(parent_pid)
+    return ignored
+
+
 def check_stopped(root):
     for port in (8512, 8513, 8515, 8153):
         with socket.socket() as connection:
@@ -152,12 +200,14 @@ def check_stopped(root):
     processes = json.loads(result.stdout or "[]")
     if isinstance(processes, dict):
         processes = [processes]
+    ignored = own_launcher_pids(processes, root, os.getpid(), os.getppid(), Path(sys.argv[0]).absolute())
     for item in processes:
         name = str(item.get("Name") or "").lower()
-        if item["ProcessId"] != os.getpid() and ("python" in name or "lexia" in name or "soffice" in name):
+        if item["ProcessId"] not in ignored and ("python" in name or "lexia" in name or "soffice" in name):
             detail = str(item.get("ExecutablePath") or "") + " " + str(item.get("CommandLine") or "")
             if str(root).casefold() in detail.casefold():
                 raise ValueError(f"Cerra el proceso de LexIA {item['ProcessId']} ({name}) antes de limpiar.")
+    return sorted(ignored - {os.getpid()})
 
 
 def apply(root, records, directories, log):
@@ -224,9 +274,9 @@ def main():
     protected = [getattr(SETTINGS, name) for name in SETTINGS.__dataclass_fields__
                  if isinstance(getattr(SETTINGS, name), Path)
                  and name not in ("runtime_path", "logs_path", "backups_path", "exports_path")]
-    check_stopped(root)
+    launchers = check_stopped(root)
     records, directories, notes = make_plan(root, protected)
-    print(json.dumps({"candidates": len(records), "MB": round(sum(r["bytes"] for r in records) / 1024**2, 2), "notes": notes}, indent=2))
+    print(json.dumps({"candidates": len(records), "MB": round(sum(r["bytes"] for r in records) / 1024**2, 2), "own_python_launcher_pids": launchers, "notes": notes}, indent=2))
     if args.apply:
         check_stopped(root)
         log_folder = root / "logs"
