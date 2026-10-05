@@ -46,6 +46,27 @@ def fingerprint(path):
     return [value.st_size, value.st_mtime_ns]
 
 
+def wal_state(source, root, guard):
+    """Track pending content, not empty sidecars created by a read-only reader."""
+    wal = source.with_name(source.name + "-wal")
+    guard["safe_parents"](root, wal)
+    try:
+        linked = guard["linked"](wal)
+    except FileNotFoundError:
+        return None
+    if linked:
+        raise ValueError(f"Archivo WAL enlazado: {wal}")
+    if not wal.exists():
+        return None
+    before = fingerprint(wal)
+    checksum = digest(wal) if before[0] else None
+    if not wal.exists() or fingerprint(wal) != before:
+        raise ValueError(f"El archivo WAL cambio durante su comprobacion: {source.name}")
+    # SQLite may leave a zero-byte WAL after backing up a closed WAL database.
+    # Nonempty WALs include a content hash to detect same-size writes as well.
+    return [before[0], checksum] if before[0] else None
+
+
 def dropped(name, project_name="LexIA_2.3_DEV"):
     name = name.replace("\\", "/")
     if name.split("/", 1)[0].casefold() == project_name.casefold():
@@ -275,7 +296,7 @@ def recovery_backup(root, databases, code, guard):
     # Include pending WAL changes when deciding whether a prior backup is reusable.
     for source in databases:
         wal = source.with_name(source.name + "-wal")
-        states[str(wal.relative_to(root))] = fingerprint(wal) if wal.exists() else None
+        states[str(wal.relative_to(root))] = wal_state(source, root, guard)
     destination_root = root / "backups"
     guard["safe_parents"](root, destination_root / "cleanup_recovery_manifest.json")
     destination_root.mkdir(exist_ok=True)
@@ -323,7 +344,7 @@ def recovery_backup(root, databases, code, guard):
                 raise ValueError(f"El archivo actual cambio durante el respaldo: {source}")
         for source in databases:
             wal = source.with_name(source.name + "-wal")
-            if (fingerprint(wal) if wal.exists() else None) != states[str(wal.relative_to(root))]:
+            if wal_state(source, root, guard) != states[str(wal.relative_to(root))]:
                 raise ValueError(f"La base cambio durante el respaldo: {source.name}")
         manifest = {"purpose": "lexia-catalog-retirement-v1", "source_states": states, "sha256": hashes,
                     "note": "Copia verificada de bases SQLite y codigo/configuracion/aplicacion local. Biblioteca, archivos de ejecuciones IA y Qdrant no se retiran; sus originales se conservan. No es una copia integral del disco."}

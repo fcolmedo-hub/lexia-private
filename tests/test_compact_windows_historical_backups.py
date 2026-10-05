@@ -1,6 +1,7 @@
 import contextlib
 import importlib.util
 import io
+import os
 from pathlib import Path
 import shutil
 import sqlite3
@@ -185,6 +186,79 @@ class HistoricalCleanupTests(unittest.TestCase):
         second, _, created = cleanup.recovery_backup(self.root, [source], code, guard)
         self.assertFalse(created)
         self.assertEqual(first, second)
+
+    def test_closed_wal_database_reader_creates_empty_sidecar_without_blocking_backup(self):
+        self.repo()
+        source = self.database("runtime/knowledge.sqlite3")
+        with contextlib.closing(sqlite3.connect(source)) as connection:
+            connection.execute("PRAGMA journal_mode=WAL")
+        wal = source.with_name(source.name + "-wal")
+        self.assertFalse(wal.exists())
+        code = cleanup.source_files(self.root, guard)
+        first, _, created = cleanup.recovery_backup(self.root, [source], code, guard)
+        self.assertTrue(created)
+        self.assertTrue(wal.exists())
+        self.assertEqual(wal.stat().st_size, 0)
+        with contextlib.closing(sqlite3.connect(first / "runtime/knowledge.sqlite3")) as copied:
+            self.assertEqual(copied.execute("SELECT text FROM documents").fetchone()[0], "current text")
+        second, _, created = cleanup.recovery_backup(self.root, [source], code, guard)
+        self.assertFalse(created)
+        self.assertEqual(first, second)
+
+    def test_real_wal_write_during_backup_blocks_retirement_and_preserves_old_archive(self):
+        self.repo()
+        source = self.database("runtime/knowledge.sqlite3")
+        archive, _ = self.archive()
+        original = archive.read_bytes()
+        worker = cleanup.run_snapshot_worker
+        with contextlib.closing(sqlite3.connect(source)) as writer:
+            writer.execute("PRAGMA journal_mode=WAL")
+            writer.execute("INSERT INTO documents VALUES ('before.pdf', 'pending WAL text')")
+            writer.commit()
+            main_before = source.read_bytes()
+            def write_after_copy(src, target):
+                result = worker(src, target, stdout=subprocess.DEVNULL)
+                writer.execute("INSERT INTO documents VALUES ('after.pdf', 'new write')")
+                writer.commit()
+                return result
+            with patch.object(cleanup, "run_snapshot_worker", side_effect=write_after_copy):
+                with self.assertRaisesRegex(ValueError, "La base cambio"):
+                    cleanup.recovery_backup(self.root, [source], cleanup.source_files(self.root, guard), guard)
+            self.assertEqual(source.read_bytes(), main_before)
+        self.assertEqual(archive.read_bytes(), original)
+        self.assertFalse(list((self.root / "backups").glob(".lexia-cleanup-current-*")))
+
+    def test_wal_content_hash_detects_same_size_same_timestamp_write(self):
+        source = self.database()
+        wal = source.with_name(source.name + "-wal")
+        wal.write_bytes(b"initial WAL content")
+        before = cleanup.wal_state(source, self.root, guard)
+        timestamp = wal.stat().st_mtime_ns
+        wal.write_bytes(b"changed WAL content")
+        os.utime(wal, ns=(timestamp, timestamp))
+        self.assertNotEqual(cleanup.wal_state(source, self.root, guard), before)
+
+    def test_wal_unchanged_content_ignores_timestamp_and_empty_file_presence(self):
+        source = self.database()
+        wal = source.with_name(source.name + "-wal")
+        self.assertIsNone(cleanup.wal_state(source, self.root, guard))
+        wal.touch()
+        self.assertIsNone(cleanup.wal_state(source, self.root, guard))
+        wal.write_bytes(b"pending content")
+        before = cleanup.wal_state(source, self.root, guard)
+        timestamp = wal.stat().st_mtime_ns + 1000000
+        os.utime(wal, ns=(timestamp, timestamp))
+        self.assertEqual(cleanup.wal_state(source, self.root, guard), before)
+
+    @unittest.skipIf(sys.platform == "win32", "Symlink creation requires separate Windows privilege")
+    def test_wal_link_is_rejected(self):
+        source = self.database()
+        external = self.root / "external"
+        external.write_bytes(b"preserve")
+        source.with_name(source.name + "-wal").symlink_to(external)
+        with self.assertRaisesRegex(ValueError, "WAL enlazado"):
+            cleanup.wal_state(source, self.root, guard)
+        self.assertEqual(external.read_bytes(), b"preserve")
 
     def test_failed_database_backup_preserves_old_files_and_removes_own_staging(self):
         self.repo()
