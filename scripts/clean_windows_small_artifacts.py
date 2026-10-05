@@ -36,7 +36,7 @@ def protected_path(path, protected):
 
 def source_for_bytecode(path):
     if path.parent.name == "__pycache__":
-        match = re.fullmatch(r"(.+)\.cpython-\d+(?:\.opt-\d+)?\.pyc", path.name)
+        match = re.fullmatch(r"(.+)\.cpython-\d+(?:\.opt-\d+|-pytest-\d+(?:\.\d+)*)?\.pyc", path.name)
         return path.parent.parent / (match[1] + ".py") if match else None
     return path.with_suffix(".py") if path.suffix == ".pyc" else None
 
@@ -45,6 +45,10 @@ def cache_reason(path, guard):
     source = source_for_bytecode(path)
     if source is not None and source.is_file() and not guard["linked"](source):
         return "bytecode_python_con_fuente_presente"
+    if source is not None and source.name.startswith("test_") and "tests" in source.parts:
+        obsolete = source.with_name(source.name + ".obsolete")
+        if obsolete.is_file() and not guard["linked"](obsolete):
+            return "bytecode_prueba_obsoleta_con_fuente_conservada"
     if path.name == ".DS_Store":
         with path.open("rb") as stream:
             if stream.read(8) == b"\x00\x00\x00\x01Bud1":
@@ -134,6 +138,32 @@ def clean(root, records, cache_dirs, guard, log):
     return removed
 
 
+def backup_folder_inventory(root, skipped, guard):
+    result = []
+    for item in skipped:
+        folder = root / item["path"]
+        if item["reason"] != "carpeta_conservada" or not folder.name.casefold().startswith(("backup", "respaldo")):
+            continue
+        files, pending, links = [], [folder], 0
+        while pending:
+            current = pending.pop()
+            guard["safe_parents"](root, current)
+            if guard["linked"](current):
+                links += 1
+                continue
+            for path in sorted(current.iterdir()):
+                if guard["linked"](path):
+                    links += 1
+                elif path.is_dir():
+                    pending.append(path)
+                elif path.is_file():
+                    files.append({"path": path.relative_to(root).as_posix(), "bytes": path.stat().st_size})
+        result.append({"path": item["path"], "files_total": len(files),
+                       "MB": round(sum(file["bytes"] for file in files) / 1024**2, 2),
+                       "links_skipped": links, "files": files})
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(r"D:\LexIA_2.3_DEV"))
@@ -152,21 +182,27 @@ def main():
     protected = [getattr(SETTINGS, name) for name in SETTINGS.__dataclass_fields__
                  if isinstance(getattr(SETTINGS, name), Path)]
     records, cache_dirs, review, skipped = make_plan(root, guard, protected)
+    folders = backup_folder_inventory(root, skipped, guard)
     groups = Counter(record["reason"] for record in records)
+    bytecode_review = [item for item in review if item["reason"] == "bytecode_sin_fuente_identificable"]
+    other_review = [item for item in review if item["reason"] != "bytecode_sin_fuente_identificable"]
     logs = root / "logs"
     guard["safe_parents"](root, logs / "small-cleanup.json")
     logs.mkdir(exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     report = logs / ("small-cleanup-" + stamp + ".json")
     details = {"apply_requested": args.apply, "candidates": records,
-               "review_preserved": review, "skipped": skipped, "cleanup_completed": False}
+               "review_preserved": review, "skipped": skipped,
+               "backup_folders_preserved": folders, "cleanup_completed": False}
     with report.open("x", encoding="utf-8") as stream:
         json.dump(details, stream, ensure_ascii=False, indent=2)
     print(json.dumps({"candidates": len(records), "by_type": dict(groups),
                       "MB": round(sum(record["bytes"] for record in records) / 1024**2, 2),
-                      "review_preserved": review[:80], "review_preserved_total": len(review),
-                      "preserved_folders_for_review": [item for item in skipped
-                                                        if item["reason"] == "carpeta_conservada"],
+                      "review_preserved": other_review[:80], "review_preserved_total": len(review),
+                      "other_review_total": len(other_review),
+                      "bytecode_preserved_total": len(bytecode_review),
+                      "bytecode_preserved_examples": bytecode_review[:8],
+                      "preserved_folders_for_review": [{**item, "files": item["files"][:80]} for item in folders],
                       "report": str(report)}, ensure_ascii=False, indent=2), flush=True)
     if args.apply:
         guard["check_stopped"](root)

@@ -62,6 +62,30 @@ class SmallCleanupTests(unittest.TestCase):
         self.assertEqual(review[0]["reason"], "bytecode_sin_fuente_identificable")
         self.assertTrue(orphan.exists())
 
+    def test_pytest_versioned_bytecode_is_removed_with_source_preserved(self):
+        source = self.file("tests/test_case.py", b"# current test source")
+        bytecode = self.file("tests/__pycache__/test_case.cpython-311-pytest-8.4.1.pyc")
+        records, _, _ = self.clean()
+        self.assertEqual(len(records), 1)
+        self.assertTrue(source.exists())
+        self.assertFalse(bytecode.exists())
+
+    def test_obsolete_test_bytecode_removed_only_with_preserved_obsolete_source(self):
+        source = self.file("tests/test_case.py.obsolete", b"# preserved obsolete test")
+        bytecode = self.file("tests/__pycache__/test_case.cpython-311-pytest-8.4.1.pyc")
+        regular = self.file("tests/__pycache__/test_case.cpython-311.pyc")
+        records, _, _ = self.clean()
+        self.assertEqual(len(records), 2)
+        self.assertTrue(source.exists())
+        self.assertFalse(bytecode.exists())
+        self.assertFalse(regular.exists())
+
+    def test_unrecognized_pytest_suffix_is_preserved(self):
+        self.file("tests/test_case.py")
+        bytecode = self.file("tests/__pycache__/test_case.cpython-311-pytest-custom.pyc")
+        self.clean()
+        self.assertTrue(bytecode.exists())
+
     def test_tracked_cache_is_preserved(self):
         _, bytecode = self.cache()
         subprocess.run(["git", "-C", str(self.root), "add", str(bytecode.relative_to(self.root))], check=True)
@@ -95,6 +119,10 @@ class SmallCleanupTests(unittest.TestCase):
                          {str(path.relative_to(self.root)) for path in (copy, temporary, installer)})
         self.assertTrue(all(path.exists() for path in (copy, temporary, installer, backup_cache)))
         self.assertTrue(any(item["path"] == "app/ui2/backup_20261001" for item in skipped))
+        inventory = cleanup.backup_folder_inventory(self.root, skipped, guard)
+        self.assertEqual(inventory[0]["files_total"], 2)
+        self.assertEqual({item["path"] for item in inventory[0]["files"]},
+                         {"app/ui2/backup_20261001/module.py", "app/ui2/backup_20261001/__pycache__/module.cpython-311.pyc"})
 
     def test_verified_os_caches_only(self):
         finder = self.file("app/.DS_Store", b"\x00\x00\x00\x01Bud1rest")
@@ -169,6 +197,24 @@ class SmallCleanupTests(unittest.TestCase):
         self.assertEqual(report["files_removed"], 1)
         self.assertEqual(report["review_preserved"][0]["path"], "services/local.py.bak")
         self.assertEqual(len(list((self.root / "logs").glob("*.jsonl"))), 1)
+
+    def test_report_does_not_hide_local_backups_behind_bytecode_list(self):
+        for i in range(90):
+            self.file(f"tests/__pycache__/test_orphan{i}.cpython-311.pyc")
+        self.file("app/ui2/index.html.bak")
+        tested_guard = dict(guard, check_stopped=Mock())
+        settings = types.SimpleNamespace(__dataclass_fields__={})
+        with patch.object(sys, "platform", "win32"), \
+                patch.object(sys, "argv", ["cleaner.py", "--root", str(self.root)]), \
+                patch.object(sys, "path", sys.path[:]), \
+                patch.object(cleanup, "load_guard", return_value=tested_guard), \
+                patch.dict(sys.modules, {"config.settings": types.SimpleNamespace(SETTINGS=settings)}), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            cleanup.main()
+        displayed = json.JSONDecoder().raw_decode(output.getvalue())[0]
+        self.assertEqual(displayed["bytecode_preserved_total"], 90)
+        self.assertEqual(len(displayed["bytecode_preserved_examples"]), 8)
+        self.assertEqual(displayed["review_preserved"][0]["path"], "app/ui2/index.html.bak")
 
 
 if __name__ == "__main__":
