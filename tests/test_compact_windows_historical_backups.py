@@ -7,9 +7,10 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 
 
@@ -191,7 +192,7 @@ class HistoricalCleanupTests(unittest.TestCase):
         (self.root / "backups").mkdir()
         old, _ = self.archive()
         original = old.read_bytes()
-        with patch.object(cleanup, "snapshot_database", side_effect=ValueError("invalid database")):
+        with patch.object(cleanup, "run_snapshot_worker", side_effect=ValueError("invalid database")):
             with self.assertRaises(ValueError):
                 cleanup.recovery_backup(self.root, [source], cleanup.source_files(self.root, guard), guard)
         self.assertEqual(old.read_bytes(), original)
@@ -239,6 +240,75 @@ class HistoricalCleanupTests(unittest.TestCase):
         self.assertEqual(len(list((self.root / "backups").glob("lexia-cleanup-current-*"))), 1)
         self.run_main()
         self.assertEqual(len(list((self.root / "backups").glob("lexia-cleanup-current-*"))), 1)
+
+    def test_busy_backup_has_bounded_idle_wait(self):
+        times = iter([0, 1, 61])
+        progress = cleanup.BackupProgress("catalog", idle_seconds=60, clock=lambda: next(times))
+        progress(sqlite3.SQLITE_BUSY, 0, 0)
+        with self.assertRaisesRegex(TimeoutError, "sin avanzar"):
+            progress(sqlite3.SQLITE_BUSY, 0, 0)
+
+    def test_advancing_backup_reports_progress(self):
+        times = iter([0, 1, 70])
+        progress = cleanup.BackupProgress("catalog", clock=lambda: next(times))
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            progress(sqlite3.SQLITE_OK, 100, 200)
+            progress(sqlite3.SQLITE_DONE, 0, 200)
+        self.assertIn("50.0%", output.getvalue())
+        self.assertIn("100.0%", output.getvalue())
+
+    def test_backup_has_total_deadline(self):
+        times = iter([0, 601])
+        progress = cleanup.BackupProgress("catalog", clock=lambda: next(times))
+        with self.assertRaisesRegex(TimeoutError, "supero"):
+            progress(sqlite3.SQLITE_DONE, 0, 200)
+
+    def test_integrity_query_deadline_interrupts_and_removes_handler(self):
+        times = iter([0, 2])
+        with sqlite3.connect(":memory:") as connection:
+            with self.assertRaisesRegex(TimeoutError, "supero"):
+                cleanup.checked_query(connection,
+                    "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<100000) SELECT SUM(x) FROM n",
+                    "Integrity", max_seconds=1, clock=lambda: next(times))
+            self.assertEqual(connection.execute("SELECT 1").fetchone(), (1,))
+
+    def test_real_worker_copies_and_verifies_database(self):
+        source = self.database()
+        target = self.root / "backup/catalog.sqlite3"
+        result = cleanup.run_snapshot_worker(source, target, stdout=subprocess.DEVNULL)
+        self.assertEqual(result, cleanup.digest(target))
+        self.assertTrue(target.with_name(target.name + ".verified.json").exists())
+
+    def test_real_locked_database_times_out_without_modifying_original(self):
+        source = self.database()
+        before = source.read_bytes()
+        with sqlite3.connect(source) as locker:
+            locker.execute("BEGIN EXCLUSIVE")
+            started = time.monotonic()
+            with self.assertRaisesRegex(TimeoutError, "supero"):
+                cleanup.run_snapshot_worker(source, self.root / "backup/catalog.sqlite3", max_seconds=1, stdout=subprocess.DEVNULL)
+            self.assertLess(time.monotonic() - started, 5)
+            self.assertEqual(source.read_bytes(), before)
+
+    def test_cancellation_stops_only_the_owned_worker(self):
+        source = self.database()
+        process = Mock()
+        process.poll.return_value = None
+        process.wait.side_effect = KeyboardInterrupt
+        with patch.object(cleanup.subprocess, "Popen", return_value=process), \
+                patch.object(cleanup, "stop_snapshot_worker") as stop:
+            with self.assertRaises(KeyboardInterrupt):
+                cleanup.run_snapshot_worker(source, self.root / "copy.sqlite3")
+        stop.assert_called_once_with(process)
+        self.assertTrue(source.exists())
+
+    def test_windows_worker_shutdown_includes_venv_child(self):
+        process = Mock(pid=9000000)
+        process.poll.return_value = None
+        with patch.object(sys, "platform", "win32"), patch.object(cleanup.subprocess, "run") as run:
+            cleanup.stop_snapshot_worker(process)
+        self.assertEqual(run.call_args.args[0], ["taskkill.exe", "/PID", "9000000", "/T", "/F"])
+        process.wait.assert_called_once_with(timeout=10)
 
 
 if __name__ == "__main__":

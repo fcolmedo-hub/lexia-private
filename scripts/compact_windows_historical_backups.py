@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 
 GUARD_REVISION = "73b4fd58c8a53e6bfed87ddf7880bdeb235f7de5"
@@ -25,11 +26,18 @@ RETIRED = (
 )
 
 
-def digest(path):
+def digest(path, report=False):
     value = hashlib.sha256()
+    size, read = path.stat().st_size, 0
+    started = last = time.monotonic()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             value.update(block)
+            read += len(block)
+            now = time.monotonic()
+            if report and now - last >= 5:
+                print(f"  Huella SHA256: {100 * read / max(size, 1):.1f}% ({now - started:.0f}s)", flush=True)
+                last = now
     return value.hexdigest()
 
 
@@ -91,22 +99,119 @@ def compact_archive(path, project_name="LexIA_2.3_DEV"):
     return original_size - path.stat().st_size, removed
 
 
+class BackupProgress:
+    def __init__(self, label, max_seconds=600, idle_seconds=60, clock=time.monotonic):
+        self.label, self.limit, self.idle, self.clock = label, max_seconds, idle_seconds, clock
+        self.started = self.advanced = clock()
+        self.last_report = self.started - 5
+        self.best = -1
+
+    def __call__(self, status, remaining, total):
+        now = self.clock()
+        elapsed = now - self.started
+        if elapsed > self.limit:
+            raise TimeoutError(f"La copia de {self.label} supero {self.limit}s; no se retiraron catalogos antiguos.")
+        busy = status in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
+        copied = max(0, total - remaining)
+        if not busy and copied > self.best:
+            self.best, self.advanced = copied, now
+        if now - self.advanced > self.idle:
+            raise TimeoutError(f"La copia de {self.label} lleva {self.idle}s sin avanzar (estado SQLite {status}).")
+        if now - self.last_report >= 5 or status == sqlite3.SQLITE_DONE:
+            if busy:
+                print(f"  Esperando bloqueo SQLite (estado {status}, {elapsed:.0f}s)", flush=True)
+            else:
+                print(f"  Copia: {100 * copied / max(total, 1):.1f}% ({copied}/{total} paginas, {elapsed:.0f}s)", flush=True)
+            self.last_report = now
+
+
+def checked_query(connection, query, label, max_seconds=300, clock=time.monotonic):
+    started = last = clock()
+    expired = False
+    print(f"  {label}...", flush=True)
+    def progress():
+        nonlocal last, expired
+        now = clock()
+        if now - started > max_seconds:
+            expired = True
+            return 1
+        if now - last >= 5:
+            print(f"  {label}: trabajando ({now - started:.0f}s)", flush=True)
+            last = now
+        return 0
+    connection.set_progress_handler(progress, 10000)
+    try:
+        return connection.execute(query).fetchall()
+    except sqlite3.OperationalError as error:
+        if expired:
+            raise TimeoutError(f"{label} supero {max_seconds}s.") from error
+        raise
+    finally:
+        connection.set_progress_handler(None, 0)
+
+
 def snapshot_database(source, target):
     if target.exists():
         raise ValueError(f"La copia ya existe: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as original:
-        with closing(sqlite3.connect(target)) as copied:
-            original.backup(copied)
+    print(f"  Iniciando copia por tandas: {source.name}", flush=True)
+    with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True, timeout=3)) as original:
+        with closing(sqlite3.connect(target, timeout=3)) as copied:
+            original.backup(copied, pages=1024, progress=BackupProgress(source.name), sleep=0.1)
             copied.commit()
-            if copied.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
+            if checked_query(copied, "PRAGMA quick_check", "Comprobacion de integridad") != [("ok",)]:
                 raise ValueError(f"La copia SQLite no supero quick_check: {source.name}")
             if source.name == "lexia_catalog.sqlite3":
-                before = original.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
-                after = copied.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+                before = checked_query(original, "SELECT COUNT(*) FROM documents", "Conteo del catalogo original", 120)[0][0]
+                after = checked_query(copied, "SELECT COUNT(*) FROM documents", "Conteo de la copia", 120)[0][0]
                 if not before or before != after:
                     raise ValueError("La copia del catalogo no conserva el conteo de documentos.")
-    return digest(target)
+    print("  Verificando huella SHA256...", flush=True)
+    result = digest(target, report=True)
+    print(f"  Copia verificada: {source.name}", flush=True)
+    return result
+
+
+def stop_snapshot_worker(process):
+    if process.poll() is not None:
+        return
+    if sys.platform == "win32":
+        # Windows venv launches a redirector and a child interpreter. Both belong
+        # to this freshly started worker; killing only the redirector leaves an orphan.
+        subprocess.run(["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=True)
+    else:
+        process.kill()
+    process.wait(timeout=10)
+
+
+def run_snapshot_worker(source, target, max_seconds=900, stdout=None):
+    marker = target.with_name(target.name + ".verified.json")
+    if target.exists() or marker.exists():
+        raise ValueError("La copia o su comprobante ya existen; se conservan.")
+    command = [sys.executable, "-B", "-u", str(Path(__file__).resolve()),
+               "--snapshot-worker", str(source), str(target)]
+    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    process = subprocess.Popen(command, stdout=stdout, stderr=stdout, creationflags=flags)
+    started = time.monotonic()
+    try:
+        while process.poll() is None:
+            if time.monotonic() - started > max_seconds:
+                raise TimeoutError(f"El respaldo de {source.name} supero {max_seconds}s; se cancela solo su trabajador.")
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                continue
+        if process.returncode != 0:
+            raise ValueError(f"No se completo la copia de {source.name}; ver el detalle de la etapa anterior.")
+        verification = json.loads(marker.read_text(encoding="utf-8"))
+        checksum = verification.get("sha256", "")
+        if (verification.get("bytes") != target.stat().st_size or len(checksum) != 64
+                or any(c not in "0123456789abcdef" for c in checksum)):
+            raise ValueError("El comprobante de la copia no es valido.")
+        return checksum
+    finally:
+        stop_snapshot_worker(process)
 
 
 def source_files(root, guard):
@@ -200,13 +305,15 @@ def recovery_backup(root, databases, code, guard):
         for source in databases:
             print(f"Respaldando base: {source.relative_to(root)}", flush=True)
             relative = str(source.relative_to(root))
-            hashes[relative] = snapshot_database(source, staging / relative)
+            hashes[relative] = run_snapshot_worker(source, staging / relative)
         archive = staging / "local_code_and_configuration.zip"
+        print("Respaldando codigo, configuracion y aplicacion instalada...", flush=True)
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as backup:
             for path in code:
                 backup.write(path, str(path.relative_to(root)))
             patch = subprocess.check_output(["git", "diff", "HEAD", "--binary"], cwd=root)
             backup.writestr("__cleanup_metadata__/git_worktree_changes.patch", patch)
+        print("Comprobando el ZIP del respaldo actual...", flush=True)
         with zipfile.ZipFile(archive) as backup:
             if backup.testzip() is not None:
                 raise ValueError("La copia del codigo no supero la comprobacion CRC.")
@@ -257,7 +364,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(r"D:\LexIA_2.3_DEV"))
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--snapshot-worker", nargs=2, type=Path, metavar=("SOURCE", "TARGET"), help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.snapshot_worker:
+        source, target = args.snapshot_worker
+        checksum = snapshot_database(source, target)
+        marker = target.with_name(target.name + ".verified.json")
+        with marker.open("x", encoding="utf-8") as stream:
+            json.dump({"sha256": checksum, "bytes": target.stat().st_size}, stream)
+        return
     if sys.platform != "win32":
         raise ValueError("Esta herramienta esta destinada a Windows.")
     root = args.root.absolute()
@@ -347,6 +462,7 @@ def main():
                 raise ValueError("El ZIP antiguo cambio a un enlace.")
             log.write(json.dumps({"planned_zip_compaction": str(archive), "retired_entries": removed_members}) + "\n")
             log.flush()
+            print("Compactando y verificando el ZIP historico...", flush=True)
             amount, _ = compact_archive(archive, root.name)
             reclaimed += amount
             log.write(json.dumps({"verified_zip_compaction": str(archive), "bytes_recovered": amount}) + "\n")
