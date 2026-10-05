@@ -8,6 +8,7 @@ import sys
 import tempfile
 import types
 import unittest
+import zipfile
 from unittest.mock import Mock, patch
 
 
@@ -215,6 +216,96 @@ class SmallCleanupTests(unittest.TestCase):
         self.assertEqual(displayed["bytecode_preserved_total"], 90)
         self.assertEqual(len(displayed["bytecode_preserved_examples"]), 8)
         self.assertEqual(displayed["review_preserved"][0]["path"], "app/ui2/index.html.bak")
+
+    def consolidate(self, protected=(), stamp="test"):
+        _, review, skipped = self.clean_plan(protected)
+        folders = cleanup.backup_folder_inventory(self.root, skipped, guard)
+        (self.root / "logs").mkdir(exist_ok=True)
+        return cleanup.consolidate_reviewed(self.root, review, folders, protected,
+                                           dict(guard, check_stopped=Mock()), stamp)
+
+    def clean_plan(self, protected=()):
+        records, _, review, skipped = cleanup.make_plan(self.root, guard, protected)
+        return records, review, skipped
+
+    def test_consolidation_archives_reviewed_files_and_preserves_current_code(self):
+        current = self.file("storage/catalog.py", b"current catalog code")
+        backup = self.file("storage/catalog.py.bak_logfix_batch2", b"unique old code")
+        installer = self.file("scripts/install_pr24_windows.py", b"old installer")
+        orphan = self.file("storage/__pycache__/catalog.py.batch2.cpython-311.pyc", b"unique bytecode")
+        ui = self.file("app/ui2/index.html", b"current customized UI")
+        ui_backup = self.file("app/ui2/backup_ui2_331a_20260816_151234/index.html", b"old unique UI")
+        untouched = self.file("services/unfinished.tmp", b"possible pending work")
+        originals = {path.relative_to(self.root).as_posix(): path.read_bytes()
+                     for path in (backup, installer, orphan, ui_backup)}
+        result = self.consolidate()
+        self.assertEqual(result["files_consolidated"], 4)
+        with zipfile.ZipFile(result["archive"]) as package:
+            for name, content in originals.items():
+                self.assertEqual(package.read(name), content)
+        self.assertTrue(all(not (self.root / name).exists() for name in originals))
+        self.assertEqual(current.read_bytes(), b"current catalog code")
+        self.assertEqual(ui.read_bytes(), b"current customized UI")
+        self.assertTrue(untouched.exists())
+        self.assertEqual(self.consolidate(stamp="retry")["files_consolidated"], 0)
+
+    def test_referenced_artifact_is_not_archived_or_deleted(self):
+        self.file("storage/catalog.py")
+        backup = self.file("storage/catalog.py.bak_logfix_batch2")
+        self.file("services/loader.py", b"source = 'catalog.py.bak_logfix_batch2'")
+        result = self.consolidate()
+        self.assertEqual(result["files_consolidated"], 0)
+        self.assertEqual(result["preserved"][0]["reason"], "referencia_en_codigo_local")
+        self.assertTrue(backup.exists())
+
+    def test_archive_validation_failure_preserves_all_originals(self):
+        self.file("storage/catalog.py")
+        backup = self.file("storage/catalog.py.bak_logfix_batch2", b"unique old code")
+        with patch.object(zipfile.ZipFile, "testzip", return_value="corrupt entry"):
+            with self.assertRaisesRegex(ValueError, "CRC"):
+                self.consolidate()
+        self.assertEqual(backup.read_bytes(), b"unique old code")
+
+    def test_source_change_after_archive_verification_blocks_removal(self):
+        self.file("storage/catalog.py")
+        backup = self.file("storage/catalog.py.bak_logfix_batch2", b"unique old code")
+        original_digest = guard["digest"]
+        calls = 0
+        def changed_digest(path):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                backup.write_bytes(b"new unique old code")
+            return original_digest(path)
+        with patch.dict(guard, {"digest": changed_digest}):
+            with self.assertRaisesRegex(ValueError, "cambio"):
+                self.consolidate()
+        self.assertEqual(backup.read_bytes(), b"new unique old code")
+
+    def test_tracked_backup_and_configured_artifact_are_preserved(self):
+        self.file("storage/catalog.py")
+        tracked = self.file("storage/catalog.py.bak_logfix_batch2")
+        configured = self.file("scripts/install_pr24_windows.py")
+        subprocess.run(["git", "-C", str(self.root), "add", str(tracked.relative_to(self.root))], check=True)
+        result = self.consolidate(protected=[configured])
+        self.assertEqual(result["files_consolidated"], 0)
+        self.assertTrue(tracked.exists())
+        self.assertTrue(configured.exists())
+
+    def test_backup_with_additional_files_is_not_consolidated(self):
+        self.file("app/ui2/index.html")
+        old = self.file("app/ui2/backup_ui2_331a_20260816_151234/index.html")
+        unique = self.file("app/ui2/backup_ui2_331a_20260816_151234/unique_notes.txt")
+        self.assertEqual(self.consolidate()["files_consolidated"], 0)
+        self.assertTrue(old.exists())
+        self.assertTrue(unique.exists())
+
+    def test_missing_current_source_keeps_historical_copy(self):
+        backup = self.file("storage/catalog.py.bak_logfix_batch2")
+        result = self.consolidate()
+        self.assertEqual(result["files_consolidated"], 0)
+        self.assertEqual(result["preserved"][0]["reason"], "falta_el_archivo_operativo_actual")
+        self.assertTrue(backup.exists())
 
 
 if __name__ == "__main__":
